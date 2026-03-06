@@ -259,8 +259,10 @@ const App: React.FC = () => {
             </div>
 
             <div className="parameters-grid">
+              <div className="input-section-title">Valores Base</div>
+
               <div className="input-group">
-                <label>Custo do Produto (R$)</label>
+                <label><ShoppingCart size={16} /> Custo do Produto (R$)</label>
                 <input
                   type="number"
                   name="custoProduto"
@@ -273,7 +275,7 @@ const App: React.FC = () => {
               <div className="input-group">
                 {aba === 'margem' ? (
                   <>
-                    <label>Preço de Venda (R$)</label>
+                    <label><TrendingUp size={16} /> Preço de Venda (R$)</label>
                     <input
                       type="number"
                       name="precoVenda"
@@ -285,7 +287,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <label className="label-with-icon">
-                      Lucro Desejado sobre Custo (%)
+                      <TrendingUp size={16} /> Lucro Desejado sobre Custo (%)
                       <span className="help-icon" title="Margem de lucro desejada sobre o custo do produto. Ex: 20% significa que você quer ter R$20 de lucro para cada R$100 de custo.">
                         <HelpCircle size={16} />
                       </span>
@@ -300,8 +302,11 @@ const App: React.FC = () => {
                   </>
                 )}
               </div>
+
+              <div className="input-section-title">Impostos e Custos Fixos</div>
+
               <div className="input-group">
-                <label>Imposto</label>
+                <label><Sparkles size={16} /> Imposto</label>
                 <div className="input-composite">
                   <input
                     type="number"
@@ -325,7 +330,57 @@ const App: React.FC = () => {
               </div>
 
               <div className="input-group">
-                <label>Ads (Marketing)</label>
+                <label><RotateCcw size={16} /> Despesas Fixas Embalagem</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="despesaFixa"
+                    className="input-main"
+                    value={inputs.despesaFixa ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 1.50"
+                  />
+                  <select
+                    name="despesaFixaTipo"
+                    className="input-unit"
+                    value={inputs.despesaFixaTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="fixo">R$</option>
+                    <option value="porcentagem">%</option>
+                  </select>
+                </div>
+                <span className="input-hint">Caixa, fita, etiqueta...</span>
+              </div>
+
+              <div className="input-group">
+                <label><Calculator size={16} /> Outras Despesas</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="despesaAdicional"
+                    className="input-main"
+                    value={inputs.despesaAdicional ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 0.50"
+                  />
+                  <select
+                    name="despesaAdicionalTipo"
+                    className="input-unit"
+                    value={inputs.despesaAdicionalTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="porcentagem">%</option>
+                    <option value="fixo">R$</option>
+                  </select>
+                </div>
+                <span className="input-hint">Custos operacionais diversos</span>
+              </div>
+
+              <div className="input-section-title">Marketing e Descontos</div>
+
+              <div className="input-group">
+                <label><RefreshCcw size={16} /> Ads (Marketing)</label>
                 <div className="input-composite">
                   <input
                     type="number"
@@ -350,7 +405,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="input-group">
-                <label>Crédito de Rebate</label>
+                <label><Sparkles size={16} /> Crédito de Rebate</label>
                 <div className="input-composite">
                   <input
                     type="number"
@@ -374,55 +429,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="input-group">
-                <label>Despesas Fixas Embalagem</label>
-                <div className="input-composite">
-                  <input
-                    type="number"
-                    name="despesaFixa"
-                    className="input-main"
-                    value={inputs.despesaFixa ?? ''}
-                    onChange={handleChange}
-                    placeholder="Ex: 1.50"
-                  />
-                  <select
-                    name="despesaFixaTipo"
-                    className="input-unit"
-                    value={inputs.despesaFixaTipo}
-                    onChange={handleChange}
-                  >
-                    <option value="fixo">R$</option>
-                    <option value="porcentagem">%</option>
-                  </select>
-                </div>
-                <span className="input-hint">Caixa, fita, etiqueta...</span>
-              </div>
-
-              <div className="input-group">
-                <label>Outras Despesas</label>
-                <div className="input-composite">
-                  <input
-                    type="number"
-                    name="despesaAdicional"
-                    className="input-main"
-                    value={inputs.despesaAdicional ?? ''}
-                    onChange={handleChange}
-                    placeholder="Ex: 0.50"
-                  />
-                  <select
-                    name="despesaAdicionalTipo"
-                    className="input-unit"
-                    value={inputs.despesaAdicionalTipo}
-                    onChange={handleChange}
-                  >
-                    <option value="porcentagem">%</option>
-                    <option value="fixo">R$</option>
-                  </select>
-                </div>
-                <span className="input-hint">Custos operacionais diversos</span>
-              </div>
-
-              <div className="input-group">
-                <label>Cupom de Desconto</label>
+                <label><CircleDollarSign size={16} /> Cupom de Desconto</label>
                 <div className="input-composite">
                   <input
                     type="number"

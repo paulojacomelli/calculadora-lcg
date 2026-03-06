@@ -373,10 +373,29 @@ body {
 
 /* === Grid de Parâmetros === */
 .parameters-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   margin-bottom: 2rem;
+}
+
+.input-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  letter-spacing: 0.05em;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.input-section-title:first-child {
+  margin-top: 0;
 }
 
 .input-with-switch {
@@ -387,6 +406,22 @@ body {
 
 .input-with-switch input {
   flex: 1;
+}
+
+/* Ajustes nos labels para ícones */
+.input-group label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  color: var(--text-main);
+}
+
+.input-group label svg {
+  color: var(--green-main);
+  opacity: 0.8;
 }
 
 /* === Cards de Resultado Premium === */
