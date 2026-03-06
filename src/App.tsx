@@ -40,11 +40,12 @@ const defaultInputs: ShopeeInput = {
 };
 
 const App: React.FC = () => {
-  const [aba, setAba] = useState<'margem' | 'ideal'>('margem');
+  const [aba, setAba] = useState<'margem' | 'ideal'>('ideal');
   const [inputs, setInputs] = useState<ShopeeInput>(defaultInputs);
   const [margemDesejada, setMargemDesejada] = useState<number>(0);
   const [results, setResults] = useState<ShopeeOutput | null>(null);
   const [simulacao, setSimulacao] = useState<ResultadoSimulacao | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const [statusClass, setStatusClass] = useState('');
   const [statusText, setStatusText] = useState('');
@@ -196,12 +197,18 @@ const App: React.FC = () => {
   };
 
   const handleLimpar = () => {
+    setIsResetModalOpen(true);
+  };
+
+  const confirmReset = () => {
     setInputs(defaultInputs);
     setMargemDesejada(0);
     setResults(null);
+    setSimulacao(null);
     setStatusClass('');
     setStatusText('');
     setStatusIcon(null);
+    setIsResetModalOpen(false);
   };
 
   const moeda = (val: number) =>
@@ -608,7 +615,36 @@ const App: React.FC = () => {
           </table>
         </div>
       </div>
-    </div >
+
+      {/* Modal de Confirmação de Reset */}
+      {isResetModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-icon-container">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="modal-title">Reiniciar Calculadora?</h3>
+            <p className="modal-description">
+              Isso irá limpar todos os dados preenchidos nos parâmetros. Esta ação não pode ser desfeita.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn-modal-cancel"
+                onClick={() => setIsResetModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-modal-confirm"
+                onClick={confirmReset}
+              >
+                Reiniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
