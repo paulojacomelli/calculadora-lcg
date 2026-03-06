@@ -9,15 +9,15 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, logEvent } from "firebase/analytics";
 
-// Configuração do projeto Firebase fornecida pelo console
+// Configuração do projeto Firebase usando variáveis de ambiente
 const firebaseConfig = {
-    apiKey: "AIzaSyDLqOnSglbMBqhvLxc5fbj_xKxnsh0EbDE",
-    authDomain: "calculadora-lcg.firebaseapp.com",
-    projectId: "calculadora-lcg",
-    storageBucket: "calculadora-lcg.firebasestorage.app",
-    messagingSenderId: "14715450297",
-    appId: "1:14715450297:web:12c77272440021b90fbc68",
-    measurementId: "G-MLETHRDW56"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Inicializa o app Firebase
