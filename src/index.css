@@ -44,8 +44,8 @@ body {
 
 /* Base Container */
 .container {
-  max-width: 1200px;
-  /* Expandido para Desktop */
+  max-width: 1300px;
+  /* Expandido para Desktop conforme solicitado */
   margin: 0 auto;
   padding: 0 1.5rem;
 }
