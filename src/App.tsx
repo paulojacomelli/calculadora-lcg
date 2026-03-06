@@ -236,336 +236,348 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="tabs" style={{ marginTop: '2rem' }}>
-        <button
-          className={`tab ${aba === 'margem' ? 'active' : ''} `}
-          onClick={() => setAba('margem')}
-        >
-          <Calculator size={18} /> Calcular Margem
-        </button>
-        <button
-          className={`tab ${aba === 'ideal' ? 'active' : ''} `}
-          onClick={() => setAba('ideal')}
-        >
-          <CircleDollarSign size={18} /> Preço Ideal
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="card-title">
-          <span className="number-badge">1</span> Parâmetros de Cálculo
-        </div>
-
-        <div className="parameters-grid">
-          <div className="input-group">
-            <label>Custo do Produto (R$)</label>
-            <input
-              type="number"
-              name="custoProduto"
-              placeholder="Ex: 100.00"
-              value={inputs.custoProduto ?? ''}
-              onChange={handleChange}
-            />
+      <div className="calculator-main">
+        <div className="calculator-left">
+          <div className="tabs">
+            <button
+              className={`tab ${aba === 'margem' ? 'active' : ''} `}
+              onClick={() => setAba('margem')}
+            >
+              <Calculator size={18} /> Calcular Margem
+            </button>
+            <button
+              className={`tab ${aba === 'ideal' ? 'active' : ''} `}
+              onClick={() => setAba('ideal')}
+            >
+              <CircleDollarSign size={18} /> Preço Ideal
+            </button>
           </div>
 
-          <div className="input-group">
-            {aba === 'margem' ? (
-              <>
-                <label>Preço de Venda (R$)</label>
+          <div className="card">
+            <div className="card-title">
+              <span className="number-badge">1</span> Parâmetros de Cálculo
+            </div>
+
+            <div className="parameters-grid">
+              <div className="input-group">
+                <label>Custo do Produto (R$)</label>
                 <input
                   type="number"
-                  name="precoVenda"
-                  placeholder="Ex: 150.00"
-                  value={inputs.precoVenda ?? ''}
+                  name="custoProduto"
+                  placeholder="Ex: 100.00"
+                  value={inputs.custoProduto ?? ''}
                   onChange={handleChange}
                 />
-              </>
-            ) : (
-              <>
-                <label className="label-with-icon">
-                  Lucro Desejado sobre Custo (%)
-                  <span className="help-icon" title="Margem de lucro desejada sobre o custo do produto. Ex: 20% significa que você quer ter R$20 de lucro para cada R$100 de custo.">
-                    <HelpCircle size={16} />
-                  </span>
-                </label>
-                <input
-                  type="number"
-                  name="margemDesejada"
-                  placeholder="Ex: 20"
-                  value={margemDesejada ?? ''}
-                  onChange={(e) => setMargemDesejada(parseFloat(e.target.value) || 0)}
-                />
-              </>
-            )}
-          </div>
-          <div className="input-group">
-            <label>Imposto</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="impostoPorcentagem"
-                className="input-main"
-                value={inputs.impostoPorcentagem ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 6"
-              />
-              <select
-                name="impostoTipo"
-                className="input-unit"
-                value={inputs.impostoTipo}
-                onChange={handleChange}
-              >
-                <option value="porcentagem">%</option>
-                <option value="fixo">R$</option>
-              </select>
-            </div>
-            <span className="input-hint">DAS, Simples Nacional, etc.</span>
-          </div>
+              </div>
 
-          <div className="input-group">
-            <label>Ads (Marketing)</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="adsValor"
-                className="input-main"
-                value={inputs.adsValor ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 5.00"
-              />
-              <select
-                name="adsTipo"
-                className="input-unit"
-                value={inputs.adsTipo}
-                onChange={handleChange}
-              >
-                <option value="fixo">R$</option>
-                <option value="porcentagem">%</option>
-                <option value="roas">ROAS</option>
-              </select>
-            </div>
-            <span className="input-hint">Shopee Ads por venda</span>
-          </div>
+              <div className="input-group">
+                {aba === 'margem' ? (
+                  <>
+                    <label>Preço de Venda (R$)</label>
+                    <input
+                      type="number"
+                      name="precoVenda"
+                      placeholder="Ex: 150.00"
+                      value={inputs.precoVenda ?? ''}
+                      onChange={handleChange}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <label className="label-with-icon">
+                      Lucro Desejado sobre Custo (%)
+                      <span className="help-icon" title="Margem de lucro desejada sobre o custo do produto. Ex: 20% significa que você quer ter R$20 de lucro para cada R$100 de custo.">
+                        <HelpCircle size={16} />
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      name="margemDesejada"
+                      placeholder="Ex: 20"
+                      value={margemDesejada ?? ''}
+                      onChange={(e) => setMargemDesejada(parseFloat(e.target.value) || 0)}
+                    />
+                  </>
+                )}
+              </div>
+              <div className="input-group">
+                <label>Imposto</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="impostoPorcentagem"
+                    className="input-main"
+                    value={inputs.impostoPorcentagem ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 6"
+                  />
+                  <select
+                    name="impostoTipo"
+                    className="input-unit"
+                    value={inputs.impostoTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="porcentagem">%</option>
+                    <option value="fixo">R$</option>
+                  </select>
+                </div>
+                <span className="input-hint">DAS, Simples Nacional, etc.</span>
+              </div>
 
-          <div className="input-group">
-            <label>Crédito de Rebate</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="rebatePorcentagem"
-                className="input-main"
-                value={inputs.rebatePorcentagem ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 2"
-              />
-              <select
-                name="rebateTipo"
-                className="input-unit"
-                value={inputs.rebateTipo}
-                onChange={handleChange}
-              >
-                <option value="porcentagem">%</option>
-                <option value="fixo">R$</option>
-              </select>
-            </div>
-            <span className="input-hint">Rebate de campanhas Shopee</span>
-          </div>
+              <div className="input-group">
+                <label>Ads (Marketing)</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="adsValor"
+                    className="input-main"
+                    value={inputs.adsValor ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 5.00"
+                  />
+                  <select
+                    name="adsTipo"
+                    className="input-unit"
+                    value={inputs.adsTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="fixo">R$</option>
+                    <option value="porcentagem">%</option>
+                    <option value="roas">ROAS</option>
+                  </select>
+                </div>
+                <span className="input-hint">Shopee Ads por venda</span>
+              </div>
 
-          <div className="input-group">
-            <label>Despesas Fixas Embalagem</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="despesaFixa"
-                className="input-main"
-                value={inputs.despesaFixa ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 1.50"
-              />
-              <select
-                name="despesaFixaTipo"
-                className="input-unit"
-                value={inputs.despesaFixaTipo}
-                onChange={handleChange}
-              >
-                <option value="fixo">R$</option>
-                <option value="porcentagem">%</option>
-              </select>
-            </div>
-            <span className="input-hint">Caixa, fita, etiqueta...</span>
-          </div>
+              <div className="input-group">
+                <label>Crédito de Rebate</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="rebatePorcentagem"
+                    className="input-main"
+                    value={inputs.rebatePorcentagem ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 2"
+                  />
+                  <select
+                    name="rebateTipo"
+                    className="input-unit"
+                    value={inputs.rebateTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="porcentagem">%</option>
+                    <option value="fixo">R$</option>
+                  </select>
+                </div>
+                <span className="input-hint">Rebate de campanhas Shopee</span>
+              </div>
 
-          <div className="input-group">
-            <label>Outras Despesas</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="despesaAdicional"
-                className="input-main"
-                value={inputs.despesaAdicional ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 0.50"
-              />
-              <select
-                name="despesaAdicionalTipo"
-                className="input-unit"
-                value={inputs.despesaAdicionalTipo}
-                onChange={handleChange}
-              >
-                <option value="porcentagem">%</option>
-                <option value="fixo">R$</option>
-              </select>
-            </div>
-            <span className="input-hint">Custos operacionais diversos</span>
-          </div>
+              <div className="input-group">
+                <label>Despesas Fixas Embalagem</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="despesaFixa"
+                    className="input-main"
+                    value={inputs.despesaFixa ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 1.50"
+                  />
+                  <select
+                    name="despesaFixaTipo"
+                    className="input-unit"
+                    value={inputs.despesaFixaTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="fixo">R$</option>
+                    <option value="porcentagem">%</option>
+                  </select>
+                </div>
+                <span className="input-hint">Caixa, fita, etiqueta...</span>
+              </div>
 
-          <div className="input-group">
-            <label>Cupom de Desconto</label>
-            <div className="input-composite">
-              <input
-                type="number"
-                name="cupomDesconto"
-                className="input-main"
-                value={inputs.cupomDesconto ?? ''}
-                onChange={handleChange}
-                placeholder="Ex: 10.00"
-              />
-              <select
-                name="cupomTipo"
-                className="input-unit"
-                value={inputs.cupomTipo}
-                onChange={handleChange}
-              >
-                <option value="fixo">R$</option>
-                <option value="porcentagem">%</option>
-              </select>
+              <div className="input-group">
+                <label>Outras Despesas</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="despesaAdicional"
+                    className="input-main"
+                    value={inputs.despesaAdicional ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 0.50"
+                  />
+                  <select
+                    name="despesaAdicionalTipo"
+                    className="input-unit"
+                    value={inputs.despesaAdicionalTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="porcentagem">%</option>
+                    <option value="fixo">R$</option>
+                  </select>
+                </div>
+                <span className="input-hint">Custos operacionais diversos</span>
+              </div>
+
+              <div className="input-group">
+                <label>Cupom de Desconto</label>
+                <div className="input-composite">
+                  <input
+                    type="number"
+                    name="cupomDesconto"
+                    className="input-main"
+                    value={inputs.cupomDesconto ?? ''}
+                    onChange={handleChange}
+                    placeholder="Ex: 10.00"
+                  />
+                  <select
+                    name="cupomTipo"
+                    className="input-unit"
+                    value={inputs.cupomTipo}
+                    onChange={handleChange}
+                  >
+                    <option value="fixo">R$</option>
+                    <option value="porcentagem">%</option>
+                  </select>
+                </div>
+                <span className="input-hint">Valor do cupom da loja</span>
+              </div>
             </div>
-            <span className="input-hint">Valor do cupom da loja</span>
+            <div className="actions">
+              <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
+                <RotateCcw size={18} /> Reiniciar Calculadora
+              </button>
+            </div>
           </div>
         </div>
-        <div className="actions">
-          <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
-            <RotateCcw size={18} /> Reiniciar Calculadora
-          </button>
+
+        <div className="calculator-right">
+          {!results ? (
+            <div className="empty-results-card">
+              <Sparkles size={48} className="empty-icon" />
+              <h3>Aguardando Parâmetros</h3>
+              <p>Preencha os dados à esquerda para ver os cálculos em tempo real.</p>
+            </div>
+          ) : (
+            <div id="quick-results">
+              <div className={`alert-box-result ${statusClass}`}>
+                {statusIcon} <span>{statusText}</span>
+              </div>
+
+              <div className="premium-results-grid">
+                <div className="result-card primary">
+                  <div className="result-label">MÍNIMO PARA VENDA</div>
+                  <div className="result-value">
+                    R$ {calcularPrecoIdeal({ ...inputs, cupomDesconto: 0 }, 0).toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="result-sub">Breakeven sem cupom</div>
+                  <ShoppingCart size={24} className="card-icon" />
+                </div>
+
+                <div className="result-card secondary">
+                  <div className="result-label">MÍNIMO C/ CUPOM</div>
+                  <div className="result-value">
+                    R$ {calcularPrecoIdeal(inputs, 0).toFixed(2).replace('.', ',')}
+                  </div>
+                  <div className="result-sub">Breakeven considerando cupom</div>
+                  <TrendingUp size={24} className="card-icon" />
+                </div>
+
+                <div className="result-card mini large">
+                  <div className="result-header">
+                    {results.margemSobreVenda > 0 ? (
+                      <ArrowUpRight size={18} className="text-green" />
+                    ) : (
+                      <ArrowDownRight size={18} className="text-red" />
+                    )} MARGEM S/ VENDA
+                  </div>
+                  <div className="result-body">
+                    <span className={`percentage ${results.margemSobreVenda <= 0 ? 'text-red' :
+                      results.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
+                      }`}>
+                      {results.margemSobreVenda.toFixed(1).replace('.', ',')}%
+                    </span>
+                    <span className="nominal">R$ {results.lucroLiquido.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {simulacao && aba === 'ideal' && (
+                <div className="simulation-dashboard">
+                  <div className="dashboard-grid">
+                    <ComposiçãoPrecoChart dados={simulacao.cenarios} />
+                    <EstrategiaPrecoChart dados={simulacao.cenarios} pontoIdeal={simulacao.pontoIdeal} />
+                  </div>
+                </div>
+              )}
+
+              <div className="details">
+                <h3>Detalhamento:</h3>
+                <div className="detail-row">
+                  <span>Preço de Venda {aba === 'ideal' ? '(Sugerido)' : ''}:</span>
+                  <span className="val">R$ {moeda(aba === 'ideal' && results ? results.precoVenda : inputs.precoVenda)}</span>
+                </div>
+                <div className="detail-row">
+                  <span>Custo de Aquisição:</span>
+                  <span className="val text-red">- R$ {moeda(inputs.custoProduto)}</span>
+                </div>
+                <div className="detail-row">
+                  <span>Comissão Shopee ({results.comissaoPorcentagem.toFixed(0)}%):</span>
+                  <span className="val">R$ {moeda(results.comissaoValor)}</span>
+                </div>
+                <div className="detail-row">
+                  <span>Tarifa Fixa Shopee:</span>
+                  <span className="val">R$ {moeda(results.tarifaFixa)}</span>
+                </div>
+                {(results.impostoValor ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Imposto ({inputs.impostoPorcentagem}{inputs.impostoTipo === 'porcentagem' ? '%' : ''}):</span>
+                    <span className="val">R$ {moeda(results.impostoValor)}</span>
+                  </div>
+                )}
+                {(results.custoAds ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Ads Shopee:</span>
+                    <span className="val">R$ {moeda(results.custoAds)}</span>
+                  </div>
+                )}
+                {(inputs.despesaFixa ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Embalagem/Fixo:</span>
+                    <span className="val">R$ {moeda(results.despesaFixaValor || 0)}</span>
+                  </div>
+                )}
+                {(inputs.despesaAdicional ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Outras Despesas:</span>
+                    <span className="val">R$ {moeda(results.despesaAdicionalValor || 0)}</span>
+                  </div>
+                )}
+
+                {/* Ajustes Finais (Cupom e Rebate) */}
+                {(inputs.cupomDesconto ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Cupom da Loja:</span>
+                    <span className="val text-red">(- R$ {moeda(results.cupomValor)})</span>
+                  </div>
+                )}
+                {(results.rebateValor ?? 0) > 0 && (
+                  <div className="detail-row">
+                    <span>Crédito de Rebate:</span>
+                    <span className="val text-green">(+ R$ {moeda(results.rebateValor)})</span>
+                  </div>
+                )}
+
+                <div className={`detail-row total ${statusClass}`}>
+                  <span>Lucro Líquido Final:</span>
+                  <span className="val">R$ {moeda(results.lucroLiquido)}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-
-        {results && (
-          <div id="quick-results">
-            <div className={`alert-box ${statusClass}`}>
-              {statusIcon} <span>{statusText}</span>
-            </div>
-
-            <div className="premium-results-grid">
-              <div className="result-card primary">
-                <div className="result-label">MÍNIMO PARA VENDA</div>
-                <div className="result-value">
-                  R$ {calcularPrecoIdeal({ ...inputs, cupomDesconto: 0 }, 0).toFixed(2).replace('.', ',')}
-                </div>
-                <div className="result-sub">Breakeven sem cupom</div>
-                <ShoppingCart size={32} className="card-icon" />
-              </div>
-
-              <div className="result-card secondary">
-                <div className="result-label">MÍNIMO C/ CUPOM</div>
-                <div className="result-value">
-                  R$ {calcularPrecoIdeal(inputs, 0).toFixed(2).replace('.', ',')}
-                </div>
-                <div className="result-sub">Breakeven considerando cupom</div>
-                <TrendingUp size={32} className="card-icon" />
-              </div>
-
-              <div className="result-card mini large">
-                <div className="result-header">
-                  {results.margemSobreVenda > 0 ? (
-                    <ArrowUpRight size={18} className="text-green" />
-                  ) : (
-                    <ArrowDownRight size={18} className="text-red" />
-                  )} MARGEM S/ VENDA
-                </div>
-                <div className="result-body">
-                  <span className={`percentage ${results.margemSobreVenda <= 0 ? 'text-red' :
-                    results.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
-                    }`}>
-                    {results.margemSobreVenda.toFixed(1).replace('.', ',')}%
-                  </span>
-                  <span className="nominal">R$ {results.lucroLiquido.toFixed(2).replace('.', ',')}</span>
-                </div>
-              </div>
-            </div>
-
-            {simulacao && aba === 'ideal' && (
-              <div className="simulation-dashboard">
-                <div className="dashboard-grid">
-                  <ComposiçãoPrecoChart dados={simulacao.cenarios} />
-                  <EstrategiaPrecoChart dados={simulacao.cenarios} pontoIdeal={simulacao.pontoIdeal} />
-                </div>
-              </div>
-            )}
-
-            <div className="details">
-              <h3>Detalhamento:</h3>
-              <div className="detail-row">
-                <span>Preço de Venda {aba === 'ideal' ? '(Sugerido)' : ''}:</span>
-                <span className="val">R$ {moeda(aba === 'ideal' && results ? results.precoVenda : inputs.precoVenda)}</span>
-              </div>
-              <div className="detail-row">
-                <span>Custo de Aquisição do Produto:</span>
-                <span className="val text-red">- R$ {moeda(inputs.custoProduto)}</span>
-              </div>
-              <div className="detail-row">
-                <span>Comissão Shopee ({results.comissaoPorcentagem.toFixed(0)}%):</span>
-                <span className="val">R$ {moeda(results.comissaoValor)}</span>
-              </div>
-              <div className="detail-row">
-                <span>Tarifa Fixa Shopee:</span>
-                <span className="val">R$ {moeda(results.tarifaFixa)}</span>
-              </div>
-              {(results.impostoValor ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Imposto ({inputs.impostoPorcentagem}{inputs.impostoTipo === 'porcentagem' ? '%' : ''}):</span>
-                  <span className="val">R$ {moeda(results.impostoValor)}</span>
-                </div>
-              )}
-              {(results.custoAds ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Ads Shopee:</span>
-                  <span className="val">R$ {moeda(results.custoAds)}</span>
-                </div>
-              )}
-              {(inputs.despesaFixa ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Embalagem/Fixo:</span>
-                  <span className="val">R$ {moeda(results.despesaFixaValor || 0)}</span>
-                </div>
-              )}
-              {(inputs.despesaAdicional ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Outras Despesas:</span>
-                  <span className="val">R$ {moeda(results.despesaAdicionalValor || 0)}</span>
-                </div>
-              )}
-
-              {/* Ajustes Finais (Cupom e Rebate) */}
-              {(inputs.cupomDesconto ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Cupom da Loja:</span>
-                  <span className="val text-red">(- R$ {moeda(results.cupomValor)})</span>
-                </div>
-              )}
-              {(results.rebateValor ?? 0) > 0 && (
-                <div className="detail-row">
-                  <span>Crédito de Rebate:</span>
-                  <span className="val text-green">(+ R$ {moeda(results.rebateValor)})</span>
-                </div>
-              )}
-
-              <div className={`detail-row total ${statusClass}`}>
-                <span>Lucro Líquido Final:</span>
-                <span className="val">R$ {moeda(results.lucroLiquido)}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="table-section">
