@@ -1224,18 +1224,25 @@ input:checked+.slider:before {
   border-radius: 50%;
 }
 
-/* === SIMULATION DASHBOARD === */
+/* === Dashboard de Gráficos === */
 .simulation-dashboard {
-  margin-top: 2.5rem;
+  margin-top: 2rem;
+  animation: fadeIn 0.5s ease-out;
   padding-top: 2rem;
   border-top: 1px solid var(--border);
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {

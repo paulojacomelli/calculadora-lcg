@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ComposedChart, Line, Area, ReferenceLine
+  ComposedChart, Line, Area, ReferenceLine, AreaChart
 } from 'recharts';
 import type { ShopeeInput, ShopeeOutput, ResultadoSimulacao, CenarioPreco } from './utils/shopeeLogic';
 import { calcularTaxasShopee, calcularPrecoIdeal, simularCenariosPreco } from './utils/shopeeLogic';
@@ -523,6 +523,7 @@ const App: React.FC = () => {
                   <div className="dashboard-grid">
                     <ComposiçãoPrecoChart dados={simulacao.cenarios} />
                     <EstrategiaPrecoChart dados={simulacao.cenarios} pontoIdeal={simulacao.pontoIdeal} />
+                    <TaxasPrecoChart dados={simulacao.cenarios} />
                   </div>
                 </div>
               )}
