@@ -26,6 +26,8 @@
   --green-bg: #f0fdf4;
   --green-border: #bbf7d0;
   --green-text-vibrant: #166534;
+  --red-main: #df1a22;
+  --red-hover: #b8141b;
   --radius: 8px;
 }
 
@@ -36,10 +38,76 @@
   font-family: 'Inter', sans-serif;
 }
 
+/* Remover setas de inputs numéricos */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 body {
   background-color: var(--bg-page);
   color: var(--text-main);
-  padding: 2rem 1rem;
+  padding: 0;
+  /* Removido padding para acomodar nav fixa se necessário, ou apenas reset */
+}
+
+/* === APP SHELL & NAVIGATION === */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-nav {
+  background: white;
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.nav-container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--text-sub);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.nav-item:hover {
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.nav-item.active {
+  background: var(--red-bg);
+  color: var(--red-main);
+}
+
+.content-area {
+  padding: 2rem 0;
 }
 
 /* Base Container */
@@ -163,7 +231,8 @@ body {
   width: auto;
 }
 
-.hero-icon-container.shopee img {
+.hero-icon-container.shopee img,
+.hero-icon-container.meli img {
   height: 52px;
   width: auto;
 }
@@ -396,6 +465,69 @@ body {
 
 .input-section-title:first-child {
   margin-top: 0;
+}
+
+/* Alternador de Tipo de Margem */
+.margin-type-tabs {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  gap: 4px;
+}
+
+.margin-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.margin-tab:hover {
+  color: #1e293b;
+}
+
+.margin-tab.active {
+  background: #ffffff;
+  color: #ef4444;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.label-help {
+  color: #94a3b8;
+  margin-left: 6px;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.tech-abbr {
+  color: #a855f7;
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+.details-group-header {
+  margin: 1.5rem 0 0.75rem 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .input-with-switch {
@@ -741,9 +873,9 @@ body {
 }
 
 .btn-modal-confirm:hover {
-  background: #d92d20;
+  background: var(--red-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(228, 54, 38, 0.3);
+  box-shadow: 0 4px 12px rgba(224, 26, 34, 0.3);
 }
 
 @keyframes fadeIn {
@@ -996,6 +1128,28 @@ body {
   color: var(--red-text);
 }
 
+.detail-values {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  /* Aumentado conforme solicitado */
+}
+
+.perc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: right;
+}
+
+.detail-row .val {
+  color: var(--text-main);
+  font-weight: 600;
+  min-width: 100px;
+  text-align: right;
+}
+
 .detail-row.total .val {
   font-size: 1.1rem;
   font-weight: 800;
@@ -1163,6 +1317,54 @@ body {
   margin-top: 1.5rem;
 }
 
+.meli-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 600px;
+}
+
+.meli-table th {
+  background: #f9fafb;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #f3f4f6;
+  white-space: normal;
+  vertical-align: top;
+}
+
+.meli-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.meli-table td:first-child {
+  font-weight: 500;
+  color: #1f2937;
+  width: 40%;
+}
+
+.meli-table tr:last-child td {
+  border-bottom: none;
+}
+
+.meli-table tr:hover td {
+  background: #fdfdfd;
+}
+
+@media (max-width: 768px) {
+
+  .meli-table th,
+  .meli-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
 /* === SWITCH TOGGLE === */
 .switch {
   position: relative;
@@ -1239,9 +1441,17 @@ input:checked+.slider:before {
   margin-bottom: 2rem;
 }
 
+.large-chart {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .large-chart {
+    grid-column: auto;
   }
 }
 
@@ -1270,13 +1480,87 @@ input:checked+.slider:before {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
 
+/* Remover borda preta (outline) ao selecionar/clicar no gráfico */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+svg:focus {
+  outline: none !important;
+  border: none !important;
+}
+
+.chart-header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
 .chart-title {
   font-size: 1.1rem;
   font-weight: 800;
   color: var(--text-main);
-  margin-bottom: 2rem;
+  margin-bottom: 0 !important;
+  flex: 1;
   text-align: center;
   letter-spacing: -0.02em;
+}
+
+.fullscreen-toggle {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.fullscreen-toggle:hover {
+  background: white;
+  color: var(--green-main);
+  border-color: var(--green-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: scale(1.05);
+}
+
+.chart-container.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  border-radius: 0;
+  padding: 3rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: white;
+}
+
+.chart-container.fullscreen .chart-header-actions {
+  width: 100%;
+  max-width: 1200px;
+  margin-bottom: 3rem;
+}
+
+.chart-container.fullscreen .chart-title {
+  font-size: 1.5rem;
+}
+
+.chart-container.fullscreen .chart-footer {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 3rem;
 }
 
 .chart-footer {
