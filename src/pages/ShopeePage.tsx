@@ -794,7 +794,7 @@ const ShopeePage: React.FC = () => {
                                             <label style={{ margin: 0, marginBottom: '0.4rem', display: 'flex' }}>
                                                 <TrendingUp size={16} />
                                                 Lucro desejado (%):
-                                                {tipoMargemIdeal === 'custo' ? s('MSCD') : s('LLVD')}
+                                                {tipoMargemIdeal === 'custo' ? (aba === 'ideal' ? s('MSCD') : s('MSC')) : (aba === 'ideal' ? s('LLVD') : s('LLV'))}
                                                 <HelpCircle size={14} className="label-help" />
                                             </label>
 
@@ -1343,7 +1343,7 @@ const ShopeePage: React.FC = () => {
                                                         fontWeight: 500,
                                                         fontSize: '0.85rem'
                                                     }}>
-                                                        Margem sobre o custo {aba === 'ideal' ? s('MSCD') : s('MSC')}:
+                                                        Lucro líquido sobre o custo {aba === 'ideal' ? s('LLCD') : s('LLC')}:
                                                     </span>
                                                     <span className="perc" style={{
                                                         color: activeResults.margemSobreVenda <= 0 ? '#b91c1c' : (activeResults.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
