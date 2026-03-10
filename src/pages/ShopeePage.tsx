@@ -1360,17 +1360,17 @@ const ShopeePage: React.FC = () => {
 
                                         <div className="result-card mini large" style={{ marginTop: '2.5rem' }}>
                                             <div className="result-header">
-                                                {activeResults.margemLiquidaSobreCusto > 0 ? (
+                                                {activeResults.margemSobreCusto > 0 ? (
                                                     <ArrowUpRight size={18} className="text-green" />
                                                 ) : (
                                                     <ArrowDownRight size={18} className="text-red" />
                                                 )} Margem de Contribuição {s('MC')}
                                             </div>
                                             <div className="result-body">
-                                                <span className={`percentage ${activeResults.margemLiquidaSobreCusto <= 0 ? 'text-red' :
+                                                <span className={`percentage ${activeResults.margemSobreCusto <= 0 ? 'text-red' :
                                                     activeResults.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
                                                     }`}>
-                                                    {arredondar(activeResults.margemLiquidaSobreCusto, 2).toFixed(2).replace('.', ',')}%
+                                                    {arredondar(activeResults.margemSobreCusto, 2).toFixed(2).replace('.', ',')}%
                                                 </span>
                                                 <span className="nominal">R$ {arredondar(activeResults.nominalSobreCusto || 0, 2).toFixed(2).replace('.', ',')}</span>
                                             </div>
