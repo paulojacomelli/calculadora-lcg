@@ -14,8 +14,7 @@ import {
     CheckCircle2,
     Maximize2,
     Minimize2,
-    HelpCircle,
-    Zap
+    HelpCircle
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -26,97 +25,17 @@ import {
     calcularTaxasShopee,
     calcularPrecoIdeal,
     simularCenariosPreco,
-    arredondar,
-    calcularCenariosDePreco
+    arredondar
 } from '../utils/shopeeLogic';
 
 /**
  * Componente de Insight de Preço (Sweet Spot)
  */
+/* Componente desativado
 const CardInsightPreco = ({ input }: { input: ShopeeInput }) => {
-    const { cenarioAtual, cenarioOtimizado } = calcularCenariosDePreco(input);
-    const lucroExtra = cenarioOtimizado.lucroTotal - cenarioAtual.lucroTotal;
-    const isMelhor = cenarioOtimizado.precoAnunciado === cenarioAtual.precoAnunciado;
-
-    if (cenarioAtual.precoAnunciado <= 0) return null;
-
-    return (
-        <div className="card-insight-premium" style={{
-            marginTop: '2rem',
-            padding: '1.5rem',
-            borderRadius: '16px',
-            background: isMelhor ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-            border: `1px solid ${isMelhor ? '#bbf7d0' : '#bfdbfe'}`,
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
-            position: 'relative',
-            overflow: 'hidden'
-        }}>
-            <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                    <div style={{
-                        padding: '0.5rem',
-                        borderRadius: '10px',
-                        background: isMelhor ? '#16a34a' : '#3b82f6',
-                        color: '#fff'
-                    }}>
-                        {isMelhor ? <Sparkles size={20} /> : <TrendingUp size={20} />}
-                    </div>
-                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
-                        {isMelhor ? 'Seu preço atual já é o Ponto Doce! 🚀' : 'Sugestão: Ponto Doce (Sweet Spot)'}
-                    </h4>
-                </div>
-
-                {!isMelhor ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.5 }}>
-                            Baseado na elasticidade de preço, se você vender a <strong>R$ {cenarioOtimizado.precoAnunciado.toFixed(2)}</strong>,
-                            seu volume sobe para <strong>{Math.round(cenarioOtimizado.vendasMensais)} un/mês</strong>.
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '0.25rem' }}>Cenário Atual</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>R$ {cenarioAtual.lucroTotal.toFixed(2)}</span>
-                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>lucro total/mês</span>
-                            </div>
-                            <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-                                <span style={{ fontSize: '0.75rem', color: '#16a34a', display: 'block', marginBottom: '0.25rem' }}>Cenário Otimizado</span>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a' }}>R$ {cenarioOtimizado.lucroTotal.toFixed(2)}</span>
-                                <span style={{ fontSize: '0.7rem', color: '#16a34a', display: 'block' }}>lucro total/mês</span>
-                            </div>
-                        </div>
-
-                        <div style={{
-                            background: '#16a34a',
-                            color: '#fff',
-                            padding: '0.75rem',
-                            borderRadius: '10px',
-                            textAlign: 'center',
-                            fontWeight: 700,
-                            fontSize: '0.95rem'
-                        }}>
-                            + R$ {lucroExtra.toFixed(2)} de lucro no mês!
-                        </div>
-                    </div>
-                ) : (
-                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#166534', lineHeight: 1.5 }}>
-                        Parabéns! Sua estratégia de preço atual maximiza o lucro total projetado de <strong>R$ {cenarioAtual.lucroTotal.toFixed(2)}/mês</strong>.
-                        Você encontrou o equilíbrio perfeito entre margem e giro.
-                    </p>
-                )}
-            </div>
-            <div style={{
-                position: 'absolute',
-                right: '-20px',
-                bottom: '-20px',
-                opacity: 0.05,
-                transform: 'rotate(-15deg)'
-            }}>
-                <Sparkles size={120} />
-            </div>
-        </div>
-    );
+    ...
 };
+*/
 import { logCalculo } from '../firebase';
 
 const defaultInputs: ShopeeInput = {
@@ -875,7 +794,7 @@ const ShopeePage: React.FC = () => {
                                             <label style={{ margin: 0, marginBottom: '0.4rem', display: 'flex' }}>
                                                 <TrendingUp size={16} />
                                                 Lucro desejado (%):
-                                                {tipoMargemIdeal === 'custo' ? s('MSC') : s('LLVD')}
+                                                {tipoMargemIdeal === 'custo' ? s('MSCD') : s('LLVD')}
                                                 <HelpCircle size={14} className="label-help" />
                                             </label>
 
@@ -1424,7 +1343,7 @@ const ShopeePage: React.FC = () => {
                                                         fontWeight: 500,
                                                         fontSize: '0.85rem'
                                                     }}>
-                                                        Margem sobre o custo {aba === 'ideal' ? s('MSC') : s('MSC')}:
+                                                        Margem sobre o custo {aba === 'ideal' ? s('MSCD') : s('MSC')}:
                                                     </span>
                                                     <span className="perc" style={{
                                                         color: activeResults.margemSobreVenda <= 0 ? '#b91c1c' : (activeResults.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
@@ -1445,7 +1364,7 @@ const ShopeePage: React.FC = () => {
                                                     <ArrowUpRight size={18} className="text-green" />
                                                 ) : (
                                                     <ArrowDownRight size={18} className="text-red" />
-                                                )} Margem sobre o Custo {s('MSC')}
+                                                )} Margem de Contribuição {s('MC')}
                                             </div>
                                             <div className="result-body">
                                                 <span className={`percentage ${activeResults.margemLiquidaSobreCusto <= 0 ? 'text-red' :
