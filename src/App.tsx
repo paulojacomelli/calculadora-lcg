@@ -43,7 +43,21 @@ const App: React.FC = () => {
         </main>
         <footer className="main-footer">
           <div className="container">
-            <p>© 2026 Calculadora LCG Todos os direitos reservados.</p>
+            <div className="footer-content">
+              <div className="footer-brand">
+                <img src="/lcg-logo.svg" alt="LCG Logo" className="footer-logo" />
+              </div>
+
+              <div className="footer-nav">
+                <Link to="/shopee" className="footer-link">Calculadora Shopee</Link>
+                <span className="footer-divider">|</span>
+                <Link to="/meli" className="footer-link">Calculadora Mercado Livre</Link>
+              </div>
+
+              <p className="footer-copyright">
+                © {new Date().getFullYear()} Calculadora LCG. Todos os direitos reservados.
+              </p>
+            </div>
           </div>
         </footer>
       </div>

@@ -28,6 +28,10 @@ export interface ShopeeInput {
 
   cupomDesconto?: number;
   cupomTipo: UnidadeValor;
+
+  // Parâmetros de Simulação Sweet Spot
+  vendasEstimadas?: number;
+  fatorElasticidade?: number;
 }
 
 export interface ShopeeOutput {
@@ -41,7 +45,8 @@ export interface ShopeeOutput {
   lucroLiquido: number;
   margemSobreVenda: number;
   margemSobreCusto: number;
-  nominalSobreCusto?: number; // Spread puro para o MSC Card
+  margemLiquidaSobreCusto: number; // LLC: Lucro Líquido Final / Custo Produto
+  nominalSobreCusto?: number; // Spread puro para o MC Card
   despesaFixaValor: number;
   despesaAdicionalValor: number;
   margem: number;             // Subtotal conforme fórmula do usuário
@@ -81,8 +86,8 @@ export const arredondar = (num: number, casas: number = 2): number => {
  */
 export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   // 1. Definição das Variáveis de Entrada
-  // O precoVenda informado na UI representa diretamente o Preço Efetivo Base (PDV)
-  const PDV = input.precoVenda || 0;
+  // O precoVenda informado na UI representa agora o Preço Anunciado (PA) - O preço de vitrine
+  const PA = input.precoVenda || 0;
 
   // Helpers para mapear os inputs antigos para a nova interface TaxaInput
   const mapUnidade = (tipo: UnidadeValor): TaxaType => tipo === 'porcentagem' ? 'percent' : 'fixed';
@@ -107,28 +112,25 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   }
   const ADS: TaxaInput = { value: adsMappedValue, type: adsMappedType };
 
-  // 3. Cálculo do Preço Anunciado (PCC) por inversão
-  const dPDV = new Decimal(PDV || 0);
+  // 3. Cálculo do Preço de Venda Efetivo (PDV) a partir do Preço Anunciado (PA)
+  const dPA = new Decimal(PA || 0);
   const dCDValue = new Decimal(CD.value);
-  let dPCC = dPDV;
+  let dPDV = dPA;
   let dCupomValor = new Decimal(0);
 
   if (CD.value > 0) {
     if (CD.type === 'percent') {
-      const fator = new Decimal(1).minus(dCDValue.dividedBy(100));
-      dPCC = fator.greaterThan(0) ? dPDV.dividedBy(fator) : dPDV;
-      // Arredonda o PCC para CIMA (ROUND_UP) para proteger a margem e bater com a expectativa do lojista
-      const pccArred = new Decimal(dPCC.toNumber()).toDecimalPlaces(2, Decimal.ROUND_UP).toNumber();
-      dPCC = new Decimal(pccArred);
-      // O cupom é a diferença exata para bater com o PDV
-      dCupomValor = dPCC.minus(dPDV);
+      dCupomValor = dPA.times(dCDValue).dividedBy(100);
+      dPDV = dPA.minus(dCupomValor);
     } else {
       dCupomValor = dCDValue;
-      dPCC = dPDV.plus(dCDValue);
+      dPDV = dPA.minus(dCDValue);
     }
   }
 
-  const PCC = arredondar(dPCC.toNumber(), 2);
+  // Preço que a Shopee usa para as faixas (PCC/PA)
+  const PCC = arredondar(dPA.toNumber(), 2);
+  const PDV = arredondar(dPDV.toNumber(), 2);
   const cupomValorCalculado = arredondar(dCupomValor.toNumber(), 2);
 
   // Regras de Faixas 2026 da Shopee baseadas no valor de venda do anúncio (PCC)
@@ -178,6 +180,7 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   const msv = PDV > 0 ? new Decimal(LLV).dividedBy(PDV).times(100).toNumber() : 0;
   const nominalSobreCusto = dPDV.minus(custoProdutoValor).toNumber();
   const msc = custoProdutoValor > 0 ? (nominalSobreCusto / custoProdutoValor) * 100 : 0;
+  const llc = custoProdutoValor > 0 ? (LLV / custoProdutoValor) * 100 : 0;
 
   // Margem Bruta (Subtotal)
   const margem = dPDV
@@ -202,6 +205,7 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
     lucroLiquido: arredondar(LLV, 2),
     margemSobreVenda: arredondar(msv, 2),
     margemSobreCusto: arredondar(msc, 2),
+    margemLiquidaSobreCusto: arredondar(llc, 2),
     despesaFixaValor,
     despesaAdicionalValor,
     margem: arredondar(margem, 2),
@@ -238,12 +242,16 @@ export const calcularPrecoIdeal = (
 ): number => {
   const margem = margemDesejada ?? 0;
   let min = input.custoProduto ?? 0;
-  let max = (input.custoProduto ?? 10) * 20;
+  // Aumentamos o range para garantir cobertura de taxas agressivas (ex: baixo valor)
+  let max = (input.custoProduto ?? 10) * 50;
   let chute = (min + max) / 2;
 
   for (let i = 0; i < 50; i++) {
     const resultado = calcularTaxasShopee({ ...input, precoVenda: chute });
-    const margemAtual = tipoBase === 'custo' ? resultado.margemSobreCusto : resultado.margemSobreVenda;
+
+    // CORREÇÃO: Usar a margem líquida (Lucro Líquido / Custo) para fechar com a expectativa do usuário
+    // Antes usava margemSobreCusto que era apenas Markup (PDV-Custo)/Custo
+    const margemAtual = tipoBase === 'custo' ? resultado.margemLiquidaSobreCusto : resultado.margemSobreVenda;
 
     if (Math.abs(margemAtual - margem) < 0.001) break;
 
@@ -317,4 +325,121 @@ export const simularCenariosPreco = (
   }
 
   return { cenarios, pontoIdeal };
+};
+
+/**
+ * Interface para os pontos da curva de otimização
+ */
+export interface PontoCurva {
+  precoAnunciado: number;
+  lucroLiquido: number;
+  margemSobreVenda: number;
+  isOtimizado?: boolean;
+}
+
+/**
+ * Gera os dados para o gráfico de Curva de Otimização (-15% a +15%)
+ */
+export const gerarCurvaOtimizacao = (input: ShopeeInput): PontoCurva[] => {
+  const precoBase = input.precoVenda || 100;
+  const pontos: PontoCurva[] = [];
+  const totalPontos = 100; // Alta densidade para ver os degraus
+
+  const minPreco = precoBase * 0.85;
+  const maxPreco = precoBase * 1.15;
+  const step = (maxPreco - minPreco) / totalPontos;
+
+  for (let i = 0; i <= totalPontos; i++) {
+    const precoLoop = minPreco + (step * i);
+    const res = calcularTaxasShopee({ ...input, precoVenda: precoLoop });
+
+    pontos.push({
+      precoAnunciado: arredondar(precoLoop, 2),
+      lucroLiquido: res.lucroLiquido,
+      margemSobreVenda: res.margemSobreVenda
+    });
+  }
+
+  // Identificar ponto de pico local (Ponto Otimizado)
+  // Um ponto é otimizado se ele é o maior lucro de uma "sequência" antes de um degrau
+  // Ou simplesmente o ponto de maior lucro global na faixa.
+  let maxLucro = -Infinity;
+  let indiceOtimizado = -1;
+
+  for (let i = 0; i < pontos.length; i++) {
+    if (pontos[i].lucroLiquido > maxLucro) {
+      maxLucro = pontos[i].lucroLiquido;
+      indiceOtimizado = i;
+    }
+  }
+
+  if (indiceOtimizado !== -1) {
+    pontos[indiceOtimizado].isOtimizado = true;
+  }
+
+  return pontos;
+};
+
+/**
+ * Lógica de Sweet Spot: Maximiza o Lucro Total Projetado
+ */
+export interface CenarioSweetSpot {
+  precoAnunciado: number;
+  lucroUnitario: number;
+  vendasMensais: number;
+  lucroTotal: number;
+  isAtual?: boolean;
+}
+
+export interface ResultadoSweetSpot {
+  cenarioAtual: CenarioSweetSpot;
+  cenarioOtimizado: CenarioSweetSpot;
+  listaCompleta: CenarioSweetSpot[];
+}
+
+export const calcularCenariosDePreco = (input: ShopeeInput): ResultadoSweetSpot => {
+  const PA = input.precoVenda || 0;
+  const vendasEst = input.vendasEstimadas || 50;
+  const elasticidade = input.fatorElasticidade || 2.0;
+
+  const cenarios: CenarioSweetSpot[] = [];
+  const minPreco = Math.floor(PA * 0.85);
+  const maxPreco = Math.ceil(PA * 1.15);
+
+  for (let pSim = minPreco; pSim <= maxPreco; pSim += 1) {
+    const res = calcularTaxasShopee({ ...input, precoVenda: pSim });
+
+    // Variação Percentual do Preço
+    const varPercPreco = PA > 0 ? (pSim - PA) / PA : 0;
+
+    // Novas Vendas baseadas na elasticidade
+    // Fórmula: Vendas = VendasAtuais * (1 - (VariacaoPreco * Elasticidade))
+    const novasVendas = Math.max(0, vendasEst * (1 - (varPercPreco * elasticidade)));
+
+    const cenario: CenarioSweetSpot = {
+      precoAnunciado: pSim,
+      lucroUnitario: res.lucroLiquido,
+      vendasMensais: novasVendas,
+      lucroTotal: res.lucroLiquido * novasVendas,
+      isAtual: Math.abs(pSim - PA) < 0.5
+    };
+
+    cenarios.push(cenario);
+  }
+
+  const cenarioAtual = cenarios.find(c => c.isAtual) || {
+    precoAnunciado: PA,
+    lucroUnitario: 0,
+    vendasMensais: vendasEst,
+    lucroTotal: 0,
+    isAtual: true
+  };
+
+  const cenarioOtimizado = [...cenarios].sort((a, b) => b.lucroTotal - a.lucroTotal)[0];
+
+  return {
+    cenarioAtual,
+    cenarioOtimizado,
+    listaCompleta: cenarios
+  };
 };

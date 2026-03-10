@@ -259,6 +259,44 @@ const MeliPage: React.FC = () => {
                         <button className={`tab ${aba === 'ideal' ? 'active' : ''}`} onClick={() => setAba('ideal')}><CircleDollarSign size={18} /> Preço Ideal</button>
                     </div>
 
+                    <div className="card input-card-highlight">
+                        <div className="parameters-grid-rows">
+                            <div className="input-row-flex">
+                                <div className="input-group">
+                                    <label><Package size={16} /> Custo do Produto (R$) {s('CDP')} *</label>
+                                    <input type="text" inputMode="decimal" name="custoProduto" placeholder="0,00" value={getInputValue('custoProduto', inputs.custoProduto)} onFocus={() => setFocusedInput('custoProduto')} onChange={handleChange} />
+                                    <span className="input-hint">Quanto você pagou pelo produto</span>
+                                </div>
+                                <div className="input-group">
+                                    <label>
+                                        {aba === 'margem' ? <TrendingUp size={16} /> : <CircleDollarSign size={16} />}
+                                        {aba === 'margem' ? ' Preço de Venda (R$) ' : ' Margem Desejada (%) '}
+                                        {aba === 'margem' ? s('PDV') : s('MAR')}
+                                    </label>
+                                    <input type="text" inputMode="decimal" name={aba === 'margem' ? 'precoVenda' : 'margemDesejada'} placeholder="0,00" value={aba === 'margem' ? getInputValue('precoVenda', inputs.precoVenda) : getInputValue('margemDesejada', margemDesejada)} onFocus={() => setFocusedInput(aba === 'margem' ? 'precoVenda' : 'margemDesejada')} onChange={handleChange} />
+                                    <span className="input-hint">{aba === 'margem' ? 'Por quanto você está vendendo' : 'Ex: 15% de lucro sobre o preço final'}</span>
+                                </div>
+                            </div>
+
+                            <div className="input-group" style={{ marginTop: '1rem' }}>
+                                <label><Truck size={16} /> Faixa de Peso do Produto *</label>
+                                <select name="pesoKg" value={inputs.pesoKg} onChange={handleChange} className="select-full">
+                                    <option value="0.3">Até 0,3 kg</option>
+                                    <option value="0.5">Até 0,5 kg</option>
+                                    <option value="1">Até 1 kg</option>
+                                    <option value="2">Até 2 kg</option>
+                                    <option value="5">Até 5 kg</option>
+                                    <option value="9">Até 9 kg</option>
+                                    <option value="14">Até 14 kg</option>
+                                    <option value="19">Até 19 kg</option>
+                                    <option value="24">Até 24 kg</option>
+                                    <option value="29">Até 29 kg</option>
+                                </select>
+                                <span className="input-hint">Peso do produto para calcular o custo de envio (Agência/Coleta)</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="card">
                         <div className="card-title">CUSTOS PADRÃO</div>
                         <div className="parameters-grid-rows">
@@ -347,42 +385,8 @@ const MeliPage: React.FC = () => {
                 </div>
 
                 <div className="calculator-right">
-                    <div className="card input-card-highlight">
-                        <div className="parameters-grid-rows">
-                            <div className="input-row-flex">
-                                <div className="input-group">
-                                    <label><Package size={16} /> Custo do Produto (R$) {s('CDP')} *</label>
-                                    <input type="text" inputMode="decimal" name="custoProduto" placeholder="0,00" value={getInputValue('custoProduto', inputs.custoProduto)} onFocus={() => setFocusedInput('custoProduto')} onChange={handleChange} />
-                                    <span className="input-hint">Quanto você pagou pelo produto</span>
-                                </div>
-                                <div className="input-group">
-                                    <label>{aba === 'margem' ? <TrendingUp size={16} /> : <CircleDollarSign size={16} />} {aba === 'margem' ? `Preço de Venda (R$) ${s('PDV')}` : `Margem Desejada (%) ${s('MAR')}`}</label>
-                                    <input type="text" inputMode="decimal" name={aba === 'margem' ? 'precoVenda' : 'margemDesejada'} placeholder="0,00" value={aba === 'margem' ? getInputValue('precoVenda', inputs.precoVenda) : getInputValue('margemDesejada', margemDesejada)} onFocus={() => setFocusedInput(aba === 'margem' ? 'precoVenda' : 'margemDesejada')} onChange={handleChange} />
-                                    <span className="input-hint">{aba === 'margem' ? 'Por quanto você está vendendo' : 'Ex: 15% de lucro sobre o preço final'}</span>
-                                </div>
-                            </div>
-
-                            <div className="input-group" style={{ marginTop: '1rem' }}>
-                                <label><Truck size={16} /> Faixa de Peso do Produto *</label>
-                                <select name="pesoKg" value={inputs.pesoKg} onChange={handleChange} className="select-full">
-                                    <option value="0.3">Até 0,3 kg</option>
-                                    <option value="0.5">Até 0,5 kg</option>
-                                    <option value="1">Até 1 kg</option>
-                                    <option value="2">Até 2 kg</option>
-                                    <option value="5">Até 5 kg</option>
-                                    <option value="9">Até 9 kg</option>
-                                    <option value="14">Até 14 kg</option>
-                                    <option value="19">Até 19 kg</option>
-                                    <option value="24">Até 24 kg</option>
-                                    <option value="29">Até 29 kg</option>
-                                </select>
-                                <span className="input-hint">Peso do produto para calcular o custo de envio (Agência/Coleta)</span>
-                            </div>
-                        </div>
-                    </div>
-
                     {results && (
-                        <div className="results-display-area" style={{ marginTop: '1.5rem' }}>
+                        <div className="results-display-area">
                             <div className={`status-pill ${statusClass}`}>
                                 {statusIcon} <span>{statusText}</span>
                             </div>

@@ -1,0 +1,390 @@
+const Composi├º├úoPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, isFullscreen, onToggleFullscreen }: {
+        dados: CenarioPreco[],
+        precoAtual: number,
+        pontoIdeal: CenarioPreco,
+        pontoAlvo?: CenarioPreco,
+        isFullscreen: boolean,
+        onToggleFullscreen: () => void
+    }) => {
+        // 1. Identifica os pontos cr├¡ticos
+        const pontoVoce = dados.reduce((prev, curr) =>
+            Math.abs(curr.precoVenda - precoAtual) < Math.abs(prev.precoVenda - precoAtual) ? curr : prev
+        );
+
+        // 2. Filtra pontos representativos (menos pontos para n├úo poluir)
+        const pontosBase = dados.filter((_, idx) => idx % 6 === 0);
+
+        // 3. Mescla tudo, PRIORIZANDO os r├│tulos especiais
+        const pontosGrafico = [...pontosBase, pontoVoce, pontoIdeal, ...(pontoAlvo ? [pontoAlvo] : [])]
+            .sort((a, b) => a.precoVenda - b.precoVenda)
+            .filter((v, i, a) => {
+                // Se ├® um ponto especial, ele FICA.
+                if (v === pontoVoce || v === pontoIdeal || v === pontoAlvo) return true;
+
+                // Se o pr├│ximo ou anterior for especial e estiver muito perto, este ponto sai.
+                const especialPerto = a.some(esp =>
+                    (esp === pontoVoce || esp === pontoIdeal || esp === pontoAlvo) &&
+                    esp !== v &&
+                    Math.abs(v.precoVenda - esp.precoVenda) < 25
+                );
+
+                if (especialPerto) return false;
+
+                // Filtro normal de densidade
+                return i === 0 || Math.abs(v.precoVenda - a[i - 1].precoVenda) > 30;
+            })
+            .map(c => {
+                const isVoce = c === pontoVoce;
+                const isIdeal = c === pontoIdeal;
+                const isAlvo = c === pontoAlvo && c !== pontoIdeal;
+
+                let label = `R$ ${c.precoVenda.toFixed(0)}`;
+                if (isVoce) label = 'VOC├è';
+                if (isIdeal) label = 'IDEAL';
+                if (isAlvo) label = 'ALVO';
+
+                return {
+                    name: label,
+                    fullPreco: `R$ ${c.precoVenda.toFixed(2)}`,
+                    Custo: c.custoProdutoValor || 0,
+                    Taxas: c.comissaoValor + c.tarifaFixa,
+                    Operacao: c.impostoValor + c.despesaFixaValor + c.despesaAdicionalValor,
+                    Ads: c.custoAds,
+                    Lucro: Math.max(0, c.lucroLiquido),
+                    type: isVoce ? 'voce' : (isIdeal ? 'ideal' : (isAlvo ? 'alvo' : 'normal'))
+                };
+            });
+
+        return (
+            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`}>
+                <div className="chart-header-actions">
+                    <h4 className="chart-title">Distribui├º├úo do Pre├ºo de Venda</h4>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 300}>
+                    <BarChart data={pontosGrafico} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis
+                            dataKey="name"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={({ x, y, payload }: any) => {
+                                const item = pontosGrafico.find(p => p.name === payload.value);
+                                const color = item?.type === 'voce' ? '#3b82f6' : (item?.type === 'ideal' ? '#10B981' : (item?.type === 'alvo' ? '#f59e0b' : '#6b7280'));
+                                const isSpecial = item?.type !== 'normal';
+
+                                return (
+                                    <text
+                                        x={x} y={y + 12}
+                                        textAnchor="middle"
+                                        fill={color}
+                                        fontWeight={isSpecial ? 800 : 400}
+                                        fontSize={isSpecial ? 12 : 10}
+                                    >
+                                        {payload.value}
+                                    </text>
+                                );
+                            }}
+                        />
+                        <YAxis hide />
+                        <Tooltip
+                            cursor={{ fill: '#f9f9f9' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            formatter={(value: any, name: string | undefined) => [
+                                `R$ ${Number(value).toFixed(2)}`,
+                                name ?? ''
+                            ]}
+                            labelFormatter={(label, payload) => {
+                                const item = payload?.[0]?.payload;
+                                return item ? `Pre├ºo de venda: ${item.fullPreco}` : label;
+                            }}
+                        />
+                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+                        <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" />
+                        <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
+                        <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
+                        <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Opera├º├úo" />
+                        <Bar dataKey="Taxas" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]} name="Taxas Shopee" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        );
+    };
+
+    const EstrategiaPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
+        dados: CenarioPreco[],
+        precoAtual: number,
+        pontoIdeal: CenarioPreco,
+        pontoAlvo: CenarioPreco,
+        onPriceSelect: (price: number) => void,
+        isFullscreen: boolean,
+        onToggleFullscreen: () => void
+    }) => {
+        // Encontra o ponto Ideal e Alvo no array para refer├¬ncias externas se necess├írio
+        const isAlvoDifferentFromIdeal = Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
+        const isSamePriceYouAlvo = Math.abs(precoAtual - pontoAlvo.precoVenda) < 0.01;
+
+        // Calcula o dom├¡nio X dinamicamente para manter o "VOC├è" e o "IDEAL" centralizados/vis├¡veis
+        const minP = Math.min(precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda);
+        const maxP = Math.max(precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda);
+        const center = (minP + maxP) / 2;
+        const diff = maxP - minP;
+        const margin = Math.max(diff * 1.5, center * 0.2, 50);
+        const domainX = [Math.max(0, center - margin), center + margin];
+
+        return (
+            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair' }}>
+                <div className="chart-header-actions">
+                    <h4 className="chart-title">An├ílise de Lucratividade vs Pre├ºo</h4>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 300}>
+                    <ComposedChart
+                        data={dados}
+                        margin={{ top: 40, right: 30, left: 0, bottom: 0 }}
+                        onClick={(state: any) => {
+                            if (state && state.activePayload && state.activePayload.length > 0) {
+                                const clickedPrice = state.activePayload[0].payload.precoVenda;
+                                onPriceSelect(clickedPrice);
+                            }
+                        }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis
+                            dataKey="precoVenda"
+                            type="number"
+                            domain={domainX}
+                            tickFormatter={(val) => `R$${Math.round(val)}`}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#6b7280' }}
+                        />
+                        <YAxis hide />
+                        <Tooltip
+                            shared={true}
+                            cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            formatter={(value: any, name: string | undefined) => [
+                                name === '% Taxas' ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`,
+                                name ?? ''
+                            ]}
+                            labelFormatter={(label) => `Pre├ºo: R$ ${Number(label).toFixed(2)}`}
+                        />
+                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+                        <Area type="monotone" dataKey="lucroLiquido" name="Lucro L├¡quido" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
+                        <Line type="monotone" dataKey="pesoTaxas" name="% Taxas" stroke="#f97316" strokeWidth={2} dot={false} yAxisId={1} />
+                        <YAxis yAxisId={1} hide domain={[0, 100]} />
+
+                        {/* Linha IDEAL (Fixo 15%) (Verde) - Mais alta */}
+                        <ReferenceLine
+                            x={pontoIdeal.precoVenda}
+                            stroke="#10B981"
+                            strokeDasharray="3 3"
+                            label={{ position: 'top', value: 'IDEAL (15%)', fontSize: 10, fill: '#065f46', fontWeight: 'bold', dy: -35 }}
+                        />
+
+                        {/* Linha SEU ALVO (Laranja) - M├®dia */}
+                        {isAlvoDifferentFromIdeal && (
+                            <ReferenceLine
+                                x={pontoAlvo.precoVenda}
+                                stroke="#f59e0b"
+                                strokeDasharray="5 5"
+                                label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', fontWeight: 'bold', dy: -18 }}
+                            />
+                        )}
+
+                        {/* Linha VOC├è Atual (Azul) - Base */}
+                        <ReferenceLine
+                            x={precoAtual}
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            label={{ position: 'top', value: isSamePriceYouAlvo ? 'VOC├è (ALVO)' : 'VOC├è', fontSize: 10, fill: '#1d4ed8', fontWeight: 'bold', dy: 0 }}
+                        />
+                    </ComposedChart>
+                </ResponsiveContainer>
+                <div className="chart-footer">
+                    ­ƒÆí Dica: <strong>Clique em qualquer ponto</strong> do gr├ífico para aplicar esse pre├ºo na calculadora.
+                </div>
+            </div>
+        );
+    };
+
+    const TaxasPrecoChart = ({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
+        inputs: ShopeeInput,
+        precoAtual: number,
+        isFullscreen: boolean,
+        onToggleFullscreen: () => void
+    }) => {
+        // 1. Gera├º├úo Din├ómica do Eixo X (Simula├º├úo de Escopo)
+        const minX = 40;
+        const maxX = Math.max(250, precoAtual * 1.5);
+        const step = 5;
+
+        const simData: any[] = [];
+
+        // Gerador de pontos (Itera├º├úo + Pontos Cr├¡ticos de Degrau)
+        const pontosX = [];
+        for (let x = minX; x <= maxX; x += step) {
+            pontosX.push(x);
+        }
+        // Inje├º├úo obrigat├│ria dos pontos de degrau Shopee
+        pontosX.push(79.99, 80.00);
+        pontosX.sort((a, b) => a - b);
+
+        // Remove duplicatas pr├│ximas geradas pela inje├º├úo
+        const pontosUnicos = pontosX.filter((v, i, a) => i === 0 || Math.abs(v - a[i - 1]) > 0.01);
+
+        pontosUnicos.forEach(pdvSim => {
+            const res = calcularTaxasShopee({ ...inputs, precoVenda: pdvSim });
+
+            const taxaShopeeRS = res.comissaoValor + res.tarifaFixa;
+            const taxaShopeeTotalPct = pdvSim > 0 ? (taxaShopeeRS / pdvSim) * 100 : 0;
+
+            const custoPDL_RS = (res as any).custoProdutoValor + res.impostoValor + res.despesaFixaValor + res.despesaAdicionalValor + res.custoAds;
+            const lucroLiquidoRS = res.lucroLiquido;
+            const llv = res.margemSobreVenda;
+
+            simData.push({
+                precoVenda: pdvSim,
+                taxaTotalPct: taxaShopeeTotalPct,
+                llv: llv,
+                custoLcg: custoPDL_RS,
+                taxaShopeeRS: taxaShopeeRS,
+                lucroRS: lucroLiquidoRS,
+                isLoss: llv < 0
+            });
+        });
+
+        return (
+            <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
+                <div className="chart-header-actions">
+                    <h4 className="chart-title">Visualiza├º├úo do Escopo Shopee 2026</h4>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+                <ResponsiveContainer width="100%" height={isFullscreen ? "85%" : 320}>
+                    <ComposedChart data={simData} margin={{ top: 30, right: 30, left: 10, bottom: 20 }}>
+                        <defs>
+                            <linearGradient id="lossGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis
+                            dataKey="precoVenda"
+                            type="number"
+                            domain={[minX, 'dataMax']}
+                            tickFormatter={(val) => `R$${val.toFixed(0)}`}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#6b7280' }}
+                            label={{ value: 'Pre├ºo de Venda Simulado (R$)', position: 'bottom', offset: 0, fontSize: 10 }}
+                        />
+                        <YAxis
+                            tickFormatter={(val) => `${val}%`}
+                            domain={['auto', 'auto']}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#6b7280' }}
+                        />
+                        <Tooltip
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', padding: '12px' }}
+                            formatter={(value: any, name: any) => [
+                                String(name).includes('%') ? `${Number(value).toFixed(2)}%` : `R$ ${Number(value).toFixed(2)}`,
+                                name ?? ''
+                            ]}
+                            content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                    const d = payload[0].payload;
+                                    return (
+                                        <div className="custom-tooltip shadow-lg" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', minWidth: '200px' }}>
+                                            <p className="font-extrabold text-gray-800 border-bottom mb-3 pb-2 text-sm" style={{ borderBottom: '2px solid #f1f5f9' }}>
+                                                PDV Simulado: <span style={{ color: '#2563eb' }}>R$ {Number(label).toFixed(2)}</span>
+                                            </p>
+                                            <div className="space-y-2 text-xs" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span className="text-gray-500">Custo Fixo LCG:</span>
+                                                    <span className="font-bold text-gray-900">R$ {d.custoLcg.toFixed(2)}</span>
+                                                </div>
+
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span className="text-gray-500">Taxa Shopee PDS:</span>
+                                                    <span className="font-bold" style={{ color: '#f97316' }}>R$ {d.taxaShopeeRS.toFixed(2)}</span>
+                                                </div>
+
+                                                <div className="pt-1 mt-1" style={{ borderTop: '1px dashed #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span className="font-semibold text-gray-600">Taxa Total (%):</span>
+                                                    <span className="font-extrabold" style={{ color: '#f97316', fontSize: '1.1em' }}>{d.taxaTotalPct.toFixed(2)}%</span>
+                                                </div>
+
+                                                <div className="pt-2 mt-1" style={{ borderTop: '2px solid #f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span className="font-bold text-gray-700">LLV Projetado:</span>
+                                                    <span className="font-black" style={{ color: d.llv < 0 ? '#dc2626' : '#16a34a', fontSize: '1.2em' }}>
+                                                        {d.llv.toFixed(2)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            }}
+                        />
+                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px' }} />
+
+                        {/* ├üreas de Gr├ífico */}
+                        <Area
+                            type="monotone"
+                            dataKey="llv"
+                            name="Margem de Lucro (LLV) (%)"
+                            stroke="#10B981"
+                            strokeWidth={3}
+                            fill={inputs.custoProduto ? "url(#lossGradient)" : "transparent"}
+                            baseValue={0}
+                            connectNulls
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="taxaTotalPct"
+                            name="Taxa Total Shopee (%)"
+                            stroke="#f97316"
+                            strokeWidth={2}
+                            dot={false}
+                            strokeDasharray="3 3"
+                        />
+
+                        {/* Elementos Estrat├®gicos */}
+                        <ReferenceLine
+                            x={precoAtual}
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            label={{ position: 'top', value: 'SEU PRE├çO', fill: '#1d4ed8', fontSize: 10, fontWeight: 800, dy: -10 }}
+                        />
+
+                        <ReferenceLine
+                            x={80}
+                            stroke="#ef4444"
+                            strokeWidth={1}
+                            strokeDasharray="3 3"
+                            label={{ position: 'insideBottomLeft', value: 'Degrau R$80', fill: '#ef4444', fontSize: 9, fontWeight: 600 }}
+                        />
+
+                        <ReferenceLine y={0} stroke="#64748b" strokeWidth={1} />
+                    </ComposedChart>
+                </ResponsiveContainer>
+                <div className="chart-footer" style={{ textAlign: 'center', marginTop: '10px', fontSize: '11px', color: '#64748b' }}>
+                    ­ƒÆí Este gr├ífico simula como a sua <strong>margem real (verde)</strong> reage ├ás taxas da Shopee e seus custos em diferentes pre├ºos.
+                </div>
+            </div>
+        );
+    };
+
+    
