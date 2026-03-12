@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } f
 import ShopeePage from './pages/ShopeePage';
 import MeliPage from './pages/MeliPage';
 import { Calculator, ShoppingBag } from 'lucide-react';
+import LoginAvatar from './components/LoginAvatar';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
@@ -24,6 +25,9 @@ const Navigation: React.FC = () => {
           <ShoppingBag size={18} />
           <span>Mercado Livre</span>
         </Link>
+        <div style={{ marginLeft: 'auto' }}>
+          <LoginAvatar />
+        </div>
       </div>
     </nav>
   );

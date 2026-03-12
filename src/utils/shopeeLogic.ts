@@ -30,7 +30,6 @@ export interface ShopeeInput {
   cupomTipo: UnidadeValor;
 
   // Parâmetros de Simulação Sweet Spot
-  vendasEstimadas?: number;
   fatorElasticidade?: number;
 }
 
@@ -84,15 +83,12 @@ export const arredondar = (num: number, casas: number = 2): number => {
 /**
  * Calcula as taxas da Shopee baseadas na faixa de preço de 2026
  */
-export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
+export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = true): ShopeeOutput => {
   // 1. Definição das Variáveis de Entrada
-  // O precoVenda informado na UI representa agora o Preço Anunciado (PA) - O preço de vitrine
   const PA = input.precoVenda || 0;
 
-  // Helpers para mapear os inputs antigos para a nova interface TaxaInput
   const mapUnidade = (tipo: UnidadeValor): TaxaType => tipo === 'porcentagem' ? 'percent' : 'fixed';
 
-  // 2. Estrutura de cada variável
   const CD: TaxaInput = { value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') };
   const CR: TaxaInput = { value: input.rebatePorcentagem || 0, type: mapUnidade(input.rebateTipo || 'fixo') };
 
@@ -101,7 +97,6 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   const DF: TaxaInput = { value: input.despesaFixa || 0, type: mapUnidade(input.despesaFixaTipo || 'fixo') };
   const OD: TaxaInput = { value: input.despesaAdicional || 0, type: mapUnidade(input.despesaAdicionalTipo || 'fixo') };
 
-  // Tratamento especial para ADS (pode ser ROAS)
   let adsMappedType: TaxaType = 'fixed';
   let adsMappedValue = input.adsValor || 0;
   if (input.adsTipo === 'porcentagem') {
@@ -112,7 +107,6 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   }
   const ADS: TaxaInput = { value: adsMappedValue, type: adsMappedType };
 
-  // 3. Cálculo do Preço de Venda Efetivo (PDV) a partir do Preço Anunciado (PA)
   const dPA = new Decimal(PA || 0);
   const dCDValue = new Decimal(CD.value);
   let dPDV = dPA;
@@ -129,21 +123,21 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   }
 
   // Preço que a Shopee usa para as faixas (PCC/PA)
-  const PCC = arredondar(dPA.toNumber(), 2);
-  const PDV = arredondar(dPDV.toNumber(), 2);
-  const cupomValorCalculado = arredondar(dCupomValor.toNumber(), 2);
+  const PCC = roundResult ? arredondar(dPA.toNumber(), 2) : dPA.toNumber();
+  const PDV = roundResult ? arredondar(dPDV.toNumber(), 2) : dPDV.toNumber();
+  const cupomValorCalculado = roundResult ? arredondar(dCupomValor.toNumber(), 2) : dCupomValor.toNumber();
 
-  // Regras de Faixas 2026 da Shopee baseadas no valor de venda do anúncio (PCC)
   let csPorcentagem = 14;
   let tfsValor = 0;
-  if (PCC <= 79.99) {
+  // As taxas são determinadas pelo Preço de Venda (PDV)
+  if (PDV <= 79.99) {
     csPorcentagem = 20;
     tfsValor = 4.00;
-  } else if (PCC <= 99.99) {
+  } else if (PDV <= 99.99) {
     tfsValor = 16.00;
-  } else if (PCC <= 199.99) {
+  } else if (PDV <= 199.99) {
     tfsValor = 20.00;
-  } else if (PCC <= 499.99) {
+  } else if (PDV <= 499.99) {
     tfsValor = 26.00;
   } else {
     tfsValor = 26.00;
@@ -152,17 +146,15 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   const CS: TaxaInput = { value: csPorcentagem, type: 'percent' };
   const TFS: TaxaInput = { value: tfsValor, type: 'fixed' };
 
-  // 4. Conversão de todos os custos com ARREDONDAMENTO EM CADA PARCELA
-  // Isso garante que a soma visual das linhas bata com o lucro líquido final.
-  const comissaoValor = arredondar(VAL(CS, PDV), 2);
-  const tarifaFixaValor = arredondar(VAL(TFS, PDV), 2);
-  const custoProdutoValor = arredondar(VAL(CDP, PDV), 2);
-  const impostoValor = arredondar(VAL(IMP, PDV), 2);
-  const despesaFixaValor = arredondar(VAL(DF, PDV), 2);
-  const despesaAdicionalValor = arredondar(VAL(OD, PDV), 2);
-  const custoAds = arredondar(VAL(ADS, PDV), 2);
+  // As taxas da Shopee incidem sobre o Preço de Venda (PDV)
+  const comissaoValor = roundResult ? arredondar(VAL(CS, PDV), 2) : VAL(CS, PDV);
+  const tarifaFixaValor = roundResult ? arredondar(VAL(TFS, PDV), 2) : VAL(TFS, PDV);
+  const custoProdutoValor = roundResult ? arredondar(VAL(CDP, PDV), 2) : VAL(CDP, PDV);
+  const impostoValor = roundResult ? arredondar(VAL(IMP, PDV), 2) : VAL(IMP, PDV);
+  const despesaFixaValor = roundResult ? arredondar(VAL(DF, PDV), 2) : VAL(DF, PDV);
+  const despesaAdicionalValor = roundResult ? arredondar(VAL(OD, PDV), 2) : VAL(OD, PDV);
+  const custoAds = roundResult ? arredondar(VAL(ADS, PDV), 2) : VAL(ADS, PDV);
 
-  // Somatória precisa das parcelas já arredondadas
   const dCustos = new Decimal(comissaoValor)
     .plus(tarifaFixaValor)
     .plus(custoProdutoValor)
@@ -172,9 +164,8 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
     .plus(custoAds);
 
   const custos = dCustos.toNumber();
-  const rebateValor = arredondar(VAL(CR, PDV), 2);
+  const rebateValor = roundResult ? arredondar(VAL(CR, PCC), 2) : VAL(CR, PCC);
 
-  // 5. Cálculo do lucro líquido da venda (Diferença direta das parcelas)
   const LLV = dPDV.minus(dCustos).plus(rebateValor).toNumber();
 
   const msv = PDV > 0 ? new Decimal(LLV).dividedBy(PDV).times(100).toNumber() : 0;
@@ -182,7 +173,6 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
   const msc = custoProdutoValor > 0 ? (nominalSobreCusto / custoProdutoValor) * 100 : 0;
   const llc = custoProdutoValor > 0 ? (LLV / custoProdutoValor) * 100 : 0;
 
-  // Margem Bruta (Subtotal)
   const margem = dPDV
     .minus(custoProdutoValor)
     .minus(impostoValor)
@@ -193,34 +183,29 @@ export const calcularTaxasShopee = (input: ShopeeInput): ShopeeOutput => {
     .minus(tarifaFixaValor)
     .toNumber();
 
-  // 6. Resultados (Tudo arredondado)
   return {
     comissaoPorcentagem: csPorcentagem,
-    comissaoValor: comissaoValor,
-    tarifaFixa: tarifaFixaValor,
-    impostoValor,
-    custoAds,
-    custoTotal: arredondar(custos, 2),
-    rebateValor,
-    lucroLiquido: arredondar(LLV, 2),
-    margemSobreVenda: arredondar(msv, 2),
-    margemSobreCusto: arredondar(msc, 2),
-    margemLiquidaSobreCusto: arredondar(llc, 2),
-    despesaFixaValor,
-    despesaAdicionalValor,
-    margem: arredondar(margem, 2),
-    cupomValor: cupomValorCalculado,
-    precoComCupom: PCC,
-    precoVenda: arredondar(PDV, 2),
-    nominalSobreCusto: arredondar(nominalSobreCusto, 2),
-    custoProdutoValor: custoProdutoValor
+    comissaoValor: roundResult ? arredondar(comissaoValor, 2) : comissaoValor,
+    tarifaFixa: roundResult ? arredondar(tarifaFixaValor, 2) : tarifaFixaValor,
+    impostoValor: roundResult ? arredondar(impostoValor, 2) : impostoValor,
+    custoAds: roundResult ? arredondar(custoAds, 2) : custoAds,
+    custoTotal: roundResult ? arredondar(custos, 2) : custos,
+    rebateValor: roundResult ? arredondar(rebateValor, 2) : rebateValor,
+    lucroLiquido: roundResult ? arredondar(LLV, 2) : LLV,
+    margemSobreVenda: roundResult ? arredondar(msv, 2) : msv,
+    margemSobreCusto: roundResult ? arredondar(msc, 2) : msc,
+    margemLiquidaSobreCusto: roundResult ? arredondar(llc, 2) : llc,
+    despesaFixaValor: roundResult ? arredondar(despesaFixaValor, 2) : despesaFixaValor,
+    despesaAdicionalValor: roundResult ? arredondar(despesaAdicionalValor, 2) : despesaAdicionalValor,
+    margem: roundResult ? arredondar(margem, 2) : margem,
+    cupomValor: roundResult ? arredondar(cupomValorCalculado, 2) : cupomValorCalculado,
+    precoComCupom: roundResult ? arredondar(PCC, 2) : PCC,
+    precoVenda: roundResult ? arredondar(PDV, 2) : PDV,
+    nominalSobreCusto: roundResult ? arredondar(nominalSobreCusto, 2) : nominalSobreCusto,
+    custoProdutoValor: roundResult ? arredondar(custoProdutoValor, 2) : custoProdutoValor
   };
 };
 
-/**
- * Calcula o preço de venda ideal para atingir uma margem específica
- * Nota: Como as taxas da Shopee variam por faixa, este é um cálculo iterativo ou aproximado.
- */
 export interface CenarioPreco extends ShopeeOutput {
   pesoTaxas: number; // Porcentagem das taxas sobre o preço de venda
   eficiencia: number; // Score de 0 a 100
@@ -231,29 +216,43 @@ export interface ResultadoSimulacao {
   pontoIdeal: CenarioPreco;
 }
 
+export interface OtimizacaoPrecoResult {
+  precoOriginal: number;
+  precoOtimizado: number;
+  lucroOriginal: number;
+  lucroOtimizado: number;
+  isOtimizado: boolean;
+  margemCustoOriginal: number;
+  margemVendaOriginal: number;
+  margemCustoOtimizado: number;
+  margemVendaOtimizado: number;
+}
+
 /**
- * Calcula o preço de venda ideal para atingir uma margem específica
+ * Calcula o preço de venda ideal para atingir uma margem específica detalhadamente,
+ * incluindo logs de varredura se um preço menor foi encontrado de forma otimizada.
  * Usamos busca binária para encontrar o preço exato.
  */
-export const calcularPrecoIdeal = (
+export const calcularPrecoIdealDetalhado = (
   input: ShopeeInput,
   margemDesejada: number | undefined,
-  tipoBase: 'custo' | 'venda' = 'venda'
-): number => {
+  tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
+): OtimizacaoPrecoResult => {
   const margem = margemDesejada ?? 0;
   let min = input.custoProduto ?? 0;
-  // Aumentamos o range para garantir cobertura de taxas agressivas (ex: baixo valor)
   let max = (input.custoProduto ?? 10) * 50;
   let chute = (min + max) / 2;
 
   for (let i = 0; i < 50; i++) {
-    const resultado = calcularTaxasShopee({ ...input, precoVenda: chute });
+    // IMPORTANTE: Aqui usamos roundResult = false para alta precisão na busca
+    const resultado = calcularTaxasShopee({ ...input, precoVenda: chute }, false);
 
-    // CORREÇÃO: Usar a margem líquida (Lucro Líquido / Custo) para fechar com a expectativa do usuário
-    // Antes usava margemSobreCusto que era apenas Markup (PDV-Custo)/Custo
-    const margemAtual = tipoBase === 'custo' ? resultado.margemLiquidaSobreCusto : resultado.margemSobreVenda;
+    let margemAtual = 0;
+    if (tipoBase === 'reais') margemAtual = resultado.lucroLiquido;
+    else if (tipoBase === 'custo') margemAtual = resultado.margemLiquidaSobreCusto;
+    else margemAtual = resultado.margemSobreVenda;
 
-    if (Math.abs(margemAtual - margem) < 0.001) break;
+    if (Math.abs(margemAtual - margem) < 0.0001) break;
 
     if (margemAtual < margem) {
       min = chute;
@@ -263,7 +262,51 @@ export const calcularPrecoIdeal = (
     chute = (min + max) / 2;
   }
 
-  return chute;
+  const paMatematico = arredondar(chute, 2);
+  const resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, false);
+
+  let melhorPa = paMatematico;
+  let melhorLucro = resultadoReferencia.lucroLiquido;
+
+  // Otimização "Sweet Spot": varredura descendente para aproveitar as janelas de taxa reduzida (ex: 79.99)
+  // Varremos descendo R$ 50.00 (5000 centavos)
+  for (let i = 1; i <= 5000; i++) {
+    const paTeste = arredondar(paMatematico - (i / 100), 2);
+    if (paTeste <= (input.custoProduto || 0.01)) break; // Nunca cai abaixo do custo bruto
+
+    const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, false);
+
+    // Se no cenário mais barato o lucro salta (ou mesmo empata com o lucro ótimo anterior), adotamos o preço menor
+    if (resTeste.lucroLiquido >= melhorLucro - 0.001) {
+      melhorPa = paTeste;
+      melhorLucro = resTeste.lucroLiquido;
+    }
+  }
+
+  const resultadoOtimizado = calcularTaxasShopee({ ...input, precoVenda: melhorPa }, false);
+
+  return {
+    precoOriginal: paMatematico,
+    precoOtimizado: melhorPa,
+    lucroOriginal: resultadoReferencia.lucroLiquido,
+    lucroOtimizado: resultadoOtimizado.lucroLiquido,
+    isOtimizado: melhorPa < paMatematico,
+    margemCustoOriginal: resultadoReferencia.margemLiquidaSobreCusto,
+    margemVendaOriginal: resultadoReferencia.margemSobreVenda,
+    margemCustoOtimizado: resultadoOtimizado.margemLiquidaSobreCusto,
+    margemVendaOtimizado: resultadoOtimizado.margemSobreVenda
+  };
+};
+
+/**
+ * Wrapper de retro-compatibilidade: entrega apenas o número otimizado
+ */
+export const calcularPrecoIdeal = (
+  input: ShopeeInput,
+  margemDesejada: number | undefined,
+  tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
+): number => {
+  return calcularPrecoIdealDetalhado(input, margemDesejada, tipoBase).precoOtimizado;
 };
 
 /**
@@ -272,38 +315,77 @@ export const calcularPrecoIdeal = (
 export const simularCenariosPreco = (
   input: ShopeeInput,
   margemAlvo: number | undefined,
-  tipoBase: 'custo' | 'venda' = 'venda'
+  tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
 ): ResultadoSimulacao => {
   const margem = margemAlvo ?? 0;
   const breakeven = calcularPrecoIdeal(input, 0, tipoBase);
 
-  // Definir faixa de simulação
-  const precoMin = breakeven * 0.9;
-  const precoMax = calcularPrecoIdeal(input, Math.max(margem * 2, 50), tipoBase);
+  // Definir faixa de simulação centrada no preço atual para capturar degraus próximos
+  const PA = input.precoVenda || 0;
+  const precoBase = PA || breakeven;
+  
+  // Criamos uma lista de preços para testar
+  const precosX: number[] = [];
+
+  // 1. Testamos o preço atual e os 500 centavos abaixo dele (5 reais de margem centavo por centavo)
+  // Isso garante capturar mudanças por apenas 1 centavo de diferença.
+  if (PA > 0) {
+    for (let i = 0; i <= 500; i++) {
+        const p = PA - (i / 100);
+        if (p > 0) precosX.push(arredondar(p, 2));
+    }
+  }
+
+  // 2. Mantemos a faixa de breakeven e preços baixos para o gráfico
+  const precoMin = Math.max(breakeven * 0.8, 5);
+  const precoMax = Math.max(precoBase * 1.5, 600);
+  const passos = 50; 
+  const step = (precoMax - precoMin) / passos;
+  for (let i = 0; i <= passos; i++) {
+    precosX.push(arredondar(precoMin + (step * i), 2));
+  }
+
+  // Injetar pontos críticos de mudança de política para garantir degraus nítidos no gráfico
+  // IMPORTANTE: Os pontos críticos (degraus) são baseados no PDV (Preço Final), 
+  // então precisamos converter para o PA (Preço Anunciado) correspondente para injetar na simulação.
+  const degrausPDV = [79.99, 80.00, 99.99, 100.00, 199.99, 200.00, 499.99, 500.00];
+  
+  degrausPDV.forEach(pPDV => {
+    let paNecessario = pPDV;
+    if (input.cupomDesconto && input.cupomDesconto > 0) {
+      if (input.cupomTipo === 'porcentagem') {
+        // PA = PDV / (1 - %)
+        paNecessario = pPDV / (1 - (input.cupomDesconto / 100));
+      } else {
+        // PA = PDV + Fixo
+        paNecessario = pPDV + input.cupomDesconto;
+      }
+    }
+    
+    // Injetamos o Preço Anunciado (PA) que levaria a esse degrau no PDV
+    const pPA = arredondar(paNecessario, 2);
+    if (pPA >= precoMin && pPA <= precoMax) precosX.push(pPA);
+  });
+
+  // Remover duplicados e ordenar
+  const precosUnicos = [...new Set(precosX)].sort((a, b) => a - b);
 
   const cenarios: CenarioPreco[] = [];
-  const passos = 15;
-  const step = (precoMax - precoMin) / passos;
-
-  for (let i = 0; i <= passos; i++) {
-    const pccLoop = precoMin + (step * i);
-    const res = calcularTaxasShopee({ ...input, precoVenda: pccLoop });
+  for (const paLoop of precosUnicos) {
+    // A função calcularTaxasShopee recebe o PA (Preço Anunciado) e internamente calcula o PDV
+    const res = calcularTaxasShopee({ ...input, precoVenda: paLoop });
 
     const totalTaxas = res.comissaoValor + res.tarifaFixa + res.impostoValor + res.custoAds;
     const pesoTaxas = res.precoVenda > 0 ? (totalTaxas / res.precoVenda) * 100 : 0;
-
-    // Algoritmo de Eficiência
-    const metricValue = tipoBase === 'custo' ? res.margemSobreCusto : res.margemSobreVenda;
-    const eficiencia = res.lucroLiquido > 0
-      ? Math.min(100, (metricValue / (pesoTaxas || 1)) * 10)
-      : 0;
-
+    
+    // Na ShopeePage, o 'precoVenda' do objeto de simulação é usado como o gráficoX, 
+    // mas o usuário quer o PA. Vamos garantir que as propriedades estejam claras.
     cenarios.push({
       ...res,
-      precoVenda: res.precoVenda, // PDV
-      precoComCupom: pccLoop, // PCC
+      precoVenda: res.precoVenda, // Isso é o PDV (valor final)
+      precoComCupom: paLoop,      // Isso é o PA (valor de vitrine)
       pesoTaxas,
-      eficiencia
+      eficiencia: res.lucroLiquido > 0 ? Math.min(100, ((tipoBase === 'custo' ? res.margemSobreCusto : res.margemSobreVenda) / (pesoTaxas || 1)) * 10) : 0
     });
   }
 
@@ -386,8 +468,8 @@ export const gerarCurvaOtimizacao = (input: ShopeeInput): PontoCurva[] => {
 export interface CenarioSweetSpot {
   precoAnunciado: number;
   lucroUnitario: number;
-  vendasMensais: number;
-  lucroTotal: number;
+  volumeRelativo: number;      // Multiplicador de volume baseado na elasticidade (base 1)
+  lucroTotalProjetado: number; // Lucro Unitário * Volume Relativo
   isAtual?: boolean;
 }
 
@@ -399,28 +481,33 @@ export interface ResultadoSweetSpot {
 
 export const calcularCenariosDePreco = (input: ShopeeInput): ResultadoSweetSpot => {
   const PA = input.precoVenda || 0;
-  const vendasEst = input.vendasEstimadas || 50;
-  const elasticidade = input.fatorElasticidade || 2.0;
+  
+  // O fator de elasticidade padrão agora é 3.5 (Alta Concorrência/Guerra de Preços)
+  const elasticidade = input.fatorElasticidade || 3.5;
 
   const cenarios: CenarioSweetSpot[] = [];
+  
+  // Analisamos uma faixa de -15% a +15% do preço atual
   const minPreco = Math.floor(PA * 0.85);
   const maxPreco = Math.ceil(PA * 1.15);
 
   for (let pSim = minPreco; pSim <= maxPreco; pSim += 1) {
     const res = calcularTaxasShopee({ ...input, precoVenda: pSim });
 
-    // Variação Percentual do Preço
-    const varPercPreco = PA > 0 ? (pSim - PA) / PA : 0;
-
-    // Novas Vendas baseadas na elasticidade
-    // Fórmula: Vendas = VendasAtuais * (1 - (VariacaoPreco * Elasticidade))
-    const novasVendas = Math.max(0, vendasEst * (1 - (varPercPreco * elasticidade)));
+    /**
+     * NOVA LÓGICA DE ELASTICIDADE: Curva de Demanda Exponencial (Fórmula de Potência)
+     * O volumeBase inicial é sempre 1 (100% no preço atual).
+     * Se baixar o preço, o volume escala exponencialmente. Se aumentar, o volume é esmagado.
+     */
+    const volumeRelativo = pSim > 0 
+      ? Math.pow((PA / pSim), elasticidade) 
+      : 0;
 
     const cenario: CenarioSweetSpot = {
       precoAnunciado: pSim,
       lucroUnitario: res.lucroLiquido,
-      vendasMensais: novasVendas,
-      lucroTotal: res.lucroLiquido * novasVendas,
+      volumeRelativo: volumeRelativo,
+      lucroTotalProjetado: res.lucroLiquido * volumeRelativo,
       isAtual: Math.abs(pSim - PA) < 0.5
     };
 
@@ -430,12 +517,13 @@ export const calcularCenariosDePreco = (input: ShopeeInput): ResultadoSweetSpot 
   const cenarioAtual = cenarios.find(c => c.isAtual) || {
     precoAnunciado: PA,
     lucroUnitario: 0,
-    vendasMensais: vendasEst,
-    lucroTotal: 0,
+    volumeRelativo: 1,
+    lucroTotalProjetado: 0,
     isAtual: true
   };
 
-  const cenarioOtimizado = [...cenarios].sort((a, b) => b.lucroTotal - a.lucroTotal)[0];
+  // O cenário otimizado é aquele que maximiza o Lucro Total Projetado (Giro x Margem)
+  const cenarioOtimizado = [...cenarios].sort((a, b) => b.lucroTotalProjetado - a.lucroTotalProjetado)[0];
 
   return {
     cenarioAtual,

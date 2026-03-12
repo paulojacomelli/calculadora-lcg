@@ -1497,6 +1497,86 @@ svg:focus {
   margin-bottom: 2rem;
 }
 
+/* Estilos para Limpar Gráficos e Restaurar Fundo */
+.chart-container {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 20px !important;
+  padding: 2.5rem !important;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.04) !important;
+  margin-bottom: 2.5rem;
+  overflow: visible !important;
+}
+
+/* Limpeza de bordas pretas de eixos e grid, sem afetar indicadores */
+.recharts-cartesian-grid-bg,
+.recharts-cartesian-grid rect,
+.recharts-cartesian-axis-line,
+.recharts-brush-rect {
+  stroke: none !important;
+  stroke-width: 0 !important;
+  fill: none !important;
+}
+
+/* Forçar visibilidade absoluta de QUALQUER linha de referência */
+g.recharts-reference-line {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 100 !important;
+}
+
+.recharts-reference-line-line {
+  stroke-opacity: 1 !important;
+  visibility: visible !important;
+  stroke-width: 4px !important; /* Garantir espessura */
+}
+
+/* Etiquetas com alto contraste e halo de legibilidade */
+.recharts-reference-line-label {
+  visibility: visible !important;
+  font-weight: 900 !important;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 1)) drop-shadow(0 -1px 2px rgba(255, 255, 255, 1)) drop-shadow(1px 0 2px rgba(255, 255, 255, 1)) drop-shadow(-1px 0 2px rgba(255, 255, 255, 1));
+}
+
+.recharts-wrapper {
+  margin: 0 auto;
+  outline: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.recharts-surface {
+  overflow: visible !important;
+}
+
+/* Ícones Lucide */
+.fullscreen-toggle svg, .card-icon svg {
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  fill: none !important;
+}
+
+/* Grade suave */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #f1f5f9 !important;
+  stroke-dasharray: 3 3 !important;
+  stroke-width: 1 !important;
+}
+
+/* Manter apenas as linhas do grid que queremos (suaves) */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #f1f5f9 !important;
+  stroke-width: 1 !important;
+  stroke-dasharray: 3 3 !important;
+}
+
+.recharts-wrapper {
+  margin: 0 auto;
+}
+
 .chart-title {
   font-size: 1.1rem;
   font-weight: 800;
@@ -1728,3 +1808,441 @@ svg:focus {
     gap: 2rem;
   }
 }
+
+/* Auth & User Profile */
+.login-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  background: rgba(124, 58, 237, 0.05);
+  color: #7c3aed;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-btn:hover {
+  background: rgba(124, 58, 237, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.1);
+}
+
+.user-profile-container {
+  position: relative;
+  z-index: 100;
+}
+
+.user-avatar-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem;
+  padding-right: 0.75rem;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(124, 58, 237, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-avatar-trigger:hover {
+  background: #fff;
+  border-color: rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.user-photo, .user-photo-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #7c3aed;
+  color: #fff;
+}
+
+.user-info-brief {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.chevron {
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 240px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+  padding: 0.5rem;
+  animation: dropdownFade 0.2s ease;
+}
+
+@keyframes dropdownFade {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-header {
+  padding: 0.75rem 0.75rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.full-name {
+  font-weight: 800;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.user-email {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background: #fef2f2;
+}
+
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+/* --- Configurações Avançadas Colapsáveis --- */
+.advanced-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 8px; /* Reduzido de 24px/16px para ser mais compacto quando fechado */
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.advanced-settings-header.open {
+  margin: 24px 0 16px; /* Volta ao normal quando aberto */
+}
+
+
+.advanced-settings-header:hover {
+  background: rgba(var(--primary-rgb), 0.05);
+}
+
+.advanced-settings-header .header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.advanced-settings-header.locked {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+.advanced-settings-header .lock-icon {
+  color: #94a3b8;
+}
+
+.advanced-settings-header .locked-tag {
+  font-size: 0.65rem;
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.advanced-settings-header .unlocked-tag {
+  font-size: 0.65rem;
+  background: #ecfdf5;
+  color: #10b981;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  text-transform: none;
+  font-weight: 600;
+}
+
+
+
+.advanced-settings-header .chevron-icon {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--primary);
+}
+
+.advanced-settings-header.open .chevron-icon {
+  transform: rotate(180deg);
+}
+
+.advanced-settings-header .header-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, rgba(0,0,0,0.1), transparent);
+}
+
+[data-theme="dark"] .advanced-settings-header .header-line {
+  background: linear-gradient(to right, rgba(255,255,255,0.1), transparent);
+}
+
+.advanced-settings-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(-10px);
+}
+
+.advanced-settings-content.open {
+  max-height: 2000px; /* Suficiente para todos os inputs */
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  padding-bottom: 24px;
+}
+
+/* Ajustes finos nos títulos internos quando aberto */
+.advanced-settings-content .input-section-title {
+  margin-top: 0.8rem; /* Reduzido de 1.8rem para remover espaço excessivo */
+  padding-top: 4px;
+}
+
+.advanced-settings-content .input-group {
+  margin-bottom: 1.2rem; /* Reduzido de 1.8rem para melhor compactação */
+}
+
+
+/* Prompt de Senha para Configurações Avançadas */
+.password-prompt-container {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 5px;
+  margin-bottom: 15px;
+  animation: slideDown 0.3s ease;
+}
+
+
+[data-theme="dark"] .password-prompt-container {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.password-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+[data-theme="dark"] .password-form {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.password-form:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.1);
+}
+
+.password-form svg {
+  color: #94a3b8;
+}
+
+.password-form input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.9rem;
+  padding: 8px 0;
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.password-form button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.password-form button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.password-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.shake {
+  animation: shake 0.3s ease;
+  border-color: #ef4444 !important;
+  background: #fef2f2;
+}
+
+[data-theme="dark"] .shake {
+  background: #451a1a;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.6); }
+  100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.2); }
+}
+
+/* Animação para a Borda do Sensor de Taxas - Envolvendo o Card Inteiro */
+@keyframes rotate-border {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.alert-sensor-animated {
+  position: relative;
+  background: #ffffff !important;
+  border-radius: 20px;
+  padding: 3px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  z-index: 1;
+  transition: all 0.3s ease;
+  animation: slideDown 0.4s ease-out;
+}
+
+.alert-sensor-animated::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-size: 50% 50%, 50% 50%;
+  background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+  background-image: conic-gradient(transparent, #10B981, transparent, #34d399, transparent, #10B981);
+  animation: rotate-border 6s linear infinite; /* Rotação um pouco mais lenta para não cansar */
+}
+
+.alert-sensor-animated-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  background: #ffffff; /* Fundo branco interno */
+  border-radius: 18px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Alerta interno do sensor (dentro do card animado) */
+.sensor-inner-alert {
+  background: #f0fdf4;
+  border: 1px dashed #10B981;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #166534;
+  font-weight: 600;
+  animation: slideDown 0.4s ease-out, pulse-glow 2s infinite ease-in-out;
+}
+
+
+
+
+
+
+

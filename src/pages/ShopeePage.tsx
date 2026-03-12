@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Calculator,
     CircleDollarSign,
@@ -14,17 +14,25 @@ import {
     CheckCircle2,
     Maximize2,
     Minimize2,
-    HelpCircle
+    HelpCircle,
+    ChevronDown,
+    ShieldCheck,
+    Lock
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     ComposedChart, Area, Line, ReferenceLine
 } from 'recharts';
-import type { ShopeeInput, ShopeeOutput, CenarioPreco } from '../utils/shopeeLogic';
+import type { ShopeeInput, ShopeeOutput, CenarioPreco, OtimizacaoPrecoResult /* , ResultadoSweetSpot */ } from '../utils/shopeeLogic';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import {
     calcularTaxasShopee,
     calcularPrecoIdeal,
+    calcularPrecoIdealDetalhado,
     simularCenariosPreco,
+    // calcularCenariosDePreco,
     arredondar
 } from '../utils/shopeeLogic';
 
@@ -59,8 +67,8 @@ const ShopeePage: React.FC = () => {
     const [aba, setAba] = useState<'margem' | 'ideal'>(() => {
         return (localStorage.getItem('@shopperPCC:aba') as 'margem' | 'ideal') || 'ideal';
     });
-    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo'>(() => {
-        return (localStorage.getItem('@shopperPCC:tipoMargemIdeal') as 'venda' | 'custo') || 'venda';
+    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo' | 'reais'>(() => {
+        return (localStorage.getItem('@shopperPCC:tipoMargemIdeal') as 'venda' | 'custo' | 'reais') || 'venda';
     });
     const [inputs, setInputs] = useState<ShopeeInput>(() => {
         const saved = localStorage.getItem('@shopperPCC:inputs');
@@ -91,12 +99,115 @@ const ShopeePage: React.FC = () => {
     });
     const [results, setResults] = useState<ShopeeOutput | null>(null);
     const [simulacao, setSimulacao] = useState<any>(null);
+    const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
+    // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
     const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAutoCalcMode, setIsAutoCalcMode] = useState<boolean>(true); // Força true por padrão agora
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [focusedValue, setFocusedValue] = useState<string>('');
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(() => {
+        return localStorage.getItem('@shopperPCC:isAdvancedOpen') === 'true';
+    });
+
+    // Monitorar estado de autenticação
+    const [user, setUser] = useState<User | null>(null);
+    const [isPasswordAuthorized, setIsPasswordAuthorized] = useState<boolean>(() => {
+        return localStorage.getItem('@shopperPCC:isPasswordAuthorized') === 'true';
+    });
+    const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+    const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState(false);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [passwordErrorMessage, setPasswordErrorMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+
+        // Sync entre múltiplas abas abertas
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === '@shopperPCC:inputs') {
+                try {
+                    const parsed = JSON.parse(e.newValue || '{}');
+                    Object.keys(parsed).forEach(key => {
+                        if (!key.endsWith('Tipo') && typeof parsed[key] === 'string') {
+                            const val = parseFloat(parsed[key].replace(',', '.'));
+                            parsed[key] = isNaN(val) ? undefined : val;
+                        }
+                    });
+                    setInputs(parsed);
+                } catch (err) {}
+            }
+            if (e.key === '@shopperPCC:margemDesejada') {
+                const val = parseFloat((e.newValue || '').replace(',', '.'));
+                setMargemDesejada(isNaN(val) ? undefined : val);
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, []);
+
+    const handlePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isVerifyingPassword) return;
+
+        setIsVerifyingPassword(true);
+        setPasswordErrorMessage(null);
+        
+        try {
+            console.log("Iniciando verificação de senha no Firestore...");
+            // Consulta a senha no Firestore (caminho: config/access)
+            const docRef = doc(db, 'config', 'access');
+            const docSnap = await getDoc(docRef);
+            
+            if (!docSnap.exists()) {
+                console.warn("Documento 'config/access' não encontrado no Firestore.");
+                setPasswordErrorMessage("Configuração não encontrada no servidor.");
+                throw new Error('Documento não encontrado');
+            }
+
+            const data = docSnap.data();
+            if (passwordInput === data.password) {
+                console.log("Senha validada com sucesso via Firestore.");
+                setIsPasswordAuthorized(true);
+                setShowPasswordPrompt(false);
+                setIsAdvancedOpen(true);
+                setPasswordError(false);
+                setPasswordInput('');
+            } else {
+                console.warn("Senha digitada incorreta.");
+                setPasswordErrorMessage("Senha incorreta.");
+                throw new Error('Senha inválida');
+            }
+        } catch (error: any) {
+            console.error("Erro ao verificar senha no Firestore:", error);
+            
+            // Tratamento específico para o erro de banco não encontrado (comum se não foi ativado no console)
+            if (error.message?.includes('Database') && error.message?.includes('not found')) {
+                setPasswordErrorMessage("O banco de dados Firestore não foi ativado no seu projeto Firebase Console. É necessário criar o banco '(default)' lá.");
+            } else if (error.code === 'permission-denied') {
+                setPasswordErrorMessage("Erro de permissão. Verifique as 'Rules' do Firestore no console.");
+            } else {
+                setPasswordErrorMessage("Erro ao conectar com o servidor.");
+            }
+
+            setPasswordError(true);
+            setTimeout(() => {
+                setPasswordError(false);
+                // Mantemos a mensagem por 10 segundos para dar tempo de ler
+                setTimeout(() => setPasswordErrorMessage(null), 10000);
+            }, 500);
+        } finally {
+            setIsVerifyingPassword(false);
+        }
+    };
 
     // Sair do fullscreen com a tecla ESC (Mantido por compatibilidade se houver modais futuros)
     React.useEffect(() => {
@@ -140,9 +251,11 @@ const ShopeePage: React.FC = () => {
                 localStorage.removeItem('@shopperPCC:margemDesejada');
             }
             localStorage.setItem('@shopperPCC:isAutoCalcMode', String(isAutoCalcMode));
+            localStorage.setItem('@shopperPCC:isAdvancedOpen', String(isAdvancedOpen));
+            localStorage.setItem('@shopperPCC:isPasswordAuthorized', String(isPasswordAuthorized));
         }
         handleCalcular();
-    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAutoCalcMode]);
+    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAutoCalcMode, isAdvancedOpen, isPasswordAuthorized]);
 
 
     const updateNumericValue = (name: string, val: number | undefined) => {
@@ -220,8 +333,19 @@ const ShopeePage: React.FC = () => {
                 setResults(null);
                 return;
             }
-            // No modo Ideal, primeiro pegamos o preço alvo
-            const pIdeal = calcularPrecoIdeal(inputs, margemDesejada, tipoMargemIdeal);
+            // No modo Ideal, primeiro pegamos o preço alvo detalhado
+            const detalhesIdeal = calcularPrecoIdealDetalhado(inputs, margemDesejada, tipoMargemIdeal);
+            
+            // Se encontrou uma redução esperta que aumenta lucro, armazena no state pra exibir
+            if (detalhesIdeal.isOtimizado) {
+                setOtimizacaoIdeal(detalhesIdeal);
+            } else {
+                setOtimizacaoIdeal(null);
+            }
+
+            // Arredondar para 2 casas para bater com a entrada manual e evitar dízimas periódicas no cálculo
+            const pIdeal = arredondar(detalhesIdeal.precoOtimizado, 2);
+            
             resultado = calcularTaxasShopee({ ...inputs, precoVenda: pIdeal });
             precoFinalStr = pIdeal.toFixed(2);
         }
@@ -232,10 +356,10 @@ const ShopeePage: React.FC = () => {
         const resIdeal15 = calcularTaxasShopee({ ...inputs, precoVenda: pIdeal15 });
 
         const margemReferencia = margemDesejada ?? 0;
-        const sim = simularCenariosPreco(inputs, margemReferencia, tipoMargemIdeal);
+        const sim = simularCenariosPreco({ ...inputs, precoVenda: parseFloat(precoFinalStr) }, margemReferencia, tipoMargemIdeal);
 
         // 3. Injeção de Pontos Críticos para Interatividade no Gráfico
-        const pAtualVal = inputs.precoVenda || 0;
+        const pAtualVal = parseFloat(precoFinalStr) || 0;
         const resAtual = calcularTaxasShopee({ ...inputs, precoVenda: pAtualVal });
 
         const pontosExtras: CenarioPreco[] = [
@@ -257,11 +381,6 @@ const ShopeePage: React.FC = () => {
         };
 
         setSimulacao(simComIdeal as any);
-
-        // Se estivermos na aba ideal, garantimos que o resultado usado seja o do ponto ideal da simulação para precisão total
-        if (aba === 'ideal') {
-            resultado = sim.pontoIdeal;
-        }
 
         setResults(resultado);
 
@@ -388,28 +507,48 @@ const ShopeePage: React.FC = () => {
         const isAlvoDifferentFromIdeal = Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
         const isSamePriceYouAlvo = Math.abs(precoAtual - pontoAlvo.precoVenda) < 0.01;
 
-        const minP = Math.min(precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda);
-        const maxP = Math.max(precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda);
-        const center = (minP + maxP) / 2;
+        // Encontrar picos de lucro ANTES para garantir visibilidade no domínio
+        const picos = [];
+        for (let i = 1; i < dados.length - 1; i++) {
+            if (dados[i].lucroLiquido > dados[i - 1].lucroLiquido && dados[i].lucroLiquido >= dados[i + 1].lucroLiquido) {
+                picos.push(dados[i]);
+            }
+        }
+        if (picos.length === 0 && dados.length > 0) {
+            const top = [...dados].sort((a, b) => b.lucroLiquido - a.lucroLiquido)[0];
+            if (top) picos.push(top);
+        }
+        const picoMaisProximo = picos.length > 0 ? picos.reduce((prev, curr) => 
+            Math.abs(curr.precoVenda - precoAtual) < Math.abs(prev.precoVenda - precoAtual) ? curr : prev
+        ) : null;
+
+        const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda];
+        if (picoMaisProximo) precosRelevantes.push(picoMaisProximo.precoVenda);
+
+        const minP = Math.min(...precosRelevantes);
+        const maxP = Math.max(...precosRelevantes);
         const diff = maxP - minP;
-        const margin = Math.max(diff * 1.5, center * 0.2, 50);
-        const domainX = [Math.max(0, center - margin), center + margin];
+        
+        // Domínio com 15% de margem para respiro
+        const marginX = Math.max(diff * 0.15, 20);
+        const domainX = [Math.max(0, minP - marginX), maxP + marginX];
 
         return (
-            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair' }}>
+            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
                 <div className="chart-header-actions">
                     <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"} style={{ appearance: 'none' }}>
                         {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                     </button>
                 </div>
                 <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 300}>
                     <ComposedChart
                         data={dados}
-                        margin={{ top: 40, right: 30, left: 0, bottom: 0 }}
+                        margin={{ top: 60, right: 30, left: 0, bottom: 0 }}
                         onClick={(state: any) => {
                             if (state && state.activePayload && state.activePayload.length > 0) {
-                                const clickedPrice = state.activePayload[0].payload.precoVenda;
+                                // Pega o PA para preencher de volta no campo da calculadora
+                                const clickedPrice = state.activePayload[0].payload.precoComCupom;
                                 onPriceSelect(clickedPrice);
                             }
                         }}
@@ -496,11 +635,56 @@ const ShopeePage: React.FC = () => {
                         )}
 
                         <ReferenceLine
+                            key="ref-line-preco-atual"
                             x={precoAtual}
                             stroke="#3b82f6"
-                            strokeWidth={2}
-                            label={{ position: 'top', value: isSamePriceYouAlvo ? 'VOCÊ (ALVO)' : 'VOCÊ', fontSize: 10, fill: '#1d4ed8', fontWeight: 'bold', dy: 0 }}
+                            strokeWidth={4}
+                            label={{ 
+                                position: 'top', 
+                                value: isSamePriceYouAlvo ? 'VOCÊ (ALVO)' : 'VOCÊ', 
+                                fontSize: 13, 
+                                fill: '#1e40af', 
+                                fontWeight: 900, 
+                                dy: -15
+                            }}
                         />
+
+                        {picoMaisProximo && (
+                            <ReferenceLine
+                                key="ref-line-pico-lucro"
+                                x={picoMaisProximo.precoVenda}
+                                stroke="#10B981"
+                                strokeWidth={3}
+                                strokeDasharray="5 5"
+                                label={{ 
+                                    position: 'top', 
+                                    value: 'PICO DE LUCRO 🚀', 
+                                    fontSize: 11, 
+                                    fill: '#064e3b', 
+                                    fontWeight: 900, 
+                                    dy: -40 
+                                }}
+                            />
+                        )}
+
+                        {/* Indicadores de Mudança de Política (Degraus) */}
+                        {[80, 100, 200, 500].map(threshold => (
+                            <ReferenceLine
+                                key={`threshold-${threshold}`}
+                                x={threshold}
+                                stroke="#fca5a5"
+                                strokeWidth={1}
+                                strokeDasharray="4 4"
+                                label={{ 
+                                    position: 'insideBottomRight', 
+                                    value: `R$ ${threshold}`, 
+                                    fill: '#7f1d1d', 
+                                    fontSize: 9, 
+                                    fontWeight: 700,
+                                    dy: -10
+                                }}
+                            />
+                        ))}
                     </ComposedChart>
                 </ResponsiveContainer>
                 <div className="chart-footer">
@@ -516,29 +700,54 @@ const ShopeePage: React.FC = () => {
         isFullscreen: boolean,
         onToggleFullscreen: () => void
     }) => {
+        const getPaFromPdv = (pdv: number) => {
+            let pa = pdv;
+            if ((inputs.cupomDesconto || 0) > 0) {
+                if (inputs.cupomTipo === 'porcentagem') {
+                    pa = pdv / (1 - (inputs.cupomDesconto! / 100));
+                } else {
+                    pa = pdv + inputs.cupomDesconto!;
+                }
+            }
+            return Math.max(0.01, pa);
+        };
+
+        const degrausPdv = [79.99, 99.99, 199.99, 499.99];
+        const degrausPa = degrausPdv.flatMap(pdv => [
+            getPaFromPdv(pdv), 
+            getPaFromPdv(pdv + 0.01)
+        ]);
+
         const minX = Math.max(20, (inputs.custoProduto || 0) * 0.4);
         const maxX = Math.max(precoAtual * 1.5, (inputs.custoProduto || 0) * 2.5, 250);
-        const step = (maxX - minX) / 40;
+        const step = (maxX - minX) / 80;
         const simData: any[] = [];
         const pontosX = [];
         for (let x = minX; x <= maxX; x += step) {
             pontosX.push(x);
         }
-        pontosX.push(79.99, 80.00);
+        
+        // Injetar pontos críticos (Degraus calculados + Preco Atual)
+        pontosX.push(precoAtual, ...degrausPa);
         pontosX.sort((a, b) => a - b);
         const pontosUnicos = pontosX.filter((v, i, a) => i === 0 || Math.abs(v - a[i - 1]) > 0.01);
 
-        pontosUnicos.forEach(pdvSim => {
-            const res = calcularTaxasShopee({ ...inputs, precoVenda: pdvSim });
+        // Garantir que o domínio do eixo X englobe o preço atual e os degraus visíveis
+        const precosVisiveis = [precoAtual, ...degrausPa.filter(t => t < maxX)];
+        const finalMinX = Math.min(minX, ...precosVisiveis) * 0.9;
+        const finalMaxX = Math.max(maxX, ...precosVisiveis) * 1.1;
+
+        pontosUnicos.forEach(paSim => {
+            const res = calcularTaxasShopee({ ...inputs, precoVenda: paSim });
             const taxaShopeeRS = res.comissaoValor + res.tarifaFixa;
-            const taxaShopeeTotalPct = pdvSim > 0 ? (taxaShopeeRS / pdvSim) * 100 : 0;
+            const taxaShopeeTotalPct = res.precoVenda > 0 ? (taxaShopeeRS / res.precoVenda) * 100 : 0;
             const custoPDL_RS = (res as any).custoProdutoValor + res.impostoValor + res.despesaFixaValor + res.despesaAdicionalValor + res.custoAds;
             const lucroLiquidoRS = res.lucroLiquido;
             const llv = res.margemSobreVenda;
 
             simData.push({
                 ...res,
-                precoVenda: pdvSim,
+                paEixoX: paSim,
                 taxaTotalPct: taxaShopeeTotalPct,
                 llv: llv,
                 llvVisual: Math.max(llv, -150), // Cap visual para não quebrar a escala
@@ -567,14 +776,14 @@ const ShopeePage: React.FC = () => {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis
-                            dataKey="precoVenda"
+                            dataKey="paEixoX"
                             type="number"
-                            domain={[minX, 'dataMax']}
+                            domain={[finalMinX, finalMaxX]}
                             tickFormatter={(val) => `R$${val.toFixed(0)}`}
                             axisLine={false}
                             tickLine={false}
                             tick={{ fontSize: 10, fill: '#6b7280' }}
-                            label={{ value: 'Preço de Venda Simulado (R$)', position: 'bottom', offset: 0, fontSize: 10 }}
+                            label={{ value: 'Preço Anunciado Simulado (PA) (R$)', position: 'bottom', offset: 0, fontSize: 10 }}
                         />
                         <YAxis
                             yAxisId="left"
@@ -596,7 +805,7 @@ const ShopeePage: React.FC = () => {
                                     return (
                                         <div className="custom-tooltip shadow-lg" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', minWidth: '200px' }}>
                                             <p className="font-extrabold text-gray-800 border-bottom mb-3 pb-2 text-sm" style={{ borderBottom: '2px solid #f1f5f9' }}>
-                                                PDV Simulado: <span style={{ color: '#2563eb' }}>R$ {Number(label).toFixed(2)}</span>
+                                                PA Simulado: <span style={{ color: '#2563eb' }}>R$ {Number(label).toFixed(2)}</span>
                                             </p>
                                             <div className="space-y-2 text-xs" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -651,19 +860,42 @@ const ShopeePage: React.FC = () => {
                             strokeDasharray="3 3"
                         />
                         <ReferenceLine
+                            key="tax-ref-preco-atual"
                             x={precoAtual}
                             stroke="#3b82f6"
-                            strokeWidth={2}
-                            strokeDasharray="5 5"
-                            label={{ position: 'top', value: 'SEU PREÇO', fill: '#1d4ed8', fontSize: 10, fontWeight: 800, dy: -10 }}
+                            strokeWidth={4}
+                            label={{ 
+                                position: 'top', 
+                                value: 'SEU PREÇO', 
+                                fill: '#1d4ed8', 
+                                fontSize: 12, 
+                                fontWeight: 900, 
+                                dy: -15 
+                            }}
                         />
-                        <ReferenceLine
-                            x={80}
-                            stroke="#ef4444"
-                            strokeWidth={1}
-                            strokeDasharray="3 3"
-                            label={{ position: 'insideBottomLeft', value: 'Degrau R$80', fill: '#ef4444', fontSize: 9, fontWeight: 600 }}
-                        />
+                        
+                        {/* Indicadores de Mudança de Política (Degraus) */}
+                        {degrausPdv.map(pdv => {
+                            const paThreshold = getPaFromPdv(pdv + 0.01); // Renderiza a linha na fronteira de aumento da taxa (ex: > 79.99)
+                            return (
+                                <ReferenceLine
+                                    key={`tax-threshold-${pdv}`}
+                                    x={paThreshold}
+                                    stroke="#ef4444"
+                                    strokeWidth={2}
+                                    strokeDasharray="3 3"
+                                    label={{ 
+                                        position: 'insideBottomLeft', 
+                                        value: `Regra \n(PDV > ${pdv})`, 
+                                        fill: '#b91c1c', 
+                                        fontSize: 10, 
+                                        fontWeight: 800,
+                                        angle: 0
+                                    }}
+                                />
+                            );
+                        })}
+
                         <ReferenceLine yAxisId="left" y={0} stroke="#64748b" strokeWidth={1} label={{ value: 'Ponto de Equilíbrio (R$ 0,00)', position: 'right', fill: '#64748b', fontSize: 10, dy: -10 }} />
                     </ComposedChart>
                 </ResponsiveContainer>
@@ -793,23 +1025,32 @@ const ShopeePage: React.FC = () => {
                                         <div className="input-group" style={{ marginTop: '1rem' }}>
                                             <label style={{ margin: 0, marginBottom: '0.4rem', display: 'flex' }}>
                                                 <TrendingUp size={16} />
-                                                Lucro desejado (%):
-                                                {tipoMargemIdeal === 'custo' ? (aba === 'ideal' ? s('MSCD') : s('MSC')) : (aba === 'ideal' ? s('LLVD') : s('LLV'))}
+                                                Lucro desejado {tipoMargemIdeal !== 'reais' ? '(%)' : '(R$)'}:
+                                                {tipoMargemIdeal === 'custo' ? (aba === 'ideal' ? s('MSCD') : s('MSC')) : (tipoMargemIdeal === 'venda' ? (aba === 'ideal' ? s('LLVD') : s('LLV')) : '')}
                                                 <HelpCircle size={14} className="label-help" />
                                             </label>
 
-                                            <div className="margin-type-tabs">
+                                            <div className="margin-type-tabs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
                                                 <button
                                                     className={`margin-tab ${tipoMargemIdeal === 'custo' ? 'active' : ''}`}
                                                     onClick={() => { setTipoMargemIdeal('custo'); }}
+                                                    style={{ fontSize: '0.8rem', padding: '0.4rem' }}
                                                 >
                                                     Sobre o Custo
                                                 </button>
                                                 <button
                                                     className={`margin-tab ${tipoMargemIdeal === 'venda' ? 'active' : ''}`}
                                                     onClick={() => { setTipoMargemIdeal('venda'); }}
+                                                    style={{ fontSize: '0.8rem', padding: '0.4rem' }}
                                                 >
                                                     Sobre a Venda
+                                                </button>
+                                                <button
+                                                    className={`margin-tab ${tipoMargemIdeal === 'reais' ? 'active' : ''}`}
+                                                    onClick={() => { setTipoMargemIdeal('reais'); }}
+                                                    style={{ fontSize: '0.8rem', padding: '0.4rem', whiteSpace: 'nowrap' }}
+                                                >
+                                                    Ou (R$)
                                                 </button>
                                             </div>
 
@@ -837,145 +1078,199 @@ const ShopeePage: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="input-section-title">Impostos e Custos Fixos</div>
-
-                            <div className="input-group">
-                                <label><Sparkles size={16} /> Imposto {s('IMP')}</label>
-                                <div className="input-composite">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="impostoPorcentagem"
-                                        className="input-main"
-                                        value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)}
-                                        onFocus={() => {
-                                            setFocusedInput('impostoPorcentagem');
-                                            setFocusedValue(inputs.impostoPorcentagem !== undefined ? inputs.impostoPorcentagem.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        placeholder="0,00"
-                                    />
-                                    <select
-                                        name="impostoTipo"
-                                        className="input-unit"
-                                        value={inputs.impostoTipo}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="porcentagem">%</option>
-                                        <option value="fixo">R$</option>
-                                    </select>
+                            {/* Seção de Configurações Avançadas Colapsável */}
+                            <div
+                                className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!user && !isPasswordAuthorized ? 'locked' : ''}`}
+                                onClick={() => {
+                                    if (user || isPasswordAuthorized) {
+                                        setIsAdvancedOpen(!isAdvancedOpen);
+                                    } else {
+                                        setShowPasswordPrompt(!showPasswordPrompt);
+                                    }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <div className="header-title">
+                                    {(user || isPasswordAuthorized) ? (
+                                        <ChevronDown size={20} className="chevron-icon" />
+                                    ) : (
+                                        <Lock size={18} className="lock-icon" />
+                                    )}
+                                    <span>Configurações Avançadas</span>
+                                    {(!user && !isPasswordAuthorized) && <span className="locked-tag">Restrito</span>}
+                                    {isPasswordAuthorized && !user && <span className="unlocked-tag">Desbloqueado</span>}
                                 </div>
-                                <span className="input-hint">DAS, Simples Nacional, etc.</span>
+                                <div className="header-line"></div>
                             </div>
 
-                            <div className="input-group">
-                                <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
-                                <div className="input-composite">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="despesaFixa"
-                                        className="input-main"
-                                        value={getInputValue('despesaFixa', inputs.despesaFixa)}
-                                        onFocus={() => {
-                                            setFocusedInput('despesaFixa');
-                                            setFocusedValue(inputs.despesaFixa !== undefined ? inputs.despesaFixa.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        placeholder="0,00"
-                                    />
-                                    <select
-                                        name="despesaFixaTipo"
-                                        className="input-unit"
-                                        value={inputs.despesaFixaTipo}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="fixo">R$</option>
-                                        <option value="porcentagem">%</option>
-                                    </select>
+                            {/* Prompt de Senha */}
+                            {showPasswordPrompt && !user && !isPasswordAuthorized && (
+                                <div className="password-prompt-container">
+                                    <form onSubmit={handlePasswordSubmit} className={`password-form ${passwordError ? 'shake' : ''}`}>
+                                        <Lock size={16} />
+                                        <input
+                                            type="password"
+                                            placeholder={isVerifyingPassword ? "Verificando..." : "Digite a senha"}
+                                            value={passwordInput}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordInput(e.target.value)}
+                                            disabled={isVerifyingPassword}
+                                            autoFocus
+                                        />
+                                        <button type="submit" disabled={isVerifyingPassword}>
+                                            {isVerifyingPassword ? '...' : 'OK'}
+                                        </button>
+                                    </form>
+                                    <p className="password-hint">
+                                        {passwordErrorMessage ? (
+                                            <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{passwordErrorMessage}</span>
+                                        ) : (
+                                            "Acesso exclusivo para administradores"
+                                        )}
+                                    </p>
                                 </div>
-                                <span className="input-hint">Caixa, fita, etiqueta...</span>
-                            </div>
+                            )}
 
-                            <div className="input-group">
-                                <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
-                                <div className="input-composite">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="despesaAdicional"
-                                        className="input-main"
-                                        value={getInputValue('despesaAdicional', inputs.despesaAdicional)}
-                                        onFocus={() => {
-                                            setFocusedInput('despesaAdicional');
-                                            setFocusedValue(inputs.despesaAdicional !== undefined ? inputs.despesaAdicional.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        placeholder="0,00"
-                                    />
-                                    <select
-                                        name="despesaAdicionalTipo"
-                                        className="input-unit"
-                                        value={inputs.despesaAdicionalTipo}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="porcentagem">%</option>
-                                        <option value="fixo">R$</option>
-                                    </select>
+                            <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
+                                <div className="input-section-title">Impostos e Custos Fixos</div>
+
+                                <div className="input-group">
+                                    <label><ShieldCheck size={16} /> Imposto {s('IMP')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="impostoPorcentagem"
+                                            className="input-main"
+                                            value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)}
+                                            onFocus={() => {
+                                                setFocusedInput('impostoPorcentagem');
+                                                setFocusedValue(inputs.impostoPorcentagem !== undefined ? inputs.impostoPorcentagem.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="impostoTipo"
+                                            className="input-unit"
+                                            value={inputs.impostoTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="porcentagem">%</option>
+                                            <option value="fixo">R$</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">DAS, Simples Nacional, etc.</span>
                                 </div>
-                                <span className="input-hint">Custos operacionais diversos</span>
-                            </div>
 
-                            <div className="input-section-title">Marketing e Descontos</div>
-
-                            <div className="input-group">
-                                <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
-                                <div className="input-composite">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="adsValor"
-                                        className="input-main"
-                                        value={getInputValue('adsValor', inputs.adsValor)}
-                                        onFocus={() => {
-                                            setFocusedInput('adsValor');
-                                            setFocusedValue(inputs.adsValor !== undefined ? inputs.adsValor.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        placeholder="0,00"
-                                    />
-                                    <select
-                                        name="adsTipo"
-                                        className="input-unit"
-                                        value={inputs.adsTipo}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="fixo">R$</option>
-                                        <option value="porcentagem">%</option>
-                                        <option value="roas">ROAS</option>
-                                    </select>
+                                <div className="input-group">
+                                    <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="despesaFixa"
+                                            className="input-main"
+                                            value={getInputValue('despesaFixa', inputs.despesaFixa)}
+                                            onFocus={() => {
+                                                setFocusedInput('despesaFixa');
+                                                setFocusedValue(inputs.despesaFixa !== undefined ? inputs.despesaFixa.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="despesaFixaTipo"
+                                            className="input-unit"
+                                            value={inputs.despesaFixaTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="fixo">R$</option>
+                                            <option value="porcentagem">%</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Caixa, fita, etiqueta...</span>
                                 </div>
-                                <span className="input-hint">Shopee Ads por venda</span>
+
+                                <div className="input-group">
+                                    <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="despesaAdicional"
+                                            className="input-main"
+                                            value={getInputValue('despesaAdicional', inputs.despesaAdicional)}
+                                            onFocus={() => {
+                                                setFocusedInput('despesaAdicional');
+                                                setFocusedValue(inputs.despesaAdicional !== undefined ? inputs.despesaAdicional.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="despesaAdicionalTipo"
+                                            className="input-unit"
+                                            value={inputs.despesaAdicionalTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="porcentagem">%</option>
+                                            <option value="fixo">R$</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Custos operacionais diversos</span>
+                                </div>
+
+                                <div className="input-section-title">Marketing e Descontos</div>
+
+                                <div className="input-group">
+                                    <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="adsValor"
+                                            className="input-main"
+                                            value={getInputValue('adsValor', inputs.adsValor)}
+                                            onFocus={() => {
+                                                setFocusedInput('adsValor');
+                                                setFocusedValue(inputs.adsValor !== undefined ? inputs.adsValor.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="adsTipo"
+                                            className="input-unit"
+                                            value={inputs.adsTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="fixo">R$</option>
+                                            <option value="porcentagem">%</option>
+                                            <option value="roas">ROAS</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Shopee Ads por venda</span>
+                                </div>
                             </div>
 
                             <div className="input-group">
@@ -1046,53 +1341,7 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Valor do cupom da loja</span>
                             </div>
 
-                            {/* Desativado Temporariamente:
-                            <div className="input-section-title">Simulação de Giro (Sweet Spot)</div>
-
-                            <div className="input-group">
-                                <label><ShoppingCart size={16} /> Vendas /mês {s('VEM')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    name="vendasEstimadas"
-                                    className="input-main single"
-                                    value={getInputValue('vendasEstimadas', inputs.vendasEstimadas)}
-                                    onFocus={() => {
-                                        setFocusedInput('vendasEstimadas');
-                                        setFocusedValue(inputs.vendasEstimadas?.toString() || '');
-                                    }}
-                                    onBlur={() => {
-                                        setFocusedInput(null);
-                                        setFocusedValue('');
-                                    }}
-                                    onChange={handleChange}
-                                    placeholder="50"
-                                />
-                                <span className="input-hint">Volume mensal no preço atual</span>
-                            </div>
-
-                            <div className="input-group">
-                                <label><Zap size={16} /> Elasticidade {s('ELAS')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    name="fatorElasticidade"
-                                    className="input-main single"
-                                    value={getInputValue('fatorElasticidade', inputs.fatorElasticidade)}
-                                    onFocus={() => {
-                                        setFocusedInput('fatorElasticidade');
-                                        setFocusedValue(inputs.fatorElasticidade?.toString().replace('.', ',') || '');
-                                    }}
-                                    onBlur={() => {
-                                        setFocusedInput(null);
-                                        setFocusedValue('');
-                                    }}
-                                    onChange={handleChange}
-                                    placeholder="2,0"
-                                />
-                                <span className="input-hint">Sensibilidade (Padrão: 2,0)</span>
-                            </div>
-                            */}
+                            {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
                         </div>
                         <div className="actions">
                             <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
@@ -1113,28 +1362,8 @@ const ShopeePage: React.FC = () => {
                         <div id="quick-results">
                             {/* Cálculos Antecipados */}
                             {(() => {
-                                const margemAtiva = margemDesejada ?? 0;
-                                const pdvIdeal = calcularPrecoIdeal({ ...inputs, cupomDesconto: 0 }, margemAtiva, tipoMargemIdeal);
-
-                                let pccIdeal: number;
-                                if (inputs.cupomDesconto && inputs.cupomDesconto > 0) {
-                                    if (inputs.cupomTipo === 'porcentagem') {
-                                        const fator = (1 - (inputs.cupomDesconto / 100));
-                                        const rawPCC = fator > 0 ? pdvIdeal / fator : pdvIdeal;
-                                        pccIdeal = arredondar(rawPCC, 2);
-                                    } else {
-                                        pccIdeal = pdvIdeal + inputs.cupomDesconto;
-                                    }
-                                } else {
-                                    pccIdeal = pdvIdeal;
-                                }
-
-
-
-                                const desiredResults = calcularTaxasShopee({ ...inputs, precoVenda: pccIdeal });
-                                // Calcular margem mostra DRE final
-                                // Calcular preço mostra DRE desejado
-                                const activeResults = aba === 'ideal' ? desiredResults : (results || desiredResults);
+                                // No modo Ideal, os resultados já vêm calculados do handleCalcular
+                                const activeResults = results || calcularTaxasShopee(inputs);
 
                                 // Gerar status baseado no activeResults
                                 let statusClass = 'status-orange';
@@ -1153,82 +1382,190 @@ const ShopeePage: React.FC = () => {
 
                                 return (
                                     <>
-                                        {/* Desativado Temporariamente:
-                                        {aba === 'margem' && (
-                                            <CardInsightPreco input={inputs} />
+                                        {/* Desativado temporariamente conforme solicitado
+                                        {aba === 'margem' && sweetSpot && sweetSpot.cenarioOtimizado.precoAnunciado !== sweetSpot.cenarioAtual.precoAnunciado && (
+                                            <div className="sweet-spot-card" ...>
+                                                ...
+                                            </div>
                                         )}
                                         */}
 
-                                        <div className={`alert-box-result ${statusClass}`}>
-                                            {statusIcon} <span>{statusText}</span>
-                                        </div>
 
-                                        <div className="premium-results-grid">
-                                            <div className="result-card primary" style={{
-                                                backgroundColor: activeResults.margemSobreVenda <= 0 ? '#fef2f2' : (activeResults.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
-                                                borderColor: activeResults.margemSobreVenda <= 0 ? '#fecaca' : (activeResults.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0'),
-                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                                            }}>
-                                                <div className="result-label" style={{
-                                                    color: activeResults.margemSobreVenda <= 0 ? '#991b1b' : (activeResults.margemSobreVenda < 15 ? '#9a3412' : '#166534')
-                                                }}>
-                                                    {aba === 'ideal' ? (
-                                                        <>PREÇO DE VENDA IDEAL {s('PDVI')}</>
-                                                    ) : (
-                                                        <>PREÇO DE VENDA {s('PDV')}</>
-                                                    )}
-                                                </div>
-                                                <div className="result-value" style={{
-                                                    color: activeResults.margemSobreVenda <= 0 ? '#dc2626' : (activeResults.margemSobreVenda < 15 ? '#d97706' : '#10B981')
-                                                }}>
-                                                    R$ {moeda(activeResults.precoVenda)}
-                                                </div>
-                                                <div className="result-sub" style={{
-                                                    color: activeResults.margemSobreVenda <= 0 ? '#b91c1c' : (activeResults.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
-                                                    opacity: 1,
-                                                    fontWeight: 600
-                                                }}>
-                                                    {aba === 'ideal' ? `Para atingir ${porc(margemDesejada ?? 15)}% de lucro` : `Margem atual de ${porc(activeResults.margemSobreVenda ?? 0)}%`}
-                                                </div>
-                                                <ShoppingCart size={24} className="card-icon" style={{
-                                                    opacity: 0.1,
-                                                    color: activeResults.margemSobreVenda <= 0 ? '#dc2626' : (activeResults.margemSobreVenda < 15 ? '#d97706' : '#10B981')
-                                                }} />
-                                            </div>
 
-                                            <div className="result-card secondary" style={{
-                                                backgroundColor: '#eff6ff',
-                                                borderColor: '#bfdbfe'
-                                            }}>
-                                                <div className="result-label" style={{
-                                                    color: '#1e3a8a'
-                                                }}>
-                                                    {aba === 'ideal' ? (
-                                                        <>PREÇO IDEAL ANUNCIADO {s('PIA')}</>
-                                                    ) : (
-                                                        <>PREÇO ANUNCIADO {s('PA')}</>
-                                                    )}
+
+
+                                        {(() => {
+                                            const lucroAtual = activeResults.lucroLiquido;
+                                            const precoAtualSim = activeResults.precoVenda;
+                                            
+                                            const melhorAnterior = simulacao?.cenarios
+                                                ?.filter((c: any) => {
+                                                    // Só recomenda se o PDV for menor E o lucro for realmente superior
+                                                    // Usamos uma margem de segurança menor para não perder o degrau exato
+                                                    return c.precoVenda < (precoAtualSim - 0.001) && c.lucroLiquido > (lucroAtual + 0.05);
+                                                })
+                                                ?.sort((a: any, b: any) => b.lucroLiquido - a.lucroLiquido)
+                                                ?.[0];
+
+                                            const content = (
+                                                <div className="premium-results-grid">
+                                                    <div className="result-card primary" style={{
+                                                        backgroundColor: activeResults.margemSobreVenda <= 0 ? '#fef2f2' : (activeResults.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
+                                                        borderColor: activeResults.margemSobreVenda <= 0 ? '#fecaca' : (activeResults.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0'),
+                                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                                    }}>
+                                                        <div className="result-label" style={{
+                                                            color: activeResults.margemSobreVenda <= 0 ? '#991b1b' : (activeResults.margemSobreVenda < 15 ? '#9a3412' : '#166534')
+                                                        }}>
+                                                            {aba === 'ideal' ? (
+                                                                <>PREÇO DE VENDA IDEAL {s('PDVI')}</>
+                                                            ) : (
+                                                                <>PREÇO DE VENDA {s('PDV')}</>
+                                                            )}
+                                                        </div>
+                                                        <div className="result-value" style={{
+                                                            color: activeResults.margemSobreVenda <= 0 ? '#dc2626' : (activeResults.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                                                        }}>
+                                                            R$ {moeda(activeResults.precoVenda)}
+                                                        </div>
+                                                        <div className="result-sub" style={{
+                                                            color: activeResults.margemSobreVenda <= 0 ? '#b91c1c' : (activeResults.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
+                                                            opacity: 1,
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {aba === 'ideal' ? (
+                                                                `Resultado real: ${porc(activeResults.margemLiquidaSobreCusto)}% de lucro`
+                                                            ) : (
+                                                                `Margem atual de ${porc(activeResults.margemSobreVenda ?? 0)}%`
+                                                            )}
+                                                        </div>
+                                                        <ShoppingCart size={24} className="card-icon" style={{
+                                                            opacity: 0.1,
+                                                            color: activeResults.margemSobreVenda <= 0 ? '#dc2626' : (activeResults.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                                                        }} />
+                                                    </div>
+
+                                                    <div className="result-card secondary" style={{
+                                                        backgroundColor: '#eff6ff',
+                                                        borderColor: '#bfdbfe'
+                                                    }}>
+                                                        <div className="result-label" style={{ color: '#1e3a8a' }}>
+                                                            {aba === 'ideal' ? (
+                                                                <>PREÇO IDEAL ANUNCIADO {s('PIA')}</>
+                                                            ) : (
+                                                                <>PREÇO ANUNCIADO {s('PA')}</>
+                                                            )}
+                                                        </div>
+                                                        <div className="result-value" style={{ color: '#1e40af' }}>
+                                                            R$ {moeda(activeResults.precoComCupom)}
+                                                        </div>
+                                                        <div className="result-sub" style={{
+                                                            color: '#1e40af',
+                                                            opacity: 1
+                                                        }}>
+                                                            {aba === 'ideal' ? 'Preço de vitrine para cobrir cupom' : 'Valor exibido na vitrine'}
+                                                        </div>
+                                                        <TrendingUp size={24} className="card-icon" style={{
+                                                            opacity: 0.1,
+                                                            color: '#3b82f6'
+                                                        }} />
+                                                    </div>
                                                 </div>
-                                                <div className="result-value" style={{
-                                                    color: '#3b82f6'
-                                                }}>
-                                                    R$ {moeda(activeResults.precoComCupom)}
+                                            );
+
+                                            if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado) {
+                                                // Descobre o PA original e otimizado com base na função dedicada
+                                                const paOri = otimizacaoIdeal.precoOriginal;
+                                                const paOpt = otimizacaoIdeal.precoOtimizado;
+                                                // Descobre o PDV para exibir bonitinho
+                                                
+                                                // Vamos re-calcular o PDV desses PAs se o usuario logou com cupom. Mas o sensor exibe só o PAs para simplicidade e os lucros.
+                                                // "Para chegar nos seus 11.31%, você teria que cobrar R$ X matemataticamente (que daria um lucro de Y). MAS eu encontrei... "
+                                                
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
+                                                        </div>
+                                                        <div className="alert-sensor-animated">
+                                                            <div className="alert-sensor-animated-content">
+                                                                <div className="sensor-inner-alert">
+                                                                    <TrendingUp size={20} /> 
+                                                                    <span>
+                                                                        <strong>Sensor de Otimização Automática Ativado:</strong> Para atingir o lucro desejado você teria que cobrar no mínimo <strong>R$ {moeda(paOri)}</strong> (lucro de R$ {moeda(otimizacaoIdeal.lucroOriginal)}),
+                                                                        entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <strong>R$ {moeda(paOpt)}</strong> você muda a faixa de impostos e seu lucro líquido final <strong>{otimizacaoIdeal.lucroOtimizado > otimizacaoIdeal.lucroOriginal ? 'subirá' : 'se manterá'} em R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</strong>
+                                                                    </span>
+                                                                </div>
+                                                                {content}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (melhorAnterior && aba !== 'ideal') {
+                                                // Descobre o PA sugerido e o PDV resultante
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
+                                                        </div>
+                                                        <div className="alert-sensor-animated">
+                                                            <div className="alert-sensor-animated-content">
+                                                                <div className="sensor-inner-alert">
+                                                                    <TrendingUp size={20} /> 
+                                                                    <span>
+                                                                        <strong>Sugestão do Sensor:</strong> Se você configurar <strong>{tipoMargemIdeal === 'reais' ? `R$ ${moeda(melhorAnterior.lucroLiquido)}` : `${porc(tipoMargemIdeal === 'custo' ? melhorAnterior.margemLiquidaSobreCusto : melhorAnterior.margemSobreVenda)}%`}</strong> de Lucro Desejado,
+                                                                        {(inputs.cupomDesconto ?? 0) > 0 && (
+                                                                            <> com seu cupom de {inputs.cupomDesconto}{inputs.cupomTipo === 'porcentagem' ? '%' : ' R$'} o preço cai para <strong>R$ {moeda(melhorAnterior.precoVenda)}</strong>,</>
+                                                                        )} seu lucro sobe para <strong>R$ {moeda(melhorAnterior.lucroLiquido)}</strong> devido à redução automática de taxas!
+                                                                    </span>
+                                                                </div>
+                                                                {content}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    <div className={`alert-box-result ${statusClass}`}>
+                                                        {statusIcon} <span>{statusText}</span>
+                                                    </div>
+                                                    {content}
                                                 </div>
-                                                <div className="result-sub" style={{
-                                                    color: '#1e40af',
-                                                    opacity: 1
-                                                }}>
-                                                    {aba === 'ideal' ? 'Preço de vitrine para cobrir cupom' : 'Valor exibido na vitrine'}
-                                                </div>
-                                                <TrendingUp size={24} className="card-icon" style={{
-                                                    opacity: 0.1,
-                                                    color: '#3b82f6'
-                                                }} />
-                                            </div>
-                                        </div>
+                                            );
+                                        })()}
 
 
                                         <div className="details">
+                                            <div style={{
+                                                marginBottom: '1.5rem',
+                                                padding: '1.5rem',
+                                                background: '#f8fafc',
+                                                borderRadius: '16px',
+                                                border: '1px solid #e2e8f0',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '1rem'
+                                            }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                        <span style={{ fontSize: '1.15rem', color: '#1e40af', fontWeight: 800 }}>Lucro liquido venda:</span>
+                                                        <span style={{ fontSize: '1.15rem', color: '#1e40af', fontWeight: 800 }}>({porc(activeResults.margemSobreVenda)}%)</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                        <span style={{ fontSize: '1.15rem', color: '#c2410c', fontWeight: 800 }}>Lucro liquido custo:</span>
+                                                        <span style={{ fontSize: '1.15rem', color: '#c2410c', fontWeight: 800 }}>({porc(activeResults.margemLiquidaSobreCusto)}%)</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.5rem' }}>
+                                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lucro Líquido Final</div>
+                                                    <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>R$ {moeda(activeResults.lucroLiquido)}</div>
+                                                </div>
+                                            </div>
+
                                             {(inputs.cupomDesconto ?? 0) > 0 && activeResults && (
                                                 <>
                                                     <div className="detail-row">
@@ -1296,7 +1633,7 @@ const ShopeePage: React.FC = () => {
                                                     <span>Despesa fixa {s('DF')}:</span>
                                                     <div className="detail-values">
                                                         <span className="perc">({porc((activeResults.despesaFixaValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                        <span className="val text-red">- R$ {moeda(activeResults.despesaFixaValor || 0)}</span>
+                                                        <span className="val text-red">- R$ {moeda(activeResults.despesaFixaValor)}</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -1315,64 +1652,30 @@ const ShopeePage: React.FC = () => {
                                                 <div className="detail-row">
                                                     <span>Crédito de Rebate {s('CR')}:</span>
                                                     <div className="detail-values">
-                                                        <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                        <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoComCupom || 1) * 100)}%)</span>
                                                         <span className="val text-green">(+ R$ {moeda(activeResults.rebateValor)})</span>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            <div style={{
-                                                marginTop: '1.5rem',
-                                                padding: '1.25rem',
-                                                background: activeResults.margemSobreVenda <= 0 ? '#fef2f2' : (activeResults.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
-                                                borderRadius: '12px',
-                                                border: `1px solid ${activeResults.margemSobreVenda <= 0 ? '#fecaca' : (activeResults.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0')}`,
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '0.75rem'
-                                            }}>
-                                                <div className={`detail-row total ${statusClass}`} style={{ border: 'none', padding: 0, margin: 0, background: 'transparent', display: 'grid', gridTemplateColumns: 'minmax(12rem, 1fr) auto 6.5rem', alignItems: 'center', gap: '1rem' }}>
-                                                    <span style={{ fontSize: '1.1rem' }}>Lucro Líquido Final {aba === 'ideal' ? s('LLVD') : s('LLV')}:</span>
-                                                    <span className="perc" style={{ fontWeight: 800, fontSize: '1.1rem' }}>({porc(activeResults.margemSobreVenda)}%)</span>
-                                                    <span className="val" style={{ fontWeight: 800, fontSize: '1.1rem', textAlign: 'right' }}>R$ {moeda(activeResults.lucroLiquido)}</span>
-                                                </div>
 
-                                                <div className="detail-row" style={{ border: 'none', padding: 0, margin: 0, opacity: 0.7, marginTop: '-0.25rem', display: 'grid', gridTemplateColumns: 'minmax(12rem, 1fr) auto 6.5rem', alignItems: 'center', gap: '1rem' }}>
-                                                    <span style={{
-                                                        color: activeResults.margemSobreVenda <= 0 ? '#991b1b' : (activeResults.margemSobreVenda < 15 ? '#9a3412' : '#166534'),
-                                                        fontWeight: 500,
-                                                        fontSize: '0.85rem'
-                                                    }}>
-                                                        Lucro líquido sobre o custo {aba === 'ideal' ? s('LLCD') : s('LLC')}:
-                                                    </span>
-                                                    <span className="perc" style={{
-                                                        color: activeResults.margemSobreVenda <= 0 ? '#b91c1c' : (activeResults.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
-                                                        fontWeight: 800,
-                                                        fontSize: '0.85rem',
-                                                        textAlign: 'right'
-                                                    }}>
-                                                        ({porc(activeResults.margemLiquidaSobreCusto)}%)
-                                                    </span>
-                                                    <div style={{ minWidth: '6.5rem' }}></div>
-                                                </div>
-                                            </div>
                                         </div>
 
                                         <div className="result-card mini large" style={{ marginTop: '2.5rem' }}>
                                             <div className="result-header">
-                                                {activeResults.margemSobreCusto > 0 ? (
+                                                {activeResults.margemSobreVenda >= 15 ? (
                                                     <ArrowUpRight size={18} className="text-green" />
                                                 ) : (
                                                     <ArrowDownRight size={18} className="text-red" />
                                                 )} Margem de Contribuição {s('MC')}
                                             </div>
                                             <div className="result-body">
-                                                <span className={`percentage ${activeResults.margemSobreCusto <= 0 ? 'text-red' :
+                                                <span className={`percentage ${activeResults.margemSobreVenda <= 0 ? 'text-red' :
                                                     activeResults.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
                                                     }`}>
-                                                    {arredondar(activeResults.margemSobreCusto, 2).toFixed(2).replace('.', ',')}%
+                                                    {arredondar(activeResults.margemSobreVenda, 2).toFixed(2).replace('.', ',')}%
                                                 </span>
-                                                <span className="nominal">R$ {arredondar(activeResults.nominalSobreCusto || 0, 2).toFixed(2).replace('.', ',')}</span>
+                                                <span className="nominal">R$ {arredondar(activeResults.lucroLiquido || 0, 2).toFixed(2).replace('.', ',')}</span>
                                             </div>
                                         </div>
 

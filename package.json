@@ -1,7 +1,7 @@
 {
   "name": "pyro-planetary",
   "private": true,
-  "version": "1.1.85-beta",
+  "version": "1.1.144-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",

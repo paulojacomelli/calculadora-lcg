@@ -8,6 +8,8 @@
 
 import { initializeApp } from "firebase/app";
 import { getAnalytics, logEvent } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Configuração do projeto Firebase usando variáveis de ambiente
 const firebaseConfig = {
@@ -25,6 +27,15 @@ const app = initializeApp(firebaseConfig);
 
 // Inicializa o Analytics (só funciona no browser/produção)
 export const analytics = getAnalytics(app);
+
+// Inicializa o Auth e o Provedor do Google
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// Inicializa o Firestore com o ID específico 'default'
+export const db = getFirestore(app, 'default');
+
+
 
 /**
  * Registra um evento de cálculo no Analytics
