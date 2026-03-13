@@ -80,7 +80,7 @@ body {
   padding: 0 1.5rem;
   display: flex;
   gap: 2rem;
-  justify-content: center;
+  align-items: center;
 }
 
 .nav-item {
@@ -123,7 +123,7 @@ body {
   display: flex;
   gap: 2.5rem;
   align-items: flex-start;
-  margin-top: 3rem;
+  margin-top: 1rem;
 }
 
 .calculator-left {
@@ -135,7 +135,6 @@ body {
 
 .calculator-right {
   flex: 1.2;
-  min-height: 600px;
 }
 
 /* Reajuste de Tabs para dentro da coluna esquerda */
@@ -188,16 +187,68 @@ body {
   .calculator-main {
     flex-direction: column;
     gap: 2rem;
+    align-items: stretch; /* Garante que os cartões estiquem na largura total */
   }
 
   .calculator-left {
     max-width: 100%;
+    width: 100%;
     position: relative;
     top: 0;
   }
 
   .container {
-    max-width: 800px;
+    max-width: 100%; /* Ocupa a largura disponível no tablet/mobile */
+    padding: 0 1rem;
+  }
+}
+
+/* === LAYOUT DE 3 COLUNAS PARA TELAS GRANDES === */
+@media (min-width: 1440px) {
+  .container {
+    max-width: 1800px; /* Expandido para acomodar 3 colunas confortavelmente */
+    padding: 0 4rem;
+    max-width: 1800px;
+  }
+
+  .nav-container {
+    max-width: 1800px;
+  }
+
+  .calculator-main {
+    display: grid;
+    grid-template-columns: 380px 1fr; 
+    gap: 3rem;
+    align-items: flex-start;
+  }
+
+  .calculator-left {
+    max-width: 100%;
+    position: sticky;
+    top: 2rem;
+  }
+
+  .results-container-3col {
+    display: grid;
+    grid-template-columns: minmax(500px, 1fr) 1.2fr; /* Coluna de resultados e coluna de gráficos */
+    gap: 2.5rem;
+    align-items: flex-start;
+  }
+
+  /* Posiciona os gráficos na segunda sub-coluna (3ª coluna real da página) */
+  .analytical-charts-section {
+    grid-column: 2;
+    grid-row: 1 / span 10; /* Faz os gráficos começarem do topo e acompanharem o conteúdo */
+    margin-top: 0 !important;
+  }
+
+  /* Garante que o restante dos elementos (cards, tabelas, alertas) fiquem na primeira sub-coluna */
+  .alert-box-result,
+  .alert-sensor-animated,
+  .premium-results-grid,
+  .details,
+  .result-card.mini.large {
+    grid-column: 1;
   }
 }
 
@@ -561,7 +612,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 2rem;
-  margin-top: 2rem;
+  margin-top: 1rem;
 }
 
 .result-card {
@@ -2197,7 +2248,7 @@ g.recharts-reference-line {
   border-radius: 20px;
   padding: 3px;
   overflow: hidden;
-  margin-bottom: 2rem;
+  margin-bottom: 0.75rem;
   z-index: 1;
   transition: all 0.3s ease;
   animation: slideDown 0.4s ease-out;
@@ -2226,10 +2277,10 @@ g.recharts-reference-line {
   height: 100%;
   background: #ffffff; /* Fundo branco interno */
   border-radius: 18px;
-  padding: 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 /* Alerta interno do sensor (dentro do card animado) */
