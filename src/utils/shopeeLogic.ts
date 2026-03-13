@@ -32,6 +32,7 @@ export interface ShopeeInput {
   // Parâmetros de Simulação Sweet Spot
   fatorElasticidade?: number;
   fatorAlavancagem?: number;
+  fatorAlavancagemAtivo?: boolean;
 }
 
 export interface ShopeeOutput {
@@ -275,9 +276,18 @@ export const calcularPrecoIdealDetalhado = (
   let melhorPa = paMatematico;
   let melhorLucro = resultadoReferencia.lucroLiquido;
 
-  // Otimização "Sweet Spot": varredura descendente para aproveitar as janelas de taxa reduzida (ex: 79.99)
-  // Varremos descendo R$ 50.00 (5000 centavos)
-  for (let i = 1; i <= 5000; i++) {
+  let isAlavancagem = false;
+  let fatorAlavancagem = 0;
+  let quedaPreco = 0;
+  let quedaLucro = 0;
+  let esforcoPercentual = 0;
+
+  // Otimização "Sweet Spot" e Alavancagem de Giro
+  // Só executamos as varreduras se o sensor estiver ativo (padrão é true)
+  if (input.fatorAlavancagemAtivo !== false) {
+    // Camada 1: Otimização "Sweet Spot" - varredura descendente para aproveitar as janelas de taxa reduzida (ex: 79.99)
+    // Varremos descendo R$ 50.00 (5000 centavos)
+    for (let i = 1; i <= 5000; i++) {
     const paTeste = arredondar(paMatematico - (i / 100), 2);
     if (paTeste <= (input.custoProduto || 0.01)) break; // Nunca cai abaixo do custo bruto
 
@@ -290,16 +300,8 @@ export const calcularPrecoIdealDetalhado = (
     }
   }
 
-  // Camada 2: Alavancagem de Giro (Leverage)
-  // Só procuramos se NÃO houve otimização de lucro positiva significativa (Sweet Spot)
   const MAX_LUCRO_PERDIDO_PCT = 0.15;
   const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
-
-  let isAlavancagem = false;
-  let fatorAlavancagem = 0;
-  let quedaPreco = 0;
-  let quedaLucro = 0;
-  let esforcoPercentual = 0;
 
   if (melhorPa === paMatematico) {
     for (let i = 1; i <= 5000; i++) {
@@ -328,6 +330,7 @@ export const calcularPrecoIdealDetalhado = (
                 }
             }
         }
+    }
     }
   }
 

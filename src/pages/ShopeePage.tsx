@@ -17,7 +17,8 @@ import {
     HelpCircle,
     ChevronDown,
     ShieldCheck,
-    Lock
+    Lock,
+    Zap
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -61,7 +62,8 @@ const defaultInputs: ShopeeInput = {
     rebateTipo: 'porcentagem',
     cupomDesconto: undefined,
     cupomTipo: 'porcentagem',
-    fatorAlavancagem: 5.0
+    fatorAlavancagem: 5.0,
+    fatorAlavancagemAtivo: true
 };
 
 const ShopeePage: React.FC = () => {
@@ -277,14 +279,22 @@ const ShopeePage: React.FC = () => {
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
+        const target = e.target as HTMLInputElement;
+        const { name, type } = target;
+
+        if (type === 'checkbox') {
+            setInputs(prev => ({ ...prev, [name]: target.checked }));
+            return;
+        }
+
+        const val = target.value;
 
         // Todos os campos exceto os que terminam em 'Tipo' ou a aba são numéricos
         const constitutesNumber = !name.endsWith('Tipo') && name !== 'aba' && name !== 'tipoMargemIdeal' && name !== 'status';
 
-        if (constitutesNumber && e.target.tagName === 'INPUT') {
+        if (constitutesNumber && target.tagName === 'INPUT') {
             // Máscara Financeira: remove tudo que não for dígito e trata como centavos
-            const digits = value.replace(/\D/g, '');
+            const digits = val.replace(/\D/g, '');
 
             if (digits === '') {
                 if (focusedInput === name) setFocusedValue('');
@@ -302,17 +312,17 @@ const ShopeePage: React.FC = () => {
         } else {
             // Lógica para select e outros campos não mascarados
             if (focusedInput === name) {
-                setFocusedValue(value);
+                setFocusedValue(val);
             }
 
             if (name === 'aba') {
-                setAba(value as any);
+                setAba(val as any);
             } else if (name === 'tipoMargemIdeal') {
-                setTipoMargemIdeal(value as any);
+                setTipoMargemIdeal(val as any);
             } else {
                 setInputs((prev) => ({
                     ...prev,
-                    [name]: value,
+                    [name]: val,
                 }));
             }
         }
@@ -1138,6 +1148,34 @@ const ShopeePage: React.FC = () => {
                             )}
 
                             <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
+                                <div className="input-group" style={{ 
+                                    marginBottom: '1.5rem', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'space-between', 
+                                    backgroundColor: 'rgba(139, 92, 246, 0.05)', 
+                                    padding: '12px', 
+                                    borderRadius: '12px', 
+                                    border: '1px dashed rgba(139, 92, 246, 0.2)' 
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#6d28d9', fontWeight: 700 }}>
+                                            <Zap size={16} /> Sensor de Otimização
+                                        </label>
+                                        <span className="input-hint" style={{ margin: 0, fontSize: '0.75rem' }}>Sugere preços estratégicos e alavancagem de giro</span>
+                                    </div>
+                                    <div className="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            id="fatorAlavancagemAtivo"
+                                            name="fatorAlavancagemAtivo"
+                                            checked={inputs.fatorAlavancagemAtivo !== false}
+                                            onChange={handleChange}
+                                        />
+                                        <label htmlFor="fatorAlavancagemAtivo" className="switch-label"></label>
+                                    </div>
+                                </div>
+
                                 <div className="input-group">
                                     <label><RefreshCcw size={16} /> Fator de Alavancagem (Giro)</label>
                                     <div className="input-with-icon">
