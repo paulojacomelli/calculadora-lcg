@@ -1488,9 +1488,7 @@ const ShopeePage: React.FC = () => {
                                                             opacity: 1,
                                                             fontWeight: 600
                                                         }}>
-                                                            {aba !== 'ideal' && (
-                                                                `Margem atual de ${porc(activeResults.margemSobreVenda ?? 0)}%`
-                                                            )}
+                                                            {aba === 'ideal' ? "Melhor preço identificado" : "Valor sem cupom"}
                                                         </div>
                                                         <ShoppingCart size={24} className="card-icon" style={{
                                                             opacity: 0.1,
@@ -1512,11 +1510,8 @@ const ShopeePage: React.FC = () => {
                                                         <div className="result-value" style={{ color: '#1e40af' }}>
                                                             R$ {moeda(activeResults.precoComCupom)}
                                                         </div>
-                                                        <div className="result-sub" style={{
-                                                            color: '#1e40af',
-                                                            opacity: 1
-                                                        }}>
-                                                            {aba === 'ideal' ? 'Preço de vitrine para cobrir cupom' : 'Valor exibido na vitrine'}
+                                                        <div className="result-sub" style={{ color: '#1e40af', opacity: 1 }}>
+                                                            Valor exibido na vitrine
                                                         </div>
                                                         <TrendingUp size={24} className="card-icon" style={{
                                                             opacity: 0.1,
