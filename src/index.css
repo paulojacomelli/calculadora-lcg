@@ -2179,6 +2179,12 @@ g.recharts-reference-line {
   100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.2); }
 }
 
+@keyframes pulse-glow-purple {
+  0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(139, 92, 246, 0.6); }
+  100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.2); }
+}
+
 /* Animação para a Borda do Sensor de Taxas - Envolvendo o Card Inteiro */
 @keyframes rotate-border {
   from { transform: rotate(0deg); }
@@ -2239,6 +2245,24 @@ g.recharts-reference-line {
   font-weight: 600;
   animation: slideDown 0.4s ease-out, pulse-glow 2s infinite ease-in-out;
 }
+
+/* Variante Roxa para Estratégia de Giro (Alavancagem) */
+.alert-sensor-animated.purple::before {
+  background-image: conic-gradient(transparent, #8b5cf6, transparent, #a855f7, transparent, #8b5cf6);
+  animation-duration: 4s; /* Um pouco mais rápido para destacar a estratégia */
+}
+
+.alert-sensor-animated.purple .alert-sensor-animated-content {
+  background: #fdfaff; /* Fundo roxo claríssimo */
+}
+
+.alert-sensor-animated.purple .sensor-inner-alert {
+  background: #f5f3ff;
+  border: 2px dashed #8b5cf6;
+  color: #6d28d9;
+  animation: slideDown 0.4s ease-out, pulse-glow-purple 2s infinite ease-in-out;
+}
+
 
 
 

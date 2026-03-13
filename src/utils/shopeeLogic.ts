@@ -31,6 +31,7 @@ export interface ShopeeInput {
 
   // Parâmetros de Simulação Sweet Spot
   fatorElasticidade?: number;
+  fatorAlavancagem?: number;
 }
 
 export interface ShopeeOutput {
@@ -226,6 +227,12 @@ export interface OtimizacaoPrecoResult {
   margemVendaOriginal: number;
   margemCustoOtimizado: number;
   margemVendaOtimizado: number;
+  // Novos campos para Alavancagem
+  isAlavancagem: boolean;
+  fatorAlavancagem: number;
+  quedaPreco: number;
+  quedaLucro: number;
+  esforcoPercentual: number;
 }
 
 /**
@@ -283,6 +290,47 @@ export const calcularPrecoIdealDetalhado = (
     }
   }
 
+  // Camada 2: Alavancagem de Giro (Leverage)
+  // Só procuramos se NÃO houve otimização de lucro positiva significativa (Sweet Spot)
+  const MAX_LUCRO_PERDIDO_PCT = 0.15;
+  const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
+
+  let isAlavancagem = false;
+  let fatorAlavancagem = 0;
+  let quedaPreco = 0;
+  let quedaLucro = 0;
+  let esforcoPercentual = 0;
+
+  if (melhorPa === paMatematico) {
+    for (let i = 1; i <= 5000; i++) {
+        const paTeste = arredondar(paMatematico - (i / 100), 2);
+        if (paTeste <= (input.custoProduto || 0.01)) break;
+
+        const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, false);
+        
+        const qPreco = paMatematico - paTeste;
+        const qLucro = resultadoReferencia.lucroLiquido - resTeste.lucroLiquido;
+
+        if (qLucro > 0) {
+            const fator = qPreco / qLucro;
+            const pctPerdaLucro = qLucro / (resultadoReferencia.lucroLiquido || 1);
+
+            if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
+                // Selecionamos o de maior fator de alavancagem
+                if (fator > fatorAlavancagem) {
+                    fatorAlavancagem = fator;
+                    melhorPa = paTeste;
+                    isAlavancagem = true;
+                    quedaPreco = qPreco;
+                    quedaLucro = qLucro;
+                    const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
+                    esforcoPercentual = volNecessario - 100;
+                }
+            }
+        }
+    }
+  }
+
   const resultadoOtimizado = calcularTaxasShopee({ ...input, precoVenda: melhorPa }, false);
 
   return {
@@ -294,7 +342,12 @@ export const calcularPrecoIdealDetalhado = (
     margemCustoOriginal: resultadoReferencia.margemLiquidaSobreCusto,
     margemVendaOriginal: resultadoReferencia.margemSobreVenda,
     margemCustoOtimizado: resultadoOtimizado.margemLiquidaSobreCusto,
-    margemVendaOtimizado: resultadoOtimizado.margemSobreVenda
+    margemVendaOtimizado: resultadoOtimizado.margemSobreVenda,
+    isAlavancagem,
+    fatorAlavancagem,
+    quedaPreco,
+    quedaLucro,
+    esforcoPercentual
   };
 };
 

@@ -60,7 +60,8 @@ const defaultInputs: ShopeeInput = {
     rebatePorcentagem: undefined,
     rebateTipo: 'porcentagem',
     cupomDesconto: undefined,
-    cupomTipo: 'porcentagem'
+    cupomTipo: 'porcentagem',
+    fatorAlavancagem: 5.0
 };
 
 const ShopeePage: React.FC = () => {
@@ -262,9 +263,15 @@ const ShopeePage: React.FC = () => {
         if (name === 'margemDesejada' || name === 'margemDesejada2' || name === 'margemDesejadaMSC') {
             setMargemDesejada(val);
         } else {
+            // Regra: Mínimo de 2.0 para o fator de alavancagem
+            let finalVal = val;
+            if (name === 'fatorAlavancagem' && val !== undefined && val < 2) {
+                finalVal = 2;
+            }
+
             setInputs((prev) => ({
                 ...prev,
-                [name]: val,
+                [name]: finalVal,
             }));
         }
     };
@@ -1131,6 +1138,30 @@ const ShopeePage: React.FC = () => {
                             )}
 
                             <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
+                                <div className="input-group">
+                                    <label><RefreshCcw size={16} /> Fator de Alavancagem (Giro)</label>
+                                    <div className="input-with-icon">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="fatorAlavancagem"
+                                            placeholder="5,00"
+                                            value={getInputValue('fatorAlavancagem', inputs.fatorAlavancagem)}
+                                            onFocus={() => {
+                                                setFocusedInput('fatorAlavancagem');
+                                                setFocusedValue(inputs.fatorAlavancagem !== undefined ? inputs.fatorAlavancagem.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                            }}
+                                            onChange={handleChange}
+                                            style={{ color: '#8b5cf6', fontWeight: 'bold' }}
+                                        />
+                                    </div>
+                                    <span className="input-hint">Ex: {moeda(inputs.fatorAlavancagem ?? 5)} significa que para cada R$ 1 perdido, o cliente ganha R$ {moeda(inputs.fatorAlavancagem ?? 5)} de desconto.</span>
+                                </div>
+
                                 <div className="input-section-title">Impostos e Custos Fixos</div>
 
                                 <div className="input-group">
@@ -1400,12 +1431,36 @@ const ShopeePage: React.FC = () => {
                                             
                                             const melhorAnterior = simulacao?.cenarios
                                                 ?.filter((c: any) => {
-                                                    // Só recomenda se o PDV for menor E o lucro for realmente superior
-                                                    // Usamos uma margem de segurança menor para não perder o degrau exato
+                                                    // Só recomenda se o PDV for menor E o lucro unitário for realmente superior (Sweet Spot de Taxas)
                                                     return c.precoVenda < (precoAtualSim - 0.001) && c.lucroLiquido > (lucroAtual + 0.05);
                                                 })
                                                 ?.sort((a: any, b: any) => b.lucroLiquido - a.lucroLiquido)
                                                 ?.[0];
+
+                                            // Camada 2: Estratégia de Giro (Sensor de Alavancagem)
+                                            // Focado em: Sacrificar pouca margem para dar muito desconto
+                                            const MAX_LUCRO_PERDIDO_PCT = 0.15;
+                                            const MIN_ALAVANCAGEM = inputs.fatorAlavancagem ?? 5.0;
+
+                                            const melhorLeverage = !melhorAnterior ? simulacao?.cenarios
+                                                ?.filter((c: any) => {
+                                                    if (c.precoVenda >= (precoAtualSim - 0.01)) return false;
+                                                    const qPreco = precoAtualSim - c.precoVenda;
+                                                    const qLucro = lucroAtual - c.lucroLiquido;
+
+                                                    if (qLucro > 0.001) {
+                                                        const fator = qPreco / qLucro;
+                                                        const pctPerda = qLucro / (lucroAtual || 1);
+                                                        // Regras: Perder no máximo 15% do lucro e ganhar no mínimo 5x em desconto
+                                                        return pctPerda <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM;
+                                                    }
+                                                    return false;
+                                                })
+                                                ?.sort((a: any, b: any) => {
+                                                    const fA = (precoAtualSim - a.precoVenda) / (lucroAtual - a.lucroLiquido);
+                                                    const fB = (precoAtualSim - b.precoVenda) / (lucroAtual - b.lucroLiquido);
+                                                    return fB - fA;
+                                                })?.[0] : null;
 
                                             const content = (
                                                 <div className="premium-results-grid">
@@ -1474,14 +1529,35 @@ const ShopeePage: React.FC = () => {
                                             );
 
                                             if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado) {
-                                                // Descobre o PA original e otimizado com base na função dedicada
                                                 const paOri = otimizacaoIdeal.precoOriginal;
                                                 const paOpt = otimizacaoIdeal.precoOtimizado;
-                                                // Descobre o PDV para exibir bonitinho
-                                                
-                                                // Vamos re-calcular o PDV desses PAs se o usuario logou com cupom. Mas o sensor exibe só o PAs para simplicidade e os lucros.
-                                                // "Para chegar nos seus 11.31%, você teria que cobrar R$ X matemataticamente (que daria um lucro de Y). MAS eu encontrei... "
-                                                
+
+                                                if (otimizacaoIdeal.isAlavancagem) {
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                            <div className={`alert-box-result ${statusClass}`}>
+                                                                {statusIcon} <span>{statusText}</span>
+                                                            </div>
+                                                            <div className="alert-sensor-animated purple">
+                                                                <div className="alert-sensor-animated-content">
+                                                                    <div className="sensor-inner-alert">
+                                                                        <RefreshCcw size={20} /> 
+                                                                        <span>
+                                                                            <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>. 
+                                                                            Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente, 
+                                                                            sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{otimizacaoIdeal.fatorAlavancagem.toFixed(1)}x</strong>).
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#5b21b6', borderTop: '1px solid rgba(139, 92, 246, 0.2)', paddingTop: '0.5rem' }}>
+                                                                        <strong>Risco Baixíssimo:</strong> Você precisa aumentar suas vendas em apenas <strong>{porc(otimizacaoIdeal.esforcoPercentual)}%</strong> para empatar seu lucro atual. Rompendo essa marca, todo volume extra vira lucro puro!
+                                                                    </div>
+                                                                    {content}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
@@ -1492,7 +1568,7 @@ const ShopeePage: React.FC = () => {
                                                                 <div className="sensor-inner-alert">
                                                                     <TrendingUp size={20} /> 
                                                                     <span>
-                                                                        <strong>Sensor de Otimização Automática Ativado:</strong> Para atingir o lucro desejado você teria que cobrar no mínimo <strong>R$ {moeda(paOri)}</strong> (lucro de R$ {moeda(otimizacaoIdeal.lucroOriginal)}),
+                                                                        <strong>Sensor de Otimização Automática Ativado:</strong> Para atingir o lucro desejado você teria que anunciar por no mínimo <strong>R$ {moeda(paOri)}</strong> (lucro de R$ {moeda(otimizacaoIdeal.lucroOriginal)}),
                                                                         entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <strong>R$ {moeda(paOpt)}</strong> você muda a faixa de impostos e seu lucro líquido final <strong>{otimizacaoIdeal.lucroOtimizado > otimizacaoIdeal.lucroOriginal ? 'subirá' : 'se manterá'} em R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</strong>
                                                                     </span>
                                                                 </div>
@@ -1515,10 +1591,7 @@ const ShopeePage: React.FC = () => {
                                                                 <div className="sensor-inner-alert">
                                                                     <TrendingUp size={20} /> 
                                                                     <span>
-                                                                        <strong>Sugestão do Sensor:</strong> Se você configurar <strong>{tipoMargemIdeal === 'reais' ? `R$ ${moeda(melhorAnterior.lucroLiquido)}` : `${porc(tipoMargemIdeal === 'custo' ? melhorAnterior.margemLiquidaSobreCusto : melhorAnterior.margemSobreVenda)}%`}</strong> de Lucro Desejado,
-                                                                        {(inputs.cupomDesconto ?? 0) > 0 && (
-                                                                            <> com seu cupom de {inputs.cupomDesconto}{inputs.cupomTipo === 'porcentagem' ? '%' : ' R$'} o preço cai para <strong>R$ {moeda(melhorAnterior.precoVenda)}</strong>,</>
-                                                                        )} seu lucro sobe para <strong>R$ {moeda(melhorAnterior.lucroLiquido)}</strong> devido à redução automática de taxas!
+                                                                        <strong>Sugestão do Sensor:</strong> Se você anunciar a <strong>R$ {moeda(melhorAnterior.precoVenda)}</strong>, seu lucro sobe para <strong>R$ {moeda(melhorAnterior.lucroLiquido)}</strong> devido à redução automática de taxas!
                                                                     </span>
                                                                 </div>
                                                                 {content}
@@ -1527,6 +1600,37 @@ const ShopeePage: React.FC = () => {
                                                     </div>
                                                 );
                                             }
+
+                                            if (melhorLeverage && aba !== 'ideal') {
+                                                const qPreco = precoAtualSim - melhorLeverage.precoVenda;
+                                                const qLucro = lucroAtual - melhorLeverage.lucroLiquido;
+                                                const fator = qPreco / (qLucro || 0.01);
+                                                const volNecessario = 100 * (lucroAtual / (melhorLeverage.lucroLiquido || 0.01));
+                                                const esforco = volNecessario - 100;
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
+                                                        </div>
+                                                        <div className="alert-sensor-animated purple">
+                                                            <div className="alert-sensor-animated-content">
+                                                                <div className="sensor-inner-alert">
+                                                                    <RefreshCcw size={20} /> 
+                                                                    <span>
+                                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(precoAtualSim)}</strong>. Porém, ao reduzir para <strong>R$ {moeda(melhorLeverage.precoComCupom)}</strong>, você dá um super desconto de <strong>R$ {moeda(qPreco)}</strong> para o cliente, sacrificando apenas <strong>R$ {moeda(qLucro)}</strong> de lucro (Alavancagem de <strong>{fator.toFixed(1)}x</strong>).
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#5b21b6', borderTop: '1px solid rgba(139, 92, 246, 0.2)', paddingTop: '0.5rem' }}>
+                                                                    <strong>Risco Baixíssimo:</strong> Você precisa aumentar suas vendas em apenas <strong>{porc(esforco)}%</strong> para empatar seu lucro atual. Rompendo essa marca, todo volume extra vira lucro puro!
+                                                                </div>
+                                                                {content}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
                                             return (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                     <div className={`alert-box-result ${statusClass}`}>
