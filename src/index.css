@@ -2262,11 +2262,63 @@ g.recharts-reference-line {
   color: #6d28d9;
   animation: slideDown 0.4s ease-out, pulse-glow-purple 2s infinite ease-in-out;
 }
+/* === TOGGLE SWITCH PREMIUM (ESTILO IOS/MODERNO) === */
+.toggle-switch-premium {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 28px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
 
+.toggle-switch-premium input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
 
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: .4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 34px;
+  display: block;
+}
 
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: white;
+  transition: .4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
 
+.toggle-switch-premium input:checked + .switch-slider {
+  background-color: #3b82f6; 
+}
 
+.toggle-switch-premium input:checked + .switch-slider:before {
+  transform: translate(20px, -50%); /* 46 total - 5 left - 16 width - 5 right = 20 shift */
+}
 
+.toggle-switch-premium input:focus + .switch-slider {
+  box-shadow: 0 0 1px #3b82f6;
+}
 
+/* Variante Roxa para o Sensor se desejar manter identidade */
+.toggle-switch-premium.purple input:checked + .switch-slider {
+  background-color: #8b5cf6;
+}
 

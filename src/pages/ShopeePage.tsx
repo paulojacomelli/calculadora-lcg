@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Calculator,
     CircleDollarSign,
@@ -26,7 +26,7 @@ import {
 } from 'recharts';
 import type { ShopeeInput, ShopeeOutput, CenarioPreco, OtimizacaoPrecoResult /* , ResultadoSweetSpot */ } from '../utils/shopeeLogic';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import {
     calcularTaxasShopee,
@@ -126,8 +126,34 @@ const ShopeePage: React.FC = () => {
     const [passwordErrorMessage, setPasswordErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
+            
+            // Se o usuário logar, tentamos carregar as configurações dele do Firestore
+            if (currentUser) {
+                try {
+                    console.log("Carregando configurações do usuário do Firestore...");
+                    const userSettingsRef = doc(db, 'users', currentUser.uid, 'settings', 'shopee');
+                    const userSettingsSnap = await getDoc(userSettingsRef);
+                    
+                    if (userSettingsSnap.exists()) {
+                        const data = userSettingsSnap.data();
+                        console.log("Configurações recuperadas com sucesso.");
+                        
+                        // Atualiza os estados locais com os dados do Firestore
+                        if (data.aba) setAba(data.aba);
+                        if (data.tipoMargemIdeal) setTipoMargemIdeal(data.tipoMargemIdeal);
+                        if (data.inputs) setInputs(data.inputs);
+                        if (data.margemDesejada !== undefined) setMargemDesejada(data.margemDesejada);
+                        if (data.isAdvancedOpen !== undefined) setIsAdvancedOpen(data.isAdvancedOpen);
+                        
+                        // Marca que o carregamento inicial foi feito para evitar que o save automático sobrescreva imediatamente
+                        isInitialLoadDone.current = true;
+                    }
+                } catch (error) {
+                    console.error("Erro ao carregar configurações do usuário:", error);
+                }
+            }
         });
 
         // Sync entre múltiplas abas abertas
@@ -242,7 +268,34 @@ const ShopeePage: React.FC = () => {
 
     const s = (key: string) => <span style={{ color: '#7c3aed', fontWeight: 600, marginLeft: '4px' }}>[{key}]</span>;
 
-    // Cálculo automático quando houver mudança nos inputs ou no modo e persistência
+    // Efeito para salvar dados no Firestore com Debounce
+    const isInitialLoadDone = useRef(false);
+    useEffect(() => {
+        if (!user) return;
+        
+        // Debounce para não sobrecarregar o Firestore
+        const timer = setTimeout(async () => {
+            try {
+                console.log("Salvando configurações no Firestore...");
+                const userSettingsRef = doc(db, 'users', user.uid, 'settings', 'shopee');
+                await setDoc(userSettingsRef, {
+                    aba,
+                    tipoMargemIdeal,
+                    inputs,
+                    margemDesejada,
+                    isAdvancedOpen,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                console.log("Salvo com sucesso!");
+            } catch (error) {
+                console.error("Erro ao salvar configurações no Firestore:", error);
+            }
+        }, 2000); // 2 segundos de debounce
+
+        return () => clearTimeout(timer);
+    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAdvancedOpen, user]);
+
+    // Cálculo automático quando houver mudança nos inputs ou no modo e persistência local
     React.useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('@shopperPCC:aba', aba);
@@ -1164,15 +1217,15 @@ const ShopeePage: React.FC = () => {
                                         </label>
                                         <span className="input-hint" style={{ margin: 0, fontSize: '0.75rem' }}>Sugere preços estratégicos e alavancagem de giro</span>
                                     </div>
-                                    <div className="toggle-switch">
+                                    <div className="toggle-switch-premium">
                                         <input
                                             type="checkbox"
-                                            id="fatorAlavancagemAtivo"
+                                            id="fatorAlavancagemAtivoCheck"
                                             name="fatorAlavancagemAtivo"
                                             checked={inputs.fatorAlavancagemAtivo !== false}
                                             onChange={handleChange}
                                         />
-                                        <label htmlFor="fatorAlavancagemAtivo" className="switch-label"></label>
+                                        <label htmlFor="fatorAlavancagemAtivoCheck" className="switch-slider"></label>
                                     </div>
                                 </div>
 
