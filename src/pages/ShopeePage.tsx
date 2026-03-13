@@ -1488,9 +1488,7 @@ const ShopeePage: React.FC = () => {
                                                             opacity: 1,
                                                             fontWeight: 600
                                                         }}>
-                                                            {aba === 'ideal' ? (
-                                                                `Resultado real: ${porc(activeResults.margemLiquidaSobreCusto)}% de lucro`
-                                                            ) : (
+                                                            {aba !== 'ideal' && (
                                                                 `Margem atual de ${porc(activeResults.margemSobreVenda ?? 0)}%`
                                                             )}
                                                         </div>
