@@ -1,73 +1,82 @@
-# React + TypeScript + Vite
+# 📊 Calculadora Shopee 2026 | LCG Eletro
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Uma ferramenta avançada de cálculo de margem de contribuição, lucro líquido e otimização de preços para vendedores da Shopee Brasil, atualizada com as novas regras de comissão vigentes a partir de **Março de 2026**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Funcionalidades Principais
 
-## React Compiler
+- **Cálculo de Margem Real:** Considera comissão variável (14% a 20%), tarifas fixas por faixa de preço, impostos, custos extras, crédito de rebate e cupons.
+- **Sensor de Otimização Automática:** Identifica centavo por centavo o ponto de preço que maximiza o lucro, aproveitando os "degraus" de taxa da Shopee.
+- **Estratégia de Giro (Leverage):** Sugere reduções de preço estratégicas para aumentar volume de vendas com o menor impacto possível no lucro.
+- **Processamento em Lote (CSV):** Calcule centenas de SKUs de uma só vez via upload de planilha, utilizando suas configurações globais de impostos e ads.
+- **Visualização Analítica:** Gráficos interativos de composição de preço, curva de otimização e tabelas de taxas.
+- **Multiplataforma:** Suporte nativo para Web (Firebase), Mobile (APK), Desktop (EXE) e PWA.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🛠️ Tecnologias Utilizadas
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Core:** React 19 + TypeScript + Vite 7
+- **Gráficos:** Recharts
+- **Iconografia:** Lucide-React
+- **Database/Auth:** Firebase (Firestore & Auth)
+- **Multiplataforma:** Capacitor (Android) & Electron (Desktop)
+- **Parsing:** PapaParse (CSV)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 💻 Comandos e Desenvolvimento
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Ambiente de Desenvolvimento
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Processamento via Desktop (EXE)
+Este projeto utiliza **Electron** para gerar executáveis Windows.
+```bash
+# Rodar em modo janela de desenvolvimento
+npm run electron:dev
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Gerar instalador .EXE (na pasta /release)
+npm run build:exe
 ```
+
+### Versão Mobile (APK)
+Utilizamos **Capacitor** para converter a aplicação web em Android Nativo.
+```bash
+# Gerar build e sincronizar com projeto Android
+npm run build:apk
+```
+*Após rodar o comando, abra a pasta `/android` no **Android Studio** para gerar o APK assinado.*
+
+### Deploy Web (Firebase)
+```bash
+npm run build
+firebase deploy --only hosting
+```
+
+---
+
+## 📁 Estrutura do CSV para Lote
+
+Para usar o processamento em lote, envie um arquivo `.csv` com os seguintes cabeçalhos (exemplos):
+
+| id | custo_produto | preco_venda | margem_desejada |
+| --- | --- | --- | --- |
+| SKU-001 | 50.00 | 84.20 | 15 |
+
+- **Cálculo de Margem:** Exige `custo` e `preco`.
+- **Preço Ideal:** Exige `custo` e `margem`.
+
+---
+
+## 📝 Versão e Manutenção
+- **Versão Atual:** 1.1.198-beta
+- **Desenvolvido por:** Antigravity (LCG Eletro Collaboration)
+- **Licença:** Privada / LCG Eletro
+
+---
+*Nota: Todos os cálculos são baseados nas políticas oficiais da Shopee de 2026. Recomenda-se sempre conferir os valores finais no painel do vendedor.*
