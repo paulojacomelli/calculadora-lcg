@@ -226,7 +226,8 @@ const ShopeeLotePage: React.FC = () => {
                                 padding: '3rem', 
                                 textAlign: 'center',
                                 background: '#f8fafc',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                position: 'relative'
                             }}
                         >
                             {file ? (
@@ -237,7 +238,7 @@ const ShopeeLotePage: React.FC = () => {
                                     <button className="btn-outline" onClick={() => setFile(null)}>Alterar Arquivo</button>
                                 </div>
                             ) : (
-                                <div>
+                                <label style={{ cursor: 'pointer', display: 'block' }}>
                                     <Upload size={48} color="#94a3b8" style={{ marginBottom: '1rem' }} />
                                     <h4 style={{ margin: '0 0 0.5rem 0' }}>Arraste seu CSV aqui</h4>
                                     <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Ou clique para selecionar em seu computador</p>
@@ -245,10 +246,10 @@ const ShopeeLotePage: React.FC = () => {
                                         type="file" 
                                         accept=".csv, .txt" 
                                         onChange={handleFileChange}
-                                        style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', top: 0, left: 0, cursor: 'pointer' }}
+                                        style={{ display: 'none' }}
                                     />
-                                    <button className="btn-primary" style={{ pointerEvents: 'none' }}>Selecionar Arquivo</button>
-                                </div>
+                                    <div className="btn-primary" style={{ display: 'inline-flex', marginTop: '1rem' }}>Selecionar Arquivo</div>
+                                </label>
                             )}
                         </div>
                     </div>
