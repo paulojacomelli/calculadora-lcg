@@ -1,7 +1,7 @@
 {
   "name": "pyro-planetary",
   "private": true,
-  "version": "1.1.197-beta",
+  "version": "1.1.198-beta",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

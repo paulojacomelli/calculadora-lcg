@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import ShopeePage from './pages/ShopeePage';
+import ShopeeLotePage from './pages/ShopeeLotePage';
 import MeliPage from './pages/MeliPage';
 import { Calculator, ShoppingBag } from 'lucide-react';
 import LoginAvatar from './components/LoginAvatar';
@@ -41,6 +42,7 @@ const App: React.FC = () => {
         <main className="content-area">
           <Routes>
             <Route path="/shopee" element={<ShopeePage />} />
+            <Route path="/shopee/lote" element={<ShopeeLotePage />} />
             <Route path="/meli" element={<MeliPage />} />
             <Route path="/" element={<Navigate to="/shopee" replace />} />
           </Routes>
