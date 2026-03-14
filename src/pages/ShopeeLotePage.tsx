@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import { Link } from 'react-router-dom';
 import type { ShopeeInput } from '../utils/shopeeLogic';
 import { calcularTaxasShopee, calcularPrecoIdealDetalhado } from '../utils/shopeeLogic';
+import * as XLSX from 'xlsx';
 
 const defaultSettings: ShopeeInput = {
     custoProduto: undefined,
@@ -62,72 +63,107 @@ const ShopeeLotePage: React.FC = () => {
         return undefined;
     };
 
+    const downloadSample = () => {
+        const data = [
+            { sku: 'PRODUTO-TESTE-01', custo: 50.00, preco: 89.90, margem: 15 },
+            { sku: 'PRODUTO-TESTE-02', custo: 120.50, preco: 199.00, margem: 20 }
+        ];
+        
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo");
+        XLSX.writeFile(workbook, "modelo_calculo_shopee.xlsx");
+    };
+
+    const processDataRows = (rows: any[]) => {
+        try {
+            const output = rows.map((row) => {
+                const sku = row.sku || row.SKU || row.id || row.ID || row.item || '';
+                const custoProduto = extrairValor(row, ['custo_produto', 'custo', 'Custo', 'Custo Produto', 'CDP']);
+                const precoVendaCampo = extrairValor(row, ['preco_venda', 'preco', 'Preço', 'Preco Venda', 'PA']);
+                const margemDesejadaCampo = extrairValor(row, ['margem_desejada', 'margem', 'Margem', 'Margem Desejada', 'Margem (%)']);
+
+                let outRow: any = { ...row, SKU_REF: sku, CUSTO_BASE: custoProduto };
+
+                if (custoProduto === undefined) {
+                    outRow['ERRO_STATUS'] = 'Custo não encontrado';
+                    return outRow;
+                }
+
+                if (operationType === 'margem') {
+                    if (precoVendaCampo === undefined) {
+                        outRow['ERRO_STATUS'] = 'Preço de venda não encontrado';
+                        return outRow;
+                    }
+                    const inputsComLinha: ShopeeInput = { ...settings, custoProduto, precoVenda: precoVendaCampo };
+                    const res = calcularTaxasShopee(inputsComLinha, true);
+
+                    outRow['PRECO_VITRINE'] = precoVendaCampo;
+                    outRow['PRECO_PDV_FINAL'] = res.precoVenda;
+                    outRow['LUCRO_REAIS'] = res.lucroLiquido.toFixed(2).replace('.', ',');
+                    outRow['MARGEM_CONTRIB_PCT'] = res.margemSobreVenda.toFixed(2).replace('.', ',');
+                    outRow['TAXAS_TOTAL'] = (res.comissaoValor + res.tarifaFixa).toFixed(2).replace('.', ',');
+                    outRow['STATUS'] = 'Processado com Sucesso';
+                } else {
+                    const margemAlvo = margemDesejadaCampo !== undefined ? margemDesejadaCampo : 15;
+                    const inputsComLinha: ShopeeInput = { ...settings, custoProduto };
+                    const otimizacao = calcularPrecoIdealDetalhado(inputsComLinha, margemAlvo, 'venda');
+                    
+                    outRow['MARGEM_ALVO_PCT'] = margemAlvo;
+                    outRow['PRECO_BASE_SUGERIDO'] = otimizacao.precoOriginal.toFixed(2).replace('.', ',');
+                    outRow['PRECO_OTIMIZADO_SENSOR'] = otimizacao.precoOtimizado.toFixed(2).replace('.', ',');
+                    outRow['LUCRO_FINAL'] = otimizacao.lucroOtimizado.toFixed(2).replace('.', ',');
+                    outRow['TIPO_ESTRATEGIA'] = otimizacao.isAlavancagem ? 'GIRO/ALAVANCAGEM' : 'OTIMIZACÃO PURA';
+                    outRow['STATUS'] = 'Processado com Sucesso';
+                }
+
+                return outRow;
+            });
+
+            setProcessedData(output);
+            setIsProcessing(false);
+        } catch (err: any) {
+            setError('Erro interno no processamento: ' + err.message);
+            setIsProcessing(false);
+        }
+    };
+
     const processFile = () => {
         if (!file) return;
         setIsProcessing(true);
         setError(null);
 
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+
+        if (fileExt === 'xlsx' || fileExt === 'xls') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
                 try {
-                    const rows = results.data as any[];
-                    const output = rows.map((row) => {
-                        const sku = row.sku || row.SKU || row.id || row.ID || row.item || '';
-                        const custoProduto = extrairValor(row, ['custo_produto', 'custo', 'Custo', 'Custo Produto', 'CDP']);
-                        const precoVendaCampo = extrairValor(row, ['preco_venda', 'preco', 'Preço', 'Preco Venda', 'PA']);
-                        const margemDesejadaCampo = extrairValor(row, ['margem_desejada', 'margem', 'Margem', 'Margem Desejada']);
-
-                        let outRow: any = { ...row, SKU_REF: sku, CUSTO_BASE: custoProduto };
-
-                        if (custoProduto === undefined) {
-                            outRow['ERRO_STATUS'] = 'Custo não encontrado';
-                            return outRow;
-                        }
-
-                        if (operationType === 'margem') {
-                            if (precoVendaCampo === undefined) {
-                                outRow['ERRO_STATUS'] = 'Preço de venda não encontrado';
-                                return outRow;
-                            }
-                            const inputsComLinha: ShopeeInput = { ...settings, custoProduto, precoVenda: precoVendaCampo };
-                            const res = calcularTaxasShopee(inputsComLinha, true);
-
-                            outRow['PRECO_VITRINE'] = precoVendaCampo;
-                            outRow['PRECO_PDV_FINAL'] = res.precoVenda;
-                            outRow['LUCRO_REAIS'] = res.lucroLiquido.toFixed(2).replace('.', ',');
-                            outRow['MARGEM_CONTRIB_PCT'] = res.margemSobreVenda.toFixed(2).replace('.', ',');
-                            outRow['TAXAS_TOTAL'] = (res.comissaoValor + res.tarifaFixa).toFixed(2).replace('.', ',');
-                            outRow['STATUS'] = 'Processado com Sucesso';
-                        } else {
-                            const margemAlvo = margemDesejadaCampo !== undefined ? margemDesejadaCampo : 15;
-                            const inputsComLinha: ShopeeInput = { ...settings, custoProduto };
-                            const otimizacao = calcularPrecoIdealDetalhado(inputsComLinha, margemAlvo, 'venda');
-                            
-                            outRow['MARGEM_ALVO_PCT'] = margemAlvo;
-                            outRow['PRECO_BASE_SUGERIDO'] = otimizacao.precoOriginal.toFixed(2).replace('.', ',');
-                            outRow['PRECO_OTIMIZADO_SENSOR'] = otimizacao.precoOtimizado.toFixed(2).replace('.', ',');
-                            outRow['LUCRO_FINAL'] = otimizacao.lucroOtimizado.toFixed(2).replace('.', ',');
-                            outRow['TIPO_ESTRATEGIA'] = otimizacao.isAlavancagem ? 'GIRO/ALAVANCAGEM' : 'OTIMIZACÃO PURA';
-                            outRow['STATUS'] = 'Processado com Sucesso';
-                        }
-
-                        return outRow;
-                    });
-
-                    setProcessedData(output);
-                    setIsProcessing(false);
+                    const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    processDataRows(json);
                 } catch (err: any) {
-                    setError('Erro interno no processamento: ' + err.message);
+                    setError('Erro ao ler Excel: ' + err.message);
                     setIsProcessing(false);
                 }
-            },
-            error: (err) => {
-                setError('Erro ao ler arquivo CSV: ' + err.message);
-                setIsProcessing(false);
-            }
-        });
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    processDataRows(results.data);
+                },
+                error: (err) => {
+                    setError('Erro ao ler arquivo CSV: ' + err.message);
+                    setIsProcessing(false);
+                }
+            });
+        }
     };
 
     const downloadResults = () => {
@@ -240,11 +276,11 @@ const ShopeeLotePage: React.FC = () => {
                             ) : (
                                 <label style={{ cursor: 'pointer', display: 'block' }}>
                                     <Upload size={48} color="#94a3b8" style={{ marginBottom: '1rem' }} />
-                                    <h4 style={{ margin: '0 0 0.5rem 0' }}>Arraste seu CSV aqui</h4>
-                                    <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Ou clique para selecionar em seu computador</p>
+                                    <h4 style={{ margin: '0 0 0.5rem 0' }}>Arraste seu arquivo aqui</h4>
+                                    <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Suporta Excel (.xlsx, .xls) e CSV</p>
                                     <input 
                                         type="file" 
-                                        accept=".csv, .txt" 
+                                        accept=".csv, .xlsx, .xls, .txt" 
                                         onChange={handleFileChange}
                                         style={{ display: 'none' }}
                                     />
@@ -279,9 +315,31 @@ const ShopeeLotePage: React.FC = () => {
                         <h4 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Info size={18} /> Instruções da Tabela
                         </h4>
-                        <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-                            Seu arquivo deve ser um <strong>CSV</strong> (separado por vírgula ou ponto-e-vírgula) e conter os seguintes nomes de colunas:
+                        <p style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.6, marginBottom: '1rem' }}>
+                            Seu arquivo deve ser um <strong>Excel</strong> ou <strong>CSV</strong> e conter os seguintes nomes de colunas:
                         </p>
+
+                        <button 
+                            onClick={downloadSample}
+                            style={{ 
+                                width: '100%', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '0.5rem', 
+                                padding: '0.75rem', 
+                                background: 'white', 
+                                border: '1px solid #3b82f6', 
+                                color: '#3b82f6', 
+                                borderRadius: '8px', 
+                                cursor: 'pointer', 
+                                fontWeight: 600,
+                                fontSize: '0.85rem',
+                                marginBottom: '1.5rem'
+                            }}
+                        >
+                            <Download size={16} /> Baixar Modelo (.xlsx)
+                        </button>
 
                         <div style={{ fontSize: '0.85rem' }}>
                             <div style={{ marginBottom: '1rem' }}>
