@@ -18,7 +18,8 @@ import {
     ChevronDown,
     ShieldCheck,
     Lock,
-    Zap
+    Zap,
+    Table
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -46,6 +47,7 @@ const CardInsightPreco = ({ input }: { input: ShopeeInput }) => {
 };
 */
 import { logCalculo } from '../firebase';
+import { ShopeeCsvModal } from '../components/ShopeeCsvModal';
 
 const defaultInputs: ShopeeInput = {
     custoProduto: undefined,
@@ -106,6 +108,7 @@ const ShopeePage: React.FC = () => {
     // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
     const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
     const [isAutoCalcMode, setIsAutoCalcMode] = useState<boolean>(true); // Força true por padrão agora
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -1625,9 +1628,12 @@ const ShopeePage: React.FC = () => {
 
                             {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
                         </div>
-                        <div className="actions">
+                        <div className="actions" style={{ flexDirection: 'column' }}>
                             <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
                                 <RotateCcw size={18} /> Reiniciar Calculadora
+                            </button>
+                            <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#3b82f6', borderColor: '#3b82f6' }} onClick={() => setIsCsvModalOpen(true)}>
+                                <Table size={18} /> Processar Lote (CSV)
                             </button>
                         </div>
                     </div>
@@ -2001,6 +2007,12 @@ const ShopeePage: React.FC = () => {
                     </div>
                 )
             }
+            
+            <ShopeeCsvModal 
+                isOpen={isCsvModalOpen} 
+                onClose={() => setIsCsvModalOpen(false)} 
+                baseInputs={inputs} 
+            />
             <div className="bottom-shopee-info">
                 <div className="info-card-premium">
                     <div className="info-card-icon">
