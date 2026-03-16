@@ -1112,7 +1112,7 @@ const ShopeePage: React.FC = () => {
 
             const resTeste = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, false);
 
-            if (resTeste.lucroLiquido > melhorLucroOtimo + 0.05) {
+            if (resTeste.lucroLiquido >= melhorLucroOtimo - 0.001) {
                 melhorPaOtimo = paTeste;
                 melhorLucroOtimo = resTeste.lucroLiquido;
             }
@@ -1140,7 +1140,7 @@ const ShopeePage: React.FC = () => {
                     const fator = qPreco / qLucro;
                     const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
 
-                    if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM && qPreco >= 1.0) {
+                    if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
                         if (fator > melhorFatorAlavancagem) {
                             melhorFatorAlavancagem = fator;
                             melhorPaGiro = paTeste;

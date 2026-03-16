@@ -293,8 +293,8 @@ export const calcularPrecoIdealDetalhado = (
 
     const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, false);
 
-    // Se no cenário mais barato o lucro sobe de verdade (pelo menos 5 centavos), adotamos o preço menor
-    if (resTeste.lucroLiquido > melhorLucro + 0.05) {
+    // Se no cenário mais barato o lucro salta (ou mesmo empata com o lucro ótimo anterior), adotamos o preço menor
+    if (resTeste.lucroLiquido >= melhorLucro - 0.001) {
       melhorPa = paTeste;
       melhorLucro = resTeste.lucroLiquido;
     }
@@ -317,7 +317,7 @@ export const calcularPrecoIdealDetalhado = (
             const fator = qPreco / qLucro;
             const pctPerdaLucro = qLucro / (resultadoReferencia.lucroLiquido || 1);
 
-            if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM && qPreco >= 1.0) {
+            if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
                 // Selecionamos o de maior fator de alavancagem
                 if (fator > fatorAlavancagem) {
                     fatorAlavancagem = fator;
