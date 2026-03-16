@@ -1099,6 +1099,7 @@ const ShopeePage: React.FC = () => {
     const precoAtualSimComp = activeResults.precoComCupom; // Usando o PA como base para descida
 
     let melhorAnteriorComp: any = null;
+    let melhorLeverageComp: any = null;
 
     if (activeResults.precoVenda && (inputs.custoProduto || 0) > 0 && inputs.fatorAlavancagemAtivo !== false) {
         let melhorPaOtimo = precoAtualSimComp;
@@ -1111,7 +1112,7 @@ const ShopeePage: React.FC = () => {
 
             const resTeste = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, false);
 
-            if (resTeste.lucroLiquido >= melhorLucroOtimo - 0.001) {
+            if (resTeste.lucroLiquido > melhorLucroOtimo + 0.05) {
                 melhorPaOtimo = paTeste;
                 melhorLucroOtimo = resTeste.lucroLiquido;
             }
@@ -1119,6 +1120,38 @@ const ShopeePage: React.FC = () => {
 
         if (melhorPaOtimo < precoAtualSimComp) {
             melhorAnteriorComp = calcularTaxasShopee({ ...inputs, precoVenda: melhorPaOtimo }, true);
+        } else {
+            // 2. Se não achou Otimização, busca Estratégia de Giro (Alavancagem)
+            const MAX_LUCRO_PERDIDO_PCT = 0.15;
+            const MIN_ALAVANCAGEM = inputs.fatorAlavancagem ?? 5.0;
+            let melhorFatorAlavancagem = 0;
+            let melhorPaGiro = precoAtualSimComp;
+
+            for (let i = 1; i <= 5000; i++) {
+                const paTeste = arredondar(precoAtualSimComp - (i / 100), 2);
+                if (paTeste <= (inputs.custoProduto || 0.01)) break;
+
+                const resTeste = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, false);
+                
+                const qPreco = precoAtualSimComp - paTeste;
+                const qLucro = lucroAtualComp - resTeste.lucroLiquido;
+
+                if (qLucro > 0) {
+                    const fator = qPreco / qLucro;
+                    const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
+
+                    if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM && qPreco >= 1.0) {
+                        if (fator > melhorFatorAlavancagem) {
+                            melhorFatorAlavancagem = fator;
+                            melhorPaGiro = paTeste;
+                        }
+                    }
+                }
+            }
+
+            if (melhorPaGiro < precoAtualSimComp) {
+                melhorLeverageComp = calcularTaxasShopee({ ...inputs, precoVenda: melhorPaGiro }, true);
+            }
         }
     }
 
@@ -1624,6 +1657,32 @@ const ShopeePage: React.FC = () => {
                                             const paOri = otimizacaoIdeal.precoOriginal;
                                             const paOpt = otimizacaoIdeal.precoOtimizado;
 
+                                            if (otimizacaoIdeal.isAlavancagem) {
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
+                                                        </div>
+                                                        <div className="alert-sensor-animated purple">
+                                                            <div className="alert-sensor-animated-content">
+                                                                <div className="sensor-inner-alert">
+                                                                    <RefreshCcw size={20} /> 
+                                                                    <span>
+                                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>. 
+                                                                        Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente, 
+                                                                        sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{otimizacaoIdeal.fatorAlavancagem.toFixed(1)}x</strong>).
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#5b21b6', borderTop: '1px solid rgba(139, 92, 246, 0.2)', paddingTop: '0.5rem' }}>
+                                                                    <strong>Risco Baixíssimo:</strong> Você precisa aumentar suas vendas em apenas <strong>{porc(otimizacaoIdeal.esforcoPercentual)}%</strong> para empatar seu lucro atual. Rompendo essa marca, todo volume extra vira lucro puro!
+                                                                </div>
+                                                                {mainResultsContent}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
                                             return (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                     <div className={`alert-box-result ${statusClass}`}>
@@ -1664,6 +1723,36 @@ const ShopeePage: React.FC = () => {
                                                              <div style={{ marginTop: '0.75rem', opacity: 0.7, fontSize: '0.85rem', color: '#166534', borderTop: '1px solid rgba(16, 185, 129, 0.2)', paddingTop: '0.5rem' }}>
                                                                  <strong>Otimização Detectada:</strong> Aplicando os valores sugeridos você mantém sua rentabilidade com um preço muito mais competitivo.
                                                              </div>
+                                                        </div>
+                                                    </div>
+                                                    {mainResultsContent}
+                                                </div>
+                                            );
+                                        }
+
+                                        if (melhorLeverageComp && aba !== 'ideal' && inputs.fatorAlavancagemAtivo !== false) {
+                                            const qP = activeResults.precoComCupom - melhorLeverageComp.precoComCupom;
+                                            const qL = activeResults.lucroLiquido - melhorLeverageComp.lucroLiquido;
+                                            const f = qP / (qL || 0.01);
+                                            const v = 100 * (activeResults.lucroLiquido / (melhorLeverageComp.lucroLiquido || 0.01));
+                                            const e = v - 100;
+
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    <div className={`alert-box-result ${statusClass}`}>
+                                                        {statusIcon} <span>{statusText}</span>
+                                                    </div>
+                                                    <div className="alert-sensor-animated purple">
+                                                        <div className="alert-sensor-animated-content">
+                                                            <div className="sensor-inner-alert">
+                                                                 <RefreshCcw size={20} /> 
+                                                                 <span>
+                                                                     <strong>Estratégia de Giro Identificada:</strong> Com o seu preço configurado de <strong>R$ {moeda(activeResults.precoComCupom)}</strong>, se você reduzir para <strong>R$ {moeda(melhorLeverageComp.precoComCupom)}</strong>, dará um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente, sacrificando apenas <strong>R$ {moeda(qL)}</strong> de lucro (Alavancagem de <strong>{f.toFixed(1)}x</strong>).
+                                                                 </span>
+                                                             </div>
+                                                            <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#5b21b6', borderTop: '1px solid rgba(139, 92, 246, 0.2)', paddingTop: '0.5rem' }}>
+                                                                <strong>Risco Baixíssimo:</strong> Você precisa aumentar suas vendas em apenas <strong>{porc(e)}%</strong> para empatar seu lucro atual. Rompendo essa marca, todo volume extra vira lucro puro!
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     {mainResultsContent}
