@@ -113,7 +113,6 @@ const ShopeeLotePage: React.FC = () => {
                     outRow['PRECO_BASE_SUGERIDO'] = otimizacao.precoOriginal.toFixed(2).replace('.', ',');
                     outRow['PRECO_OTIMIZADO_SENSOR'] = otimizacao.precoOtimizado.toFixed(2).replace('.', ',');
                     outRow['LUCRO_FINAL'] = otimizacao.lucroOtimizado.toFixed(2).replace('.', ',');
-                    outRow['TIPO_ESTRATEGIA'] = otimizacao.isAlavancagem ? 'GIRO/ALAVANCAGEM' : 'OTIMIZACÃO PURA';
                     outRow['STATUS'] = 'Processado com Sucesso';
                 }
 
