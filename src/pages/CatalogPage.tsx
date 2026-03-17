@@ -596,11 +596,19 @@ const CatalogPage: React.FC = () => {
         .add-btn { height: 54px; padding: 0 2rem; white-space: nowrap; font-size: 1.05rem; }
         .catalog-card { padding: 0; overflow: hidden; border-radius: 20px; }
         .catalog-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .catalog-table th { padding: 1.25rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 800; color: #374151; background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-transform: uppercase; }
+        .catalog-table th { padding: 1.25rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 800; color: #374151; background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-transform: uppercase; white-space: nowrap; }
         .catalog-table tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.2s; }
         .catalog-table tbody tr:hover { background: #fdfcfc; }
         .cell-input { width: 100%; border: 2px solid transparent; padding: 0.75rem 0.5rem; border-radius: 8px; background: transparent; font-size: 0.95rem; color: #334155; font-weight: 500; text-align: inherit; }
         .cell-input:focus { outline: none; background: white; border-color: var(--red-main); }
+        .catalog-table th:nth-child(2), .catalog-table td:nth-child(2) { width: 180px; min-width: 180px; } /* SKU */
+        .catalog-table th:nth-child(3), .catalog-table td:nth-child(3) { min-width: 350px; } /* Descrição */
+        .catalog-table th:nth-child(4), .catalog-table td:nth-child(4) { width: 220px; min-width: 220px; } /* Custo */
+        .catalog-table th:nth-child(5), .catalog-table td:nth-child(5) { width: 140px; min-width: 140px; } /* Imposto */
+        .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { width: 160px; min-width: 160px; } /* Despesa Fixa */
+        .catalog-table th:nth-child(7), .catalog-table td:nth-child(7) { width: 230px; min-width: 230px; } /* Outras Despesas */
+        .catalog-table th:nth-child(8), .catalog-table td:nth-child(8) { width: 110px; min-width: 110px; } /* Ads */
+        .catalog-table th:nth-child(9), .catalog-table td:nth-child(9) { width: 110px; min-width: 110px; } /* Rebate */
         .text-center { text-align: center; }
         .text-green { color: #059669; font-weight: 700; }
         .delete-btn { color: #cbd5e1; background: none; border: none; cursor: pointer; padding: 0.6rem; }
