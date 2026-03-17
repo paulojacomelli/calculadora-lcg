@@ -53,11 +53,18 @@ const ShopeeLotePage: React.FC = () => {
     };
 
     const extrairValor = (row: any, possíveisColunas: string[]) => {
-        for (const col of possíveisColunas) {
-            if (row[col] !== undefined && row[col] !== null && row[col].toString().trim() !== '') {
-                const valStr = row[col].toString().replace('R$', '').replace(/\s/g, '').replace(',', '.').trim();
-                const valNum = parseFloat(valStr);
-                if (!isNaN(valNum)) return valNum;
+        const normalizedPossibleCols = possíveisColunas.map(c => c.toLowerCase().trim());
+        const rowKeys = Object.keys(row);
+
+        for (const key of rowKeys) {
+            const normalizedKey = key.toLowerCase().trim();
+            if (normalizedPossibleCols.includes(normalizedKey)) {
+                const val = row[key];
+                if (val !== undefined && val !== null && val.toString().trim() !== '') {
+                    const valStr = val.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.').trim();
+                    const valNum = parseFloat(valStr);
+                    if (!isNaN(valNum)) return valNum;
+                }
             }
         }
         return undefined;
@@ -78,43 +85,65 @@ const ShopeeLotePage: React.FC = () => {
     const processDataRows = (rows: any[]) => {
         try {
             const output = rows.map((row) => {
-                const sku = row.sku || row.SKU || row.id || row.ID || row.item || '';
-                const custoProduto = extrairValor(row, ['custo_produto', 'custo', 'Custo', 'Custo Produto', 'CDP']);
-                const precoVendaCampo = extrairValor(row, ['preco_venda', 'preco', 'Preço', 'Preco Venda', 'PA']);
-                const margemDesejadaCampo = extrairValor(row, ['margem_desejada', 'margem', 'Margem', 'Margem Desejada', 'Margem (%)']);
+                const sku = row.sku || row.SKU || row.id || row.ID || row.item || row.SKU_REF || 'S/ SKU';
+                const custoProduto = extrairValor(row, ['custo_produto', 'custo', 'Custo', 'Custo Produto', 'CDP', 'custo prod', 'Custo do Produto']);
+                const precoVendaCampo = extrairValor(row, ['preco_venda', 'preco', 'Preço', 'Preco Venda', 'PA', 'pr vda', 'P.V.', 'Preço Anunciado']);
+                const margemDesejadaCampo = extrairValor(row, ['margem_desejada', 'margem', 'Margem', 'Margem Desejada', 'Margem (%)', 'mrg', 'lucro desejado', 'lucro desejado (%)', 'lucro']);
+                
+                // Extração de configurações específicas da linha (se existirem)
+                const impostoLinha = extrairValor(row, ['imposto', 'IMP', 'Taxa Imposto', 'Imposto (%)', 'aliquota', 'Imposto']);
+                const adsLinha = extrairValor(row, ['ads', 'ADS', 'Marketing', 'Ads (%)', 'Ads']);
+                const despesaFixaLinha = extrairValor(row, ['despesa_fixa', 'despesa fixa', 'DF', 'Investimento', 'Despesa fixa']);
+                const despesaAdicionalLinha = extrairValor(row, ['despesa_adicional', 'outras despesas', 'DA', 'extras', 'Outras Despesas']);
+                const cupomLinha = extrairValor(row, ['cupom', 'cupom de desconto', 'CD', 'Cupom de Desconto']);
+                const rebateLinha = extrairValor(row, ['rebate', 'REB', 'Crédito de Rebate', 'Crédito de rebate']);
+                const freteGratisLinha = row['frete_gratis']?.toString().toLowerCase().trim() === 'sim' || row['Frete Grátis']?.toString().toLowerCase().trim() === 'sim' || row['FRETE']?.toString().toLowerCase().trim() === 'sim';
 
-                let outRow: any = { ...row, SKU_REF: sku, CUSTO_BASE: custoProduto };
+                // Criar um "settings" específico para esta linha com nomes corretos da interface ShopeeInput
+                const settingsLinha: ShopeeInput = { 
+                    ...settings,
+                    impostoPorcentagem: impostoLinha !== undefined ? impostoLinha : settings.impostoPorcentagem,
+                    adsValor: adsLinha !== undefined ? adsLinha : settings.adsValor,
+                    despesaFixa: despesaFixaLinha !== undefined ? despesaFixaLinha : settings.despesaFixa,
+                    despesaAdicional: despesaAdicionalLinha !== undefined ? despesaAdicionalLinha : settings.despesaAdicional,
+                    cupomDesconto: cupomLinha !== undefined ? cupomLinha : settings.cupomDesconto,
+                    rebatePorcentagem: rebateLinha !== undefined ? rebateLinha : settings.rebatePorcentagem,
+                    fatorAlavancagemAtivo: freteGratisLinha || (settings.fatorAlavancagemAtivo ?? false)
+                };
+
+                let outRow: any = { SKU: sku };
 
                 if (custoProduto === undefined) {
-                    outRow['ERRO_STATUS'] = 'Custo não encontrado';
+                    outRow['STATUS'] = 'ERRO';
+                    outRow['OBS'] = 'Custo não encontrado';
                     return outRow;
                 }
 
+                outRow['CUSTO_BASE'] = custoProduto;
+
                 if (operationType === 'margem') {
                     if (precoVendaCampo === undefined) {
-                        outRow['ERRO_STATUS'] = 'Preço de venda não encontrado';
+                        outRow['STATUS'] = 'ERRO';
+                        outRow['OBS'] = 'Preço não encontrado';
                         return outRow;
                     }
-                    const inputsComLinha: ShopeeInput = { ...settings, custoProduto, precoVenda: precoVendaCampo };
+                    const inputsComLinha: ShopeeInput = { ...settingsLinha, custoProduto, precoVenda: precoVendaCampo };
                     const res = calcularTaxasShopee(inputsComLinha, true);
 
-                    outRow['PRECO_VITRINE'] = precoVendaCampo;
-                    outRow['PRECO_PDV_FINAL'] = res.precoVenda;
-                    outRow['LUCRO_REAIS'] = res.lucroLiquido.toFixed(2).replace('.', ',');
-                    outRow['MARGEM_CONTRIB_PCT'] = res.margemSobreVenda.toFixed(2).replace('.', ',');
-                    outRow['TAXAS_TOTAL'] = (res.comissaoValor + res.tarifaFixa).toFixed(2).replace('.', ',');
-                    outRow['STATUS'] = 'Processado com Sucesso';
+                    outRow['PRECO_ANUNCIADO'] = precoVendaCampo;
+                    outRow['LUCRO_REAIS'] = res.lucroLiquido;
+                    outRow['MARGEM_PCT'] = res.margemSobreVenda;
+                    outRow['STATUS'] = 'OK';
                 } else {
                     const margemAlvo = margemDesejadaCampo !== undefined ? margemDesejadaCampo : 15;
-                    const inputsComLinha: ShopeeInput = { ...settings, custoProduto };
+                    const inputsComLinha: ShopeeInput = { ...settingsLinha, custoProduto };
                     const otimizacao = calcularPrecoIdealDetalhado(inputsComLinha, margemAlvo, 'venda');
                     
-                    outRow['MARGEM_ALVO_PCT'] = margemAlvo;
-                    outRow['PRECO_BASE_SUGERIDO'] = otimizacao.precoOriginal.toFixed(2).replace('.', ',');
-                    outRow['PRECO_OTIMIZADO_SENSOR'] = otimizacao.precoOtimizado.toFixed(2).replace('.', ',');
-                    outRow['LUCRO_FINAL'] = otimizacao.lucroOtimizado.toFixed(2).replace('.', ',');
-                    outRow['TIPO_ESTRATEGIA'] = otimizacao.isAlavancagem ? 'GIRO/ALAVANCAGEM' : 'OTIMIZACÃO PURA';
-                    outRow['STATUS'] = 'Processado com Sucesso';
+                    outRow['MARGEM_ALVO'] = margemAlvo;
+                    outRow['PRECO_SUGERIDO'] = otimizacao.precoOtimizado;
+                    outRow['LUCRO_FINAL'] = otimizacao.lucroOtimizado;
+                    outRow['ESTRATEGIA'] = otimizacao.isAlavancagem ? 'GIRO' : 'OTIMIZADO';
+                    outRow['STATUS'] = 'OK';
                 }
 
                 return outRow;
@@ -290,10 +319,94 @@ const ShopeeLotePage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                    {processedData.length > 0 && (
+                        <div style={{ marginTop: '2.5rem', animation: 'fadeIn 0.5s ease-out' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                                <h4 style={{ margin: 0, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <FileSpreadsheet size={20} color="#3b82f6" /> Prévia dos Resultados
+                                </h4>
+                                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                                    <span style={{ color: '#10b981', fontWeight: 700 }}>✓ {processedData.filter(r => r.STATUS === 'OK').length} Sucessos</span>
+                                    <span style={{ color: '#ef4444', fontWeight: 700 }}>⚠ {processedData.filter(r => r.STATUS === 'ERRO').length} Falhas</span>
+                                </div>
+                            </div>
+                            <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', background: 'white' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                            <th style={{ padding: '0.85rem 1rem', textAlign: 'left', color: '#64748b' }}>SKU</th>
+                                            {operationType === 'margem' ? (
+                                                <>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Venda</th>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Lucro</th>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Margem</th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Sugerido</th>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Lucro</th>
+                                                    <th style={{ padding: '0.85rem 1rem', textAlign: 'right', color: '#64748b' }}>Estratégia</th>
+                                                </>
+                                            )}
+                                            <th style={{ padding: '0.85rem 1rem', textAlign: 'center', color: '#64748b' }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {processedData.slice(0, 10).map((row, idx) => (
+                                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: row.STATUS === 'ERRO' ? '#fff1f2' : 'transparent' }}>
+                                                <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{row.SKU}</td>
+                                                {row.STATUS === 'ERRO' ? (
+                                                    <td colSpan={3} style={{ padding: '0.85rem 1rem', color: '#ef4444', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                                        {row.OBS}
+                                                    </td>
+                                                ) : (
+                                                    <>
+                                                        {operationType === 'margem' ? (
+                                                            <>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>R$ {row.PRECO_ANUNCIADO?.toFixed(2).replace('.', ',')}</td>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', color: row.LUCRO_REAIS > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                                                                    R$ {row.LUCRO_REAIS?.toFixed(2).replace('.', ',')}
+                                                                </td>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>{row.MARGEM_PCT?.toFixed(2).replace('.', ',')}%</td>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700 }}>R$ {row.PRECO_SUGERIDO?.toFixed(2).replace('.', ',')}</td>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>R$ {row.LUCRO_FINAL?.toFixed(2).replace('.', ',')}</td>
+                                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem' }}>
+                                                                    <span style={{ 
+                                                                        background: row.ESTRATEGIA === 'GIRO' ? '#ede9fe' : '#dcfce7', 
+                                                                        color: row.ESTRATEGIA === 'GIRO' ? '#7c3aed' : '#166534',
+                                                                        padding: '0.2rem 0.5rem',
+                                                                        borderRadius: '4px'
+                                                                    }}>
+                                                                        {row.ESTRATEGIA}
+                                                                    </span>
+                                                                </td>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+                                                <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                                                    {row.STATUS === 'OK' ? <CheckCircle2 size={20} color="#10b981" /> : <AlertCircle size={20} color="#ef4444" />}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {processedData.length > 10 && (
+                                    <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                                        + {processedData.length - 10} itens não mostrados na prévia.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem' }}>
                         {processedData.length > 0 ? (
                             <button className="btn-primary" onClick={downloadResults} style={{ background: '#10b981', borderColor: '#10b981', padding: '1rem 2.5rem', fontSize: '1.1rem' }}>
-                                <Download size={20} /> Baixar Planilha Final ({processedData.length} itens)
+                                <Download size={20} /> Baixar Planilha Final
                             </button>
                         ) : (
                             <button className="btn-primary" onClick={processFile} disabled={!file || isProcessing} style={{ padding: '1rem 2.5rem', fontSize: '1.1rem' }}>
@@ -342,10 +455,13 @@ const ShopeeLotePage: React.FC = () => {
                         </button>
 
                         <div style={{ fontSize: '0.85rem' }}>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <strong style={{ color: '#1e293b' }}>Obrigatório em todos:</strong>
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                                    <code style={{ background: '#e2e8f0', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>custo</code>
+                             <div style={{ marginBottom: '1rem' }}>
+                                <strong style={{ color: '#1e293b' }}>Opcionais por linha:</strong>
+                                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0.2rem 0 0.5rem 0' }}>Se presentes, substituem as configurações da calculadora.</p>
+                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                                    {['imposto', 'ads', 'despesa fixa', 'outras despesas', 'cupom'].map(tag => (
+                                        <code key={tag} style={{ background: '#f1f5f9', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.7rem' }}>{tag}</code>
+                                    ))}
                                 </div>
                             </div>
                             

@@ -430,6 +430,116 @@ body {
   background: #f3f4f6;
 }
 
+.btn-secondary {
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: var(--red-main);
+  border: 1px solid var(--red-main);
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  box-shadow: 0 2px 4px rgba(223, 26, 34, 0.2);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--red-hover);
+  border-color: var(--red-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(223, 26, 34, 0.25);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-success {
+  background: #10b981;
+  border: 1px solid #10b981;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.25);
+}
+
+.btn-success:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  color: #1f2937;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--red-main);
+  box-shadow: 0 0 0 4px rgba(223, 26, 34, 0.1);
+  background: #ffffff;
+}
+
+.input-field::placeholder {
+  color: #9ca3af;
+}
+
 /* Tabs */
 .tabs {
   display: flex;
@@ -1812,7 +1922,7 @@ g.recharts-reference-line {
   left: 0;
   width: 100%;
   height: 4px;
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: #f59e0b;
 }
 
 .info-card-icon {
@@ -2090,11 +2200,11 @@ g.recharts-reference-line {
 .advanced-settings-header .header-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(to right, rgba(0,0,0,0.1), transparent);
+  background: rgba(0,0,0,0.05);
 }
 
 [data-theme="dark"] .advanced-settings-header .header-line {
-  background: linear-gradient(to right, rgba(255,255,255,0.1), transparent);
+  background: rgba(255,255,255,0.05);
 }
 
 .advanced-settings-content {
@@ -2266,7 +2376,9 @@ g.recharts-reference-line {
   background-repeat: no-repeat;
   background-size: 50% 50%, 50% 50%;
   background-position: 0 0, 100% 0, 100% 100%, 0 100%;
-  background-image: conic-gradient(transparent, #10B981, transparent, #34d399, transparent, #10B981);
+  background-image: none;
+  background-color: transparent;
+  border: 2px solid #10B981;
   animation: rotate-border 6s linear infinite; /* Rotação um pouco mais lenta para não cansar */
 }
 
@@ -2299,7 +2411,9 @@ g.recharts-reference-line {
 
 /* Variante Roxa para Estratégia de Giro (Alavancagem) */
 .alert-sensor-animated.purple::before {
-  background-image: conic-gradient(transparent, #8b5cf6, transparent, #a855f7, transparent, #8b5cf6);
+  background-image: none;
+  background-color: transparent;
+  border: 2px solid #8b5cf6;
   animation-duration: 4s; /* Um pouco mais rápido para destacar a estratégia */
 }
 

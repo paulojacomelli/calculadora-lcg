@@ -124,9 +124,10 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     }
   }
 
-  // Preço que a Shopee usa para as faixas (PCC/PA)
+  // As faixas da Shopee (brackets) são determinadas pelo PDV arredondado.
+  // Arredondamos aqui para garantir consistência entre cálculo real e simulação.
+  const PDV = arredondar(dPDV.toNumber(), 2);
   const PCC = roundResult ? arredondar(dPA.toNumber(), 2) : dPA.toNumber();
-  const PDV = roundResult ? arredondar(dPDV.toNumber(), 2) : dPDV.toNumber();
   const cupomValorCalculado = roundResult ? arredondar(dCupomValor.toNumber(), 2) : dCupomValor.toNumber();
 
   let csPorcentagem = 14;
@@ -271,7 +272,7 @@ export const calcularPrecoIdealDetalhado = (
   }
 
   const paMatematico = arredondar(chute, 2);
-  const resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, false);
+  const resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, true);
 
   let melhorPa = paMatematico;
   let melhorLucro = resultadoReferencia.lucroLiquido;
@@ -288,27 +289,34 @@ export const calcularPrecoIdealDetalhado = (
     // Camada 1: Otimização "Sweet Spot" - varredura descendente para aproveitar as janelas de taxa reduzida (ex: 79.99)
     // Varremos descendo R$ 50.00 (5000 centavos)
     for (let i = 1; i <= 5000; i++) {
-    const paTeste = arredondar(paMatematico - (i / 100), 2);
-    if (paTeste <= (input.custoProduto || 0.01)) break; // Nunca cai abaixo do custo bruto
+      const paTeste = arredondar(paMatematico - (i / 100), 2);
+      if (paTeste <= (input.custoProduto || 0.01)) break;
 
-    const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, false);
+      const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
 
-    // Se no cenário mais barato o lucro salta (ou mesmo empata com o lucro ótimo anterior), adotamos o preço menor
-    if (resTeste.lucroLiquido >= melhorLucro - 0.001) {
-      melhorPa = paTeste;
-      melhorLucro = resTeste.lucroLiquido;
+      // Regra de Parada: Só otimiza se o lucro SUBIR ou se o lucro for igual mas a TARIFA FIXA cair
+      const isLucroMaior = resTeste.lucroLiquido > melhorLucro + 0.001;
+      const isFaixaMelhor = resTeste.tarifaFixa < resultadoReferencia.tarifaFixa;
+
+      if (isLucroMaior || (isFaixaMelhor && resTeste.lucroLiquido >= melhorLucro - 0.001)) {
+        melhorPa = paTeste;
+        melhorLucro = resTeste.lucroLiquido;
+        // Ao identificar um momento de otimização real, ele para de calcular
+        break; 
+      }
     }
   }
 
-  const MAX_LUCRO_PERDIDO_PCT = 0.15;
-  const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
+  if (melhorPa === paMatematico && input.fatorAlavancagemAtivo !== false) {
+    // 2. Se não identificou otimização real (Sweet Spot), busca Estratégia de Giro
+    const MAX_LUCRO_PERDIDO_PCT = 0.15;
+    const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
 
-  if (melhorPa === paMatematico) {
     for (let i = 1; i <= 5000; i++) {
         const paTeste = arredondar(paMatematico - (i / 100), 2);
         if (paTeste <= (input.custoProduto || 0.01)) break;
 
-        const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, false);
+        const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
         
         const qPreco = paMatematico - paTeste;
         const qLucro = resultadoReferencia.lucroLiquido - resTeste.lucroLiquido;
@@ -318,23 +326,21 @@ export const calcularPrecoIdealDetalhado = (
             const pctPerdaLucro = qLucro / (resultadoReferencia.lucroLiquido || 1);
 
             if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
-                // Selecionamos o de maior fator de alavancagem
-                if (fator > fatorAlavancagem) {
-                    fatorAlavancagem = fator;
-                    melhorPa = paTeste;
-                    isAlavancagem = true;
-                    quedaPreco = qPreco;
-                    quedaLucro = qLucro;
-                    const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
-                    esforcoPercentual = volNecessario - 100;
-                }
+                // Ao identificar um momento que respeite o fator, ele para de calcular
+                fatorAlavancagem = fator;
+                melhorPa = paTeste;
+                isAlavancagem = true;
+                quedaPreco = qPreco;
+                quedaLucro = qLucro;
+                const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
+                esforcoPercentual = volNecessario - 100;
+                break; 
             }
         }
     }
-    }
   }
 
-  const resultadoOtimizado = calcularTaxasShopee({ ...input, precoVenda: melhorPa }, false);
+  const resultadoOtimizado = calcularTaxasShopee({ ...input, precoVenda: melhorPa }, true);
 
   return {
     precoOriginal: paMatematico,

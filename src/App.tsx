@@ -2,8 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import ShopeePage from './pages/ShopeePage';
 import ShopeeLotePage from './pages/ShopeeLotePage';
+import CatalogPage from './pages/CatalogPage';
 import MeliPage from './pages/MeliPage';
-import { Calculator, ShoppingBag } from 'lucide-react';
+import { Calculator, ShoppingBag, Database } from 'lucide-react';
 import LoginAvatar from './components/LoginAvatar';
 
 const Navigation: React.FC = () => {
@@ -26,6 +27,13 @@ const Navigation: React.FC = () => {
           <ShoppingBag size={18} />
           <span>Mercado Livre</span>
         </Link>
+        <Link
+          to="/shopee/catalogo"
+          className={`nav-item ${location.pathname === '/shopee/catalogo' ? 'active' : ''}`}
+        >
+          <Database size={18} />
+          <span>Catálogo</span>
+        </Link>
         <div style={{ marginLeft: 'auto' }}>
           <LoginAvatar />
         </div>
@@ -43,6 +51,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/shopee" element={<ShopeePage />} />
             <Route path="/shopee/lote" element={<ShopeeLotePage />} />
+            <Route path="/shopee/catalogo" element={<CatalogPage />} />
             <Route path="/meli" element={<MeliPage />} />
             <Route path="/" element={<Navigate to="/shopee" replace />} />
           </Routes>
