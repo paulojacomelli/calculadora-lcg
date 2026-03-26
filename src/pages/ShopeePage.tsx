@@ -111,7 +111,6 @@ const ShopeePage: React.FC = () => {
     // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
     const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [isAutoCalcMode, setIsAutoCalcMode] = useState<boolean>(false); // Desativado por padrão conforme solicitação do usuário
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -323,14 +322,12 @@ const ShopeePage: React.FC = () => {
         return () => clearTimeout(timer);
     }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAdvancedOpen, user]);
 
-    // Função para disparar o cálculo imediato (ex: ao sair do input)
+    // Função mantida por compatibilidade com onBlur de inputs, mas sem ação em modo manual
     const triggerCalculation = () => {
-        if (isAutoCalcMode) {
-            handleCalcular();
-        }
+        // Modo manual: cálculo só via botão. Não executa nada aqui.
     };
 
-    // Cálculo automático em tempo real e persistência local
+    // Persistência local dos dados do formulário (sem cálculo automático)
     React.useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('@shopperPCC:aba', aba);
@@ -341,16 +338,11 @@ const ShopeePage: React.FC = () => {
             } else {
                 localStorage.removeItem('@shopperPCC:margemDesejada');
             }
-            localStorage.setItem('@shopperPCC:isAutoCalcMode', String(isAutoCalcMode));
             localStorage.setItem('@shopperPCC:isAdvancedOpen', String(isAdvancedOpen));
             localStorage.setItem('@shopperPCC:isPasswordAuthorized', String(isPasswordAuthorized));
         }
-        
-        // Só calcula automaticamente se o modo auto estiver ativado
-        if (isAutoCalcMode) {
-            handleCalcular();
-        }
-    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAutoCalcMode, isAdvancedOpen, isPasswordAuthorized]);
+        // Cálculo removido deste effect — disparado apenas pelo botão CALCULAR AGORA
+    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAdvancedOpen, isPasswordAuthorized]);
 
 
     const updateNumericValue = (name: string, val: number | undefined) => {
@@ -1051,7 +1043,10 @@ const ShopeePage: React.FC = () => {
     const confirmReset = () => {
         setInputs(defaultInputs);
         setMargemDesejada(undefined);
-        setIsAutoCalcMode(true); // Mantem auto ao resetar
+        setResults(null);
+        setLastCalculatedInputs(null);
+        setSimulacao(null);
+        setOtimizacaoIdeal(null);
         setIsResetModalOpen(false);
     };
 
@@ -1069,15 +1064,35 @@ const ShopeePage: React.FC = () => {
     const resultsRef = useRef<ShopeeOutput | null>(null);
     if (results) resultsRef.current = results;
     
-    // Se estiver no modo automático, calculamos em tempo real. 
-    // Se estiver no modo manual, usamos o último 'results' salvo (resultsRef) ou um cálculo inicial se for o primeiro acesso.
-    const activeResults = isAutoCalcMode 
-        ? (results || calcularTaxasShopee(inputs)) 
-        : (results || resultsRef.current || calcularTaxasShopee(inputs));
+    // Objeto com valores zerados exibido antes do primeiro cálculo manual
+    // Garante type-safety sem fazer nenhum cálculo automático durante o render
+    const emptyResults: ShopeeOutput = {
+        precoVenda: 0,
+        precoComCupom: 0,
+        comissaoValor: 0,
+        comissaoPorcentagem: 0,
+        tarifaFixa: 0,
+        impostoValor: 0,
+        custoAds: 0,
+        custoTotal: 0,
+        despesaFixaValor: 0,
+        despesaAdicionalValor: 0,
+        rebateValor: 0,
+        cupomValor: 0,
+        custoProdutoValor: 0,
+        lucroLiquido: 0,
+        margemSobreVenda: 0,
+        margemSobreCusto: 0,
+        margemLiquidaSobreCusto: 0,
+        margem: 0,
+    };
 
-    // O activeInputs garante que simulações e gráficos (Sensor, Charts)
-    // usem apenas o snapshot do último cálculo quando em modo manual.
-    const activeInputs = isAutoCalcMode ? inputs : (lastCalculatedInputs || inputs);
+    // activeResults usa apenas o último resultado calculado pelo botão.
+    // Enquanto não há cálculo, exibe zeros — sem chamar calcularTaxasShopee() no render.
+    const activeResults: ShopeeOutput = results || resultsRef.current || emptyResults;
+
+    // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
+    const activeInputs = lastCalculatedInputs || inputs;
     
     let statusClass = 'status-orange';
     let statusIcon = <AlertCircle size={20} />;
