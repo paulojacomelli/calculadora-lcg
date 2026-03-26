@@ -19,19 +19,11 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { getUserCatalog, saveUserCatalog, type Product } from '../services/catalogService';
 
-// Definição da interface do Produto
-interface Product {
-  id: string;
-  sku: string;
-  descricao: string;
-  custoCDP: number;
-  impostosIMP: number;
-  despesaFixaDF: number;
-  outrasDespesasOD: number;
-  adsADS: number;
-  rebateCR: number;
-}
+// A interface Product foi movida para o service para evitar duplicação
 
 // Mapeamento de campos internos para labels amigáveis
 const FIELD_LABELS: Record<string, string> = {
@@ -46,6 +38,9 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const CatalogPage: React.FC = () => {
+  // Estado para o usuário autenticado
+  const [userId, setUserId] = useState<string | null>(null);
+
   // Estado para os dois estoques
   const [activeWarehouse, setActiveWarehouse] = useState<'SP' | 'SC'>('SP');
   const [productsSP, setProductsSP] = useState<Product[]>([]);
@@ -53,6 +48,7 @@ const CatalogPage: React.FC = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [loading, setLoading] = useState(true);
   
   // Seleção em massa
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -73,46 +69,97 @@ const CatalogPage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Carregar dados iniciais
+  // Monitorar autenticação e carregar dados
   useEffect(() => {
-    const savedSP = localStorage.getItem('@shoperLCG:catalog_SP');
-    const savedSC = localStorage.getItem('@shoperLCG:catalog_SC');
-    
-    if (savedSP) {
-      try { setProductsSP(JSON.parse(savedSP)); } catch (e) { console.error('Erro SP:', e); }
-    }
-    if (savedSC) {
-      try { setProductsSC(JSON.parse(savedSC)); } catch (e) { console.error('Erro SC:', e); }
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+        setLoading(true);
+        
+        try {
+          // Primeiro tenta carregar do Firestore
+          const [cloudSP, cloudSC] = await Promise.all([
+            getUserCatalog(user.uid, 'SP'),
+            getUserCatalog(user.uid, 'SC')
+          ]);
 
-    if (!savedSP && !savedSC) {
-      const initial = [{
-        id: crypto.randomUUID(),
-        sku: 'EX-001',
-        descricao: 'Produto Exemplo',
-        custoCDP: 50.00,
-        impostosIMP: 6.5,
-        despesaFixaDF: 8.0,
-        outrasDespesasOD: 1.0,
-        adsADS: 2.0,
-        rebateCR: 0
-      }];
-      setProductsSP(initial);
-      setProductsSC(initial);
-    }
+          if (cloudSP.length > 0 || cloudSC.length > 0) {
+            setProductsSP(cloudSP);
+            setProductsSC(cloudSC);
+            // Sincroniza o localStorage para fallback offline
+            localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(cloudSP));
+            localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(cloudSC));
+          } else {
+            // Se não houver na nuvem, tenta o localStorage (migração legacy)
+            const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
+            const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
+            
+            if (savedSP) setProductsSP(JSON.parse(savedSP));
+            if (savedSC) setProductsSC(JSON.parse(savedSC));
+
+            if (!savedSP && !savedSC) {
+              const initial = [{
+                id: crypto.randomUUID(),
+                sku: 'EX-001',
+                descricao: 'Produto Exemplo',
+                custoCDP: 50.00,
+                impostosIMP: 6.5,
+                despesaFixaDF: 8.0,
+                outrasDespesasOD: 1.0,
+                adsADS: 2.0,
+                rebateCR: 0
+              }];
+              setProductsSP(initial);
+              setProductsSC(initial);
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao sincronizar catálogo:", error);
+          // Fallback para localStorage em caso de erro de rede
+          const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
+          const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
+          if (savedSP) try { setProductsSP(JSON.parse(savedSP)); } catch(e){}
+          if (savedSC) try { setProductsSC(JSON.parse(savedSC)); } catch(e){}
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setUserId(null);
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const activeProducts = activeWarehouse === 'SP' ? productsSP : productsSC;
   const setActiveProducts = activeWarehouse === 'SP' ? setProductsSP : setProductsSC;
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!userId) {
+      alert("Você precisa estar logado para salvar o catálogo na nuvem.");
+      return;
+    }
+
     setSaveStatus('saving');
-    localStorage.setItem('@shoperLCG:catalog_SP', JSON.stringify(productsSP));
-    localStorage.setItem('@shoperLCG:catalog_SC', JSON.stringify(productsSC));
-    setTimeout(() => {
+    
+    try {
+      // Salva no Firestore
+      await Promise.all([
+        saveUserCatalog(userId, 'SP', productsSP),
+        saveUserCatalog(userId, 'SC', productsSC)
+      ]);
+
+      // Também mantém no localStorage por segurança/cache
+      localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(productsSP));
+      localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(productsSC));
+      
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
-    }, 800);
+    } catch (error) {
+      alert("Erro ao salvar catálogo no servidor. Tente novamente.");
+      setSaveStatus('idle');
+    }
   };
 
   const addProduct = () => {
@@ -164,13 +211,13 @@ const CatalogPage: React.FC = () => {
     if (selectedIds.size === filteredProducts.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredProducts.map(p => p.id)));
+      setSelectedIds(new Set(filteredProducts.map((p: Product) => p.id)));
     }
   };
 
   const bulkDelete = () => {
     if (window.confirm(`Deseja excluir ${selectedIds.size} produtos selecionados?`)) {
-      setActiveProducts(activeProducts.filter(p => !selectedIds.has(p.id)));
+      setActiveProducts(activeProducts.filter((p: Product) => !selectedIds.has(p.id)));
       setSelectedIds(new Set());
     }
   };
@@ -181,7 +228,7 @@ const CatalogPage: React.FC = () => {
     const numVal = bulkEditValue === '' ? 0 : parseFloat(bulkEditValue.replace(',', '.'));
     const finalVal = isNaN(numVal) ? 0 : numVal;
 
-    setActiveProducts(activeProducts.map(p => {
+    setActiveProducts(activeProducts.map((p: Product) => {
       if (selectedIds.has(p.id)) {
         return { ...p, [bulkEditField]: finalVal };
       }
@@ -283,7 +330,7 @@ const CatalogPage: React.FC = () => {
 
     const onDataRead = (data: any[]) => {
       if (data.length === 0) return;
-      const filtered = data.filter(row => {
+      const filtered = data.filter((row: any) => {
           const values = Object.values(row).join('').toLowerCase();
           return values.length > 0 && !values.includes('#valor!');
       });
@@ -357,6 +404,16 @@ const CatalogPage: React.FC = () => {
     p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.descricao.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', height: '60vh', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ width: '50px', height: '50px', border: '4px solid var(--red-main)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ color: '#64748b', fontWeight: 600 }}>Sincronizando com a nuvem...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="container fade-in">
@@ -534,7 +591,7 @@ const CatalogPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((p) => (
+              {filteredProducts.map((p: Product) => (
                 <tr key={p.id} className={`catalog-row ${selectedIds.has(p.id) ? 'row-selected' : ''}`}>
                   <td className="text-center">
                     <button className="row-select-btn" onClick={() => toggleSelect(p.id)}>

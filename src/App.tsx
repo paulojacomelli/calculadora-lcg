@@ -8,6 +8,36 @@ import CatalogPage from './pages/CatalogPage';
 import MeliPage from './pages/MeliPage';
 import { Calculator, ShoppingBag, Database } from 'lucide-react';
 import LoginAvatar from './components/LoginAvatar';
+import LoginPage from './pages/LoginPage';
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '40px', height: '40px', border: '3px solid #ee4d2d', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const Navigation: React.FC = () => {
   const location = useLocation();
@@ -61,10 +91,11 @@ const App: React.FC = () => {
         <Navigation />
         <main className="content-area">
           <Routes>
-            <Route path="/shopee" element={<ShopeePage />} />
-            <Route path="/shopee/lote" element={<ShopeeLotePage />} />
-            <Route path="/shopee/catalogo" element={<CatalogPage />} />
-            <Route path="/meli" element={<MeliPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/shopee" element={<ProtectedRoute><ShopeePage /></ProtectedRoute>} />
+            <Route path="/shopee/lote" element={<ProtectedRoute><ShopeeLotePage /></ProtectedRoute>} />
+            <Route path="/shopee/catalogo" element={<ProtectedRoute><CatalogPage /></ProtectedRoute>} />
+            <Route path="/meli" element={<ProtectedRoute><MeliPage /></ProtectedRoute>} />
             <Route path="/" element={<Navigate to="/shopee" replace />} />
           </Routes>
         </main>

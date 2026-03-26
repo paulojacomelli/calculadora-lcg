@@ -21,7 +21,8 @@ import {
     Lock,
     Zap,
     Table,
-    Search
+    Search,
+    Plus
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -39,6 +40,7 @@ import {
     // calcularCenariosDePreco,
     arredondar
 } from '../utils/shopeeLogic';
+import { getUserCatalog } from '../services/catalogService';
 
 /**
  * Componente de Insight de Preço (Sweet Spot)
@@ -119,22 +121,9 @@ const ShopeePage: React.FC = () => {
     const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    // Produto selecionado da busca (exibido como chip de referência)
+    const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<{ sku: string; descricao: string; _wh: string } | null>(null);
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const sp = JSON.parse(localStorage.getItem('@shoperLCG:catalog_SP') || '[]');
-                const sc = JSON.parse(localStorage.getItem('@shoperLCG:catalog_SC') || '[]');
-                const combined = [
-                    ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
-                    ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
-                ];
-                setCatalogProducts(combined);
-            } catch (e) {
-                console.error("Erro ao carregar catálogo:", e);
-            }
-        }
-    }, []);
     const [focusedValue, setFocusedValue] = useState<string>('');
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(() => {
         return localStorage.getItem('@shopperPCC:isAdvancedOpen') === 'true';
@@ -176,9 +165,45 @@ const ShopeePage: React.FC = () => {
                         // Marca que o carregamento inicial foi feito para evitar que o save automático sobrescreva imediatamente
                         isInitialLoadDone.current = true;
                     }
+
+                    // Carrega o catálogo do Firestore
+                    console.log("Sincronizando catálogo com Firestore...");
+                    const [cloudSP, cloudSC] = await Promise.all([
+                        getUserCatalog(currentUser.uid, 'SP'),
+                        getUserCatalog(currentUser.uid, 'SC')
+                    ]);
+
+                    let finalSP = cloudSP;
+                    let finalSC = cloudSC;
+
+                    // Se a nuvem estiver vazia, tenta o localStorage (migração legacy ou offline inicial)
+                    if (finalSP.length === 0 && finalSC.length === 0) {
+                        console.log("Nuvem vazia, tentando localStorage...");
+                        const localSP = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+                        const localSC = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+                        finalSP = localSP;
+                        finalSC = localSC;
+                    }
+
+                    const combined = [
+                        ...finalSP.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                        ...finalSC.map((p: any) => ({ ...p, _wh: 'SC' }))
+                    ];
+                    setCatalogProducts(combined);
+
                 } catch (error) {
-                    console.error("Erro ao carregar configurações do usuário:", error);
+                    console.error("Erro ao carregar dados do usuário:", error);
+                    // Fallback para localStorage em caso de erro de rede
+                    const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+                    const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+                    const combined = [
+                        ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                        ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+                    ];
+                    setCatalogProducts(combined);
                 }
+            } else {
+                setCatalogProducts([]);
             }
         });
 
@@ -1047,6 +1072,7 @@ const ShopeePage: React.FC = () => {
         setLastCalculatedInputs(null);
         setSimulacao(null);
         setOtimizacaoIdeal(null);
+        setSelectedCatalogProduct(null); // Limpa o chip de produto ao reiniciar
         setIsResetModalOpen(false);
     };
 
@@ -1064,32 +1090,11 @@ const ShopeePage: React.FC = () => {
     const resultsRef = useRef<ShopeeOutput | null>(null);
     if (results) resultsRef.current = results;
     
-    // Objeto com valores zerados exibido antes do primeiro cálculo manual
-    // Garante type-safety sem fazer nenhum cálculo automático durante o render
-    const emptyResults: ShopeeOutput = {
-        precoVenda: 0,
-        precoComCupom: 0,
-        comissaoValor: 0,
-        comissaoPorcentagem: 0,
-        tarifaFixa: 0,
-        impostoValor: 0,
-        custoAds: 0,
-        custoTotal: 0,
-        despesaFixaValor: 0,
-        despesaAdicionalValor: 0,
-        rebateValor: 0,
-        cupomValor: 0,
-        custoProdutoValor: 0,
-        lucroLiquido: 0,
-        margemSobreVenda: 0,
-        margemSobreCusto: 0,
-        margemLiquidaSobreCusto: 0,
-        margem: 0,
-    };
+
 
     // activeResults usa apenas o último resultado calculado pelo botão.
-    // Enquanto não há cálculo, exibe zeros — sem chamar calcularTaxasShopee() no render.
-    const activeResults: ShopeeOutput = results || resultsRef.current || emptyResults;
+    // Enquanto não há cálculo, retorna null para indicar estado de espera.
+    const activeResults: ShopeeOutput | null = results || resultsRef.current;
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
@@ -1098,66 +1103,104 @@ const ShopeePage: React.FC = () => {
     let statusIcon = <AlertCircle size={20} />;
     let statusText = 'Margem apertada';
 
-    if (activeResults.margemSobreVenda <= 0) {
-        statusClass = 'status-red';
-        statusIcon = <AlertCircle size={20} />;
-        statusText = 'Prejuízo!';
-    } else if (activeResults.margemSobreVenda >= 15) {
-        statusClass = 'status-green';
-        statusIcon = <CheckCircle2 size={20} />;
-        statusText = 'Boa margem de lucro';
+    if (activeResults) {
+        if (activeResults.margemSobreVenda <= 0) {
+            statusClass = 'status-red';
+            statusIcon = <AlertCircle size={20} />;
+            statusText = 'Prejuízo!';
+        } else if (activeResults.margemSobreVenda >= 15) {
+            statusClass = 'status-green';
+            statusIcon = <CheckCircle2 size={20} />;
+            statusText = 'Boa margem de lucro';
+        }
     }
 
-    const renderResultsCards = (res: any, isIdealFull: boolean = false) => (
-        <div className="premium-results-grid">
-            <div className="result-card primary" style={{
-                backgroundColor: res.margemSobreVenda <= 0 ? '#fef2f2' : (res.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
-                borderColor: res.margemSobreVenda <= 0 ? '#fecaca' : (res.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0'),
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-            }}>
-                <div className="result-label" style={{
-                    color: res.margemSobreVenda <= 0 ? '#991b1b' : (res.margemSobreVenda < 15 ? '#9a3412' : '#166534')
+    const renderResultsCards = (res: ShopeeOutput | null, isIdealFull: boolean = false) => {
+        if (!res) {
+            return (
+                <div className="waiting-params-container" style={{
+                    gridColumn: '1 / -1',
+                    padding: '40px',
+                    textAlign: 'center',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '20px',
+                    border: '2px dashed #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    color: '#64748b'
                 }}>
-                    {isIdealFull ? <>PREÇO DE VENDA IDEAL {s('PDVI')}</> : <>PREÇO DE VENDA {s('PDV')}</>}
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        backgroundColor: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                        marginBottom: '8px'
+                    }}>
+                        <Calculator size={24} style={{ color: '#94a3b8' }} />
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#475569' }}>Aguardando Parâmetros</div>
+                    <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Preencha os dados e clique em CALCULAR AGORA</div>
                 </div>
-                <div className="result-value" style={{
-                    color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
-                }}>
-                    R$ {moeda(res.precoVenda)}
-                </div>
-                <div className="result-sub" style={{
-                    color: res.margemSobreVenda <= 0 ? '#b91c1c' : (res.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
-                    opacity: 1,
-                    fontWeight: 600
-                }}>
-                    {isIdealFull ? "Melhor preço identificado" : "Valor sem cupom"}
-                </div>
-                <ShoppingCart size={24} className="card-icon" style={{
-                    opacity: 0.1,
-                    color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
-                }} />
-            </div>
+            );
+        }
 
-            <div className="result-card secondary" style={{
-                backgroundColor: '#eff6ff',
-                borderColor: '#bfdbfe'
-            }}>
-                <div className="result-label" style={{ color: '#1e3a8a' }}>
-                    {isIdealFull ? <>PREÇO IDEAL ANUNCIADO {s('PIA')}</> : <>PREÇO ANUNCIADO {s('PA')}</>}
+        return (
+            <div className="premium-results-grid">
+                <div className="result-card primary" style={{
+                    backgroundColor: res.margemSobreVenda <= 0 ? '#fef2f2' : (res.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
+                    borderColor: res.margemSobreVenda <= 0 ? '#fecaca' : (res.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0'),
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                }}>
+                    <div className="result-label" style={{
+                        color: res.margemSobreVenda <= 0 ? '#991b1b' : (res.margemSobreVenda < 15 ? '#9a3412' : '#166534')
+                    }}>
+                        {isIdealFull ? <>PREÇO DE VENDA IDEAL {s('PDVI')}</> : <>PREÇO DE VENDA {s('PDV')}</>}
+                    </div>
+                    <div className="result-value" style={{
+                        color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                    }}>
+                        R$ {moeda(res.precoVenda)}
+                    </div>
+                    <div className="result-sub" style={{
+                        color: res.margemSobreVenda <= 0 ? '#b91c1c' : (res.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
+                        opacity: 1,
+                        fontWeight: 600
+                    }}>
+                        {isIdealFull ? "Melhor preço identificado" : "Valor sem cupom"}
+                    </div>
+                    <ShoppingCart size={24} className="card-icon" style={{
+                        opacity: 0.1,
+                        color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                    }} />
                 </div>
-                <div className="result-value" style={{ color: '#1e40af' }}>
-                    R$ {moeda(res.precoComCupom)}
+
+                <div className="result-card secondary" style={{
+                    backgroundColor: '#eff6ff',
+                    borderColor: '#bfdbfe'
+                }}>
+                    <div className="result-label" style={{ color: '#1e3a8a' }}>
+                        {isIdealFull ? <>PREÇO IDEAL ANUNCIADO {s('PIA')}</> : <>PREÇO ANUNCIADO {s('PA')}</>}
+                    </div>
+                    <div className="result-value" style={{ color: '#1e40af' }}>
+                        R$ {moeda(res.precoComCupom)}
+                    </div>
+                    <div className="result-sub" style={{ color: '#1e40af', opacity: 1 }}>
+                        Valor exibido na vitrine
+                    </div>
+                    <TrendingUp size={24} className="card-icon" style={{
+                        opacity: 0.1,
+                        color: '#3b82f6'
+                    }} />
                 </div>
-                <div className="result-sub" style={{ color: '#1e40af', opacity: 1 }}>
-                    Valor exibido na vitrine
-                </div>
-                <TrendingUp size={24} className="card-icon" style={{
-                    opacity: 0.1,
-                    color: '#3b82f6'
-                }} />
             </div>
-        </div>
-    );
+        );
+    };
 
     const mainResultsContent = renderResultsCards(activeResults, aba === 'ideal');
 
@@ -1274,73 +1317,146 @@ const ShopeePage: React.FC = () => {
                         <div className="parameters-grid">
                             <div className="input-section-title">Valores Base</div>
 
-                            <div className="input-group" style={{ position: 'relative', marginBottom: '1rem', zIndex: showSearchDropdown ? 100 : 1 }}>
-                                <label style={{ color: '#ef4444', fontWeight: 700 }}><Search size={16} /> Buscar no Catálogo</label>
-                                <input
-                                    type="text"
-                                    placeholder="Digite SKU ou descrição para carregar os custos..."
-                                    value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value);
-                                        setShowSearchDropdown(true);
-                                    }}
-                                    onFocus={() => setShowSearchDropdown(true)}
-                                    // Timeout para permitir clique na lista antes de sumir
-                                    onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
-                                    className="input-field"
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '2px dashed #f87171', backgroundColor: '#fef2f2' }}
-                                />
-                                {showSearchDropdown && searchQuery.trim().length > 1 && (
-                                    <div style={{
-                                        position: 'absolute', top: '100%', left: 0, right: 0,
-                                        background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px',
-                                        maxHeight: '220px', overflowY: 'auto', zIndex: 1000,
-                                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px'
-                                    }}>
-                                        {catalogProducts.filter(p => 
-                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).length === 0 ? (
-                                            <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
-                                                Nenhum produto encontrado no catálogo.
-                                            </div>
-                                        ) : catalogProducts.filter(p => 
-                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).slice(0, 15).map((p, idx) => (
-                                            <div 
-                                                key={idx}
-                                                style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                                onClick={() => {
-                                                    setSearchQuery('');
-                                                    setShowSearchDropdown(false);
-                                                    setInputs(prev => ({
-                                                        ...prev,
-                                                        custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
-                                                        impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
-                                                        despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
-                                                        despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
-                                                        adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
-                                                        rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
-                                                    }));
+                            {/* Busca no Catálogo — visível apenas para usuários autenticados */}
+                            {user && (
+                                <div className="input-group" style={{ position: 'relative', marginBottom: '1rem', zIndex: showSearchDropdown ? 100 : 1 }}>
+                                    <label style={{ color: '#4b5563', fontWeight: 700 }}><Search size={16} /> Buscar no Catálogo</label>
+                                    
+                                    {!selectedCatalogProduct ? (
+                                        <>
+                                            <input
+                                                type="text"
+                                                placeholder="Digite SKU ou descrição para carregar os custos..."
+                                                value={searchQuery}
+                                                onChange={(e) => {
+                                                    setSearchQuery(e.target.value);
+                                                    setShowSearchDropdown(true);
                                                 }}
-                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                            >
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
-                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.sku} - {p.descricao}</span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
-                                                        Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | DF: {(p.despesaFixaDF || 0).toFixed(2).replace('.', ',')}%
+                                                onFocus={() => setShowSearchDropdown(true)}
+                                                // Timeout para permitir clique na lista antes de sumir
+                                                onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
+                                                autoComplete="off"
+                                                className="input-field"
+                                                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
+                                            />
+                                            {showSearchDropdown && searchQuery.trim().length > 1 && (
+                                                <div style={{
+                                                    position: 'absolute', top: '100%', left: 0, right: 0,
+                                                    background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px',
+                                                    maxHeight: '220px', overflowY: 'auto', zIndex: 1000,
+                                                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px'
+                                                }}>
+                                                    {catalogProducts.filter(p => 
+                                                        (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                                        (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                                    ).length === 0 ? (
+                                                        <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
+                                                            Nenhum produto encontrado no catálogo.
+                                                        </div>
+                                                    ) : catalogProducts.filter(p => 
+                                                        (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                                        (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                                    ).slice(0, 15).map((p, idx) => (
+                                                        <div 
+                                                            key={idx}
+                                                            style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                            onClick={() => {
+                                                                setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
+                                                                setSearchQuery('');
+                                                                setShowSearchDropdown(false);
+                                                                setInputs(prev => ({
+                                                                    ...prev,
+                                                                    custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
+                                                                    impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
+                                                                    despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
+                                                                    despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
+                                                                    adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
+                                                                    rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
+                                                                }));
+                                                            }}
+                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
+                                                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                        >
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '85%' }}>
+                                                                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
+                                                                </span>
+                                                                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
+                                                                    Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
+                                                                </span>
+                                                            </div>
+                                                            <div style={{ color: '#9ca3af' }}>
+                                                                <Plus size={14} />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        /* Exibição do produto dentro da "barra" */
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: '8px', 
+                                            background: '#f9fafb', 
+                                            border: '1px solid #e5e7eb', 
+                                            borderRadius: '8px', 
+                                            padding: '0.65rem 0.75rem',
+                                            width: '100%',
+                                            minHeight: '45.6px'
+                                        }}>
+                                            <Search size={16} style={{ color: '#6b7280', flexShrink: 0 }} />
+                                                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ 
+                                                        background: selectedCatalogProduct._wh === 'SP' ? '#e0f2fe' : '#fef08a', 
+                                                        color: selectedCatalogProduct._wh === 'SP' ? '#0284c7' : '#854d0e', 
+                                                        fontWeight: 800, 
+                                                        fontSize: '0.7rem', 
+                                                        padding: '2px 8px', 
+                                                        borderRadius: '4px',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {selectedCatalogProduct._wh}
+                                                    </span>
+                                                    <span style={{ 
+                                                        color: '#1f2937', 
+                                                        fontWeight: 700, 
+                                                        fontSize: '0.85rem',
+                                                        whiteSpace: 'nowrap', 
+                                                        overflow: 'hidden', 
+                                                        textOverflow: 'ellipsis' 
+                                                    }}>
+                                                        {selectedCatalogProduct.sku} — <span style={{ fontWeight: 500, opacity: 0.8 }}>{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
                                                     </span>
                                                 </div>
-                                                <div style={{ backgroundColor: p._wh === 'SP' ? '#e0f2fe' : '#fef08a', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, color: p._wh === 'SP' ? '#0284c7' : '#854d0e', border: p._wh === 'SP' ? '1px solid #bae6fd' : '1px solid #fde047' }}>
-                                                    {p._wh}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                            <button 
+                                                onClick={() => setSelectedCatalogProduct(null)}
+                                                style={{ 
+                                                    background: '#f3f4f6', 
+                                                    border: 'none', 
+                                                    borderRadius: '50%', 
+                                                    width: '24px', 
+                                                    height: '24px', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer', 
+                                                    color: '#ef4444', 
+                                                    fontSize: '1.2rem',
+                                                    lineHeight: 0,
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = '#fecaca')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = '#fee2e2')}
+                                                title="Limpar seleção"
+                                            >
+                                                &times;
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="input-group">
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
@@ -1357,7 +1473,6 @@ const ShopeePage: React.FC = () => {
                                     onBlur={() => {
                                         setFocusedInput(null);
                                         setFocusedValue('');
-                                        triggerCalculation();
                                     }}
                                     onChange={handleChange}
                                     onWheel={handleWheel}
@@ -1382,7 +1497,6 @@ const ShopeePage: React.FC = () => {
                                                 onBlur={() => {
                                                     setFocusedInput(null);
                                                     setFocusedValue('');
-                                                    triggerCalculation();
                                                 }}
                                                 onChange={handleChange}
                                                 onWheel={handleWheel}
@@ -1437,7 +1551,6 @@ const ShopeePage: React.FC = () => {
                                                     onBlur={() => {
                                                         setFocusedInput(null);
                                                         setFocusedValue('');
-                                                        triggerCalculation();
                                                     }}
                                                     onChange={handleChange}
                                                     onWheel={handleWheel}
@@ -1811,11 +1924,38 @@ const ShopeePage: React.FC = () => {
                 </div>
 
                 <div className="calculator-right">
-                    {(inputs.custoProduto ?? 0) <= 0 ? (
-                        <div className="empty-results-card">
-                            <Sparkles size={48} className="empty-icon" />
-                            <h3>Aguardando Parâmetros</h3>
-                            <p>Preencha os dados à esquerda para ver os cálculos em tempo real.</p>
+                    {!activeResults ? (
+                        <div className="empty-results-card" style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '100%',
+                            minHeight: '400px',
+                            backgroundColor: '#f8fafc',
+                            borderRadius: '24px',
+                            border: '2px dashed #e2e8f0',
+                            padding: '40px',
+                            textAlign: 'center',
+                            gap: '16px'
+                        }}>
+                            <div style={{
+                                width: '64px',
+                                height: '64px',
+                                borderRadius: '16px',
+                                backgroundColor: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                                marginBottom: '8px'
+                            }}>
+                                <Calculator size={32} style={{ color: '#94a3b8' }} />
+                            </div>
+                            <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.5rem', color: '#475569' }}>Aguardando Parâmetros</h3>
+                            <p style={{ margin: 0, fontSize: '1rem', color: '#94a3b8', maxWidth: '300px' }}>
+                                Preencha os dados e clique no botão <strong>CALCULAR AGORA</strong> para ver os resultados.
+                            </p>
                         </div>
                     ) : (
                         <div id="quick-results">

@@ -45,6 +45,8 @@ export interface MeliInput {
 
     adsValor?: number;
     adsTipo: TipoAds;
+    fatorAlavancagem?: number;
+    fatorAlavancagemAtivo?: boolean;
 }
 
 export interface MeliOutput {
@@ -210,6 +212,140 @@ export const calcularPrecoIdealMeli = (
     }
 
     return chute;
+};
+
+export interface OtimizacaoPrecoResult {
+    precoOriginal: number;
+    precoOtimizado: number;
+    lucroOriginal: number;
+    lucroOtimizado: number;
+    isOtimizado: boolean;
+    margemCustoOriginal: number;
+    margemVendaOriginal: number;
+    margemCustoOtimizado: number;
+    margemVendaOtimizado: number;
+    isAlavancagem: boolean;
+    fatorAlavancagem: number;
+    quedaPreco: number;
+    quedaLucro: number;
+    esforcoPercentual: number;
+}
+
+/**
+ * Calcula o preço de venda ideal para atingir uma margem específica detalhadamente,
+ * incluindo logs de varredura se um preço menor foi encontrado de forma otimizada.
+ * Usamos busca binária para encontrar o preço exato.
+ */
+export const calcularPrecoIdealMeliDetalhado = (
+    input: MeliInput,
+    margemDesejada: number | undefined,
+    tipoBase: 'custo' | 'venda' = 'venda'
+): OtimizacaoPrecoResult => {
+    const margem = margemDesejada ?? 0;
+    let min = input.custoProduto ?? 0;
+    let max = (input.custoProduto ?? 10) * 50;
+    let chute = (min + max) / 2;
+
+    for (let i = 0; i < 50; i++) {
+        const resultado = calcularTaxasMeli({ ...input, precoVenda: chute });
+        const margemAtual = tipoBase === 'custo' ? resultado.margemSobreCusto : resultado.margemSobreVenda;
+
+        if (Math.abs(margemAtual - margem) < 0.0001) break;
+
+        if (margemAtual < margem) {
+            min = chute;
+        } else {
+            max = chute;
+        }
+        chute = (min + max) / 2;
+    }
+
+    const paMatematico = arredondar(chute, 2);
+    const resultadoReferencia = calcularTaxasMeli({ ...input, precoVenda: paMatematico });
+
+    let melhorPa = paMatematico;
+    let melhorLucro = resultadoReferencia.lucroLiquido;
+
+    let isAlavancagem = false;
+    let fatorAlavancagem = 0;
+    let quedaPreco = 0;
+    let quedaLucro = 0;
+    let esforcoPercentual = 0;
+
+    // Otimização "Sweet Spot" e Alavancagem de Giro
+    if (input.fatorAlavancagemAtivo !== false) {
+        // Camada 1: Otimização "Sweet Spot" - varredura descendente para aproveitar janelas de taxa reduzida (perto de R$ 79)
+        for (let i = 1; i <= 5000; i++) {
+            const paTeste = arredondar(paMatematico - (i / 100), 2);
+            if (paTeste <= (input.custoProduto || 0.01)) break;
+
+            const resTeste = calcularTaxasMeli({ ...input, precoVenda: paTeste });
+
+            // Regra de Parada: Só otimiza se o lucro SUBIR ou se o lucro for igual mas a TAXA FIXA cair (R$ 79 threshold)
+            const isLucroMaior = resTeste.lucroLiquido > melhorLucro + 0.001;
+            const isFaixaMelhor = (resTeste.taxaFixa + resTeste.freteGratisValor) < (resultadoReferencia.taxaFixa + resultadoReferencia.freteGratisValor);
+
+            if (isLucroMaior || (resTeste.lucroLiquido >= melhorLucro && isFaixaMelhor)) {
+                melhorPa = paTeste;
+                melhorLucro = resTeste.lucroLiquido;
+            } else if (paTeste < paMatematico - 50) {
+                // Se já baixamos R$ 50 e o lucro só cai, paramos a varredura primária
+                break;
+            }
+        }
+
+        // Camada 2: Alavancagem de Giro (Leverage)
+        // Reduz preço agressivamente se o sacrifício de margem for mínimo (alavancagem > fator)
+        const fatorAlvo = input.fatorAlavancagem || 5.0;
+        
+        for (let i = 1; i <= 1000; i++) {
+            const paAlavanca = arredondar(melhorPa - (i / 100), 2);
+            if (paAlavanca <= (input.custoProduto || 0.01)) break;
+
+            const resAlavanca = calcularTaxasMeli({ ...input, precoVenda: paAlavanca });
+            
+            const deltaPreco = melhorPa - paAlavanca;
+            const deltaMargem = melhorLucro - resAlavanca.lucroLiquido;
+
+            if (deltaMargem <= 0) continue; // Se o lucro aumentou, a Camada 1 já pegaria ou pegará
+
+            const alavancagemAtual = deltaPreco / deltaMargem;
+
+            if (alavancagemAtual >= fatorAlvo) {
+                isAlavancagem = true;
+                fatorAlavancagem = alavancagemAtual;
+                quedaPreco = deltaPreco;
+                quedaLucro = deltaMargem;
+                esforcoPercentual = (quedaLucro / melhorLucro) * 100;
+                
+                // Atualizamos o "melhor" para o alavancado
+                melhorPa = paAlavanca;
+                // Nota: não atualizamos melhorLucro aqui para não quebrar a referência do delta
+            } else if (i > 200 && deltaPreco > 20) {
+                // Limite de busca para performance
+                break;
+            }
+        }
+    }
+
+    const resFinal = calcularTaxasMeli({ ...input, precoVenda: melhorPa });
+
+    return {
+        precoOriginal: paMatematico,
+        precoOtimizado: melhorPa,
+        lucroOriginal: resultadoReferencia.lucroLiquido,
+        lucroOtimizado: resFinal.lucroLiquido,
+        isOtimizado: melhorPa < paMatematico,
+        margemCustoOriginal: resultadoReferencia.margemSobreCusto,
+        margemVendaOriginal: resultadoReferencia.margemSobreVenda,
+        margemCustoOtimizado: resFinal.margemSobreCusto,
+        margemVendaOtimizado: resFinal.margemSobreVenda,
+        isAlavancagem,
+        fatorAlavancagem: arredondar(fatorAlavancagem, 1),
+        quedaPreco: arredondar(quedaPreco, 2),
+        quedaLucro: arredondar(quedaLucro, 2),
+        esforcoPercentual: arredondar(esforcoPercentual, 1)
+    };
 };
 
 export interface CenarioPrecoMeli extends MeliOutput {

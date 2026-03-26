@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
+import { 
     Calculator,
     CircleDollarSign,
     AlertCircle,
@@ -9,12 +9,45 @@ import {
     TrendingUp,
     CheckCircle2,
     Truck,
-    Package
+    Package,
+    Search,
+    X,
+    Plus,
+    RefreshCcw,
+    Info,
+    Lock,
+    Scale,
+    MousePointer2,
+    Zap,
+    Award,
+    Minimize2,
+    Maximize2,
+    ShoppingCart,
+    HelpCircle
 } from 'lucide-react';
 
-import type { MeliInput, MeliOutput, ResultadoSimulacaoMeli, TipoAnuncio } from '../utils/meliLogic';
-import { calcularTaxasMeli, calcularPrecoIdealMeli, simularCenariosPrecoMeli, arredondar } from '../utils/meliLogic';
-import { logCalculo } from '../firebase';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    Cell,
+    ComposedChart,
+    Area,
+    Line,
+    ReferenceLine
+} from 'recharts';
+
+import type { MeliInput, MeliOutput, ResultadoSimulacaoMeli, TipoAnuncio, OtimizacaoPrecoResult, CenarioPrecoMeli } from '../utils/meliLogic';
+import { calcularTaxasMeli, calcularPrecoIdealMeli, simularCenariosPrecoMeli, arredondar, calcularPrecoIdealMeliDetalhado } from '../utils/meliLogic';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { logCalculo, auth, db } from '../firebase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { getUserCatalog } from '../services/catalogService';
 
 const defaultInputs: MeliInput = {
     custoProduto: undefined,
@@ -82,8 +115,16 @@ const MeliPage: React.FC = () => {
 
     const [results, setResults] = useState<MeliOutput | null>(null);
     const [resultsAlt, setResultsAlt] = useState<MeliOutput | null>(null);
-    const [, setSimulacao] = useState<ResultadoSimulacaoMeli | null>(null);
+    const [simulacao, setSimulacao] = useState<ResultadoSimulacaoMeli | null>(null);
+    const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    
+    // Estados para gráficos e tela cheia (paridade Shopee)
+    const [isFullscreenStrategy, setIsFullscreenStrategy] = useState(false);
+    const [isFullscreenScope, setIsFullscreenScope] = useState(false);
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [isUnlocked, setIsUnlocked] = useState(false);
 
     const [statusClass, setStatusClass] = useState('');
     const [statusText, setStatusText] = useState('');
@@ -91,6 +132,105 @@ const MeliPage: React.FC = () => {
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
     const [focusedValue, setFocusedValue] = useState<string>('');
+    const [user, setUser] = useState<any>(null);
+
+    const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<{sku: string, descricao: string, _wh: string} | null>(null);
+    const [loadingCatalog, setLoadingCatalog] = useState(false);
+    const isInitialLoadDone = React.useRef(false);
+
+    // Carregar configurações e catálogo do usuário
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                try {
+                    // Carrega as configurações da Meli do Firestore
+                    const userSettingsRef = doc(db, 'users', currentUser.uid, 'settings', 'meli');
+                    const userSettingsSnap = await getDoc(userSettingsRef);
+                    
+                    if (userSettingsSnap.exists()) {
+                        const data = userSettingsSnap.data();
+                        if (data.aba) setAba(data.aba);
+                        if (data.inputs) setInputs(data.inputs);
+                        if (data.margemDesejada !== undefined) setMargemDesejada(data.margemDesejada);
+                        if (data.compararTipos !== undefined) setCompararTipos(data.compararTipos);
+                        if (data.isAutoCalcMode !== undefined) setIsAutoCalcMode(data.isAutoCalcMode);
+                        
+                        isInitialLoadDone.current = true;
+                    }
+
+                    setLoadingCatalog(true);
+                    // Carrega o catálogo do Firestore
+                    console.log("Meli: Sincronizando catálogo com Firestore...");
+                    const [cloudSP, cloudSC] = await Promise.all([
+                        getUserCatalog(currentUser.uid, 'SP'),
+                        getUserCatalog(currentUser.uid, 'SC')
+                    ]);
+
+                    let finalSP = cloudSP;
+                    let finalSC = cloudSC;
+
+                    // Se a nuvem estiver vazia, tenta o localStorage (fallback)
+                    if (finalSP.length === 0 && finalSC.length === 0) {
+                        const localSP = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+                        const localSC = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+                        finalSP = localSP;
+                        finalSC = localSC;
+                    }
+
+                    const combined = [
+                        ...finalSP.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                        ...finalSC.map((p: any) => ({ ...p, _wh: 'SC' }))
+                    ];
+                    setCatalogProducts(combined);
+                    isInitialLoadDone.current = true;
+                } catch (error) {
+                    console.error("Meli: Erro ao carregar dados do Firestore:", error);
+                    // Fallback para localStorage
+                    const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+                    const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+                    const combined = [
+                        ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                        ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+                    ];
+                    setCatalogProducts(combined);
+                } finally {
+                    setLoadingCatalog(false);
+                }
+            } else {
+                setCatalogProducts([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Efeito para salvar dados no Firestore com Debounce
+    useEffect(() => {
+        if (!user || !isInitialLoadDone.current) return;
+        
+        const timer = setTimeout(async () => {
+            try {
+                console.log("Meli: Salvando configurações no Firestore...");
+                const userSettingsRef = doc(db, 'users', user.uid, 'settings', 'meli');
+                await setDoc(userSettingsRef, {
+                    aba,
+                    inputs,
+                    margemDesejada,
+                    compararTipos,
+                    isAutoCalcMode,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                console.log("Meli: Salvo com sucesso!");
+            } catch (error) {
+                console.error("Meli: Erro ao salvar configurações no Firestore:", error);
+            }
+        }, 5000); 
+
+        return () => clearTimeout(timer);
+    }, [inputs, aba, margemDesejada, compararTipos, isAutoCalcMode, user]);
 
     const getInputValue = (name: string, value: any) => {
         if (focusedInput === name) return focusedValue;
@@ -185,6 +325,9 @@ const MeliPage: React.FC = () => {
             pIdeal15: { ...resIdeal15, pesoTaxas: (resIdeal15.comissaoValor + resIdeal15.taxaFixa + resIdeal15.freteGratisValor) / (resIdeal15.precoVenda || 1) * 100 }
         };
 
+        const otim = calcularPrecoIdealMeliDetalhado(inputs, isAutoCalcMode ? resultado.margemSobreVenda : margemDesejada, tipoMargemIdeal);
+        setOtimizacaoIdeal(otim);
+
         setSimulacao(simComIdeal as any);
         setResults(resultado);
         setResultsAlt(resultadoAlt);
@@ -205,6 +348,180 @@ const MeliPage: React.FC = () => {
         }
 
         logCalculo(resultado.precoVenda, msv, " MELI");
+    };
+
+    // Componentes de Gráficos (Paridade Shopee)
+    const ComposicaoPrecoChart = ({ res }: { res: MeliOutput }) => {
+        const data = [
+            { name: 'PDV', Lucro: res.lucroLiquido, Custo: res.custoProdutoValor, Ads: res.custoAds, Operacao: res.despesaFixaValor + res.despesaAdicionalValor + res.custoEmbalagem, Taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor, fullPreco: `R$ ${res.precoVenda.toFixed(2)}` }
+        ];
+
+        return (
+            <div className="chart-container" style={{ background: '#fff', padding: '10px' }}>
+                <h4 className="chart-title">Composição do Preço de Venda</h4>
+                <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                        <XAxis type="number" hide />
+                        <YAxis 
+                            dataKey="name" 
+                            type="category" 
+                            hide 
+                        />
+                        <Tooltip
+                            cursor={{ fill: 'transparent' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            formatter={(value: any, name: string) => [`R$ ${Number(value).toFixed(2)}`, name]}
+                        />
+                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
+                        <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
+                        <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
+                        <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Op." />
+                        <Bar dataKey="Taxas" stackId="a" fill="#f97316" name="Taxas" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        );
+    };
+
+    const EstrategiaPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
+        dados: CenarioPrecoMeli[],
+        precoAtual: number,
+        pontoIdeal: CenarioPrecoMeli,
+        pontoAlvo: CenarioPrecoMeli,
+        onPriceSelect: (price: number) => void,
+        isFullscreen: boolean,
+        onToggleFullscreen: () => void
+    }) => {
+        const isAlvoDifferentFromIdeal = Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
+        
+        const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda];
+        const minP = Math.min(...precosRelevantes);
+        const maxP = Math.max(...precosRelevantes);
+        const diff = maxP - minP;
+        const marginX = Math.max(diff * 0.15, 20);
+        const domainX = [Math.max(0, minP - marginX), maxP + marginX];
+
+        return (
+            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
+                <div className="chart-header-actions">
+                    <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 280}>
+                    <ComposedChart
+                        data={dados}
+                        margin={{ top: 40, right: 30, left: 0, bottom: 0 }}
+                        onClick={(state: any) => {
+                            if (state && state.activePayload && state.activePayload.length > 0) {
+                                onPriceSelect(state.activePayload[0].payload.precoVenda);
+                            }
+                        }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis
+                            dataKey="precoVenda"
+                            type="number"
+                            domain={domainX}
+                            tickFormatter={(val) => `R$${Math.round(val)}`}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#6b7280' }}
+                        />
+                        <YAxis
+                            yAxisId="left"
+                            tickFormatter={(val) => `R$${val}`}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#10B981' }}
+                        />
+                        <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            tickFormatter={(val) => `${val.toFixed(0)}%`}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#f97316' }}
+                        />
+
+                        <Tooltip
+                            shared={true}
+                            cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            formatter={(value: any, name: string) => [
+                                String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`,
+                                name
+                            ]}
+                        />
+                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+
+                        <Area yAxisId="left" type="monotone" dataKey="lucroLiquido" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
+                        <Line yAxisId="right" type="monotone" dataKey="pesoTaxas" name="Peso das Taxas (%)" stroke="#f97316" strokeWidth={2} dot={false} />
+
+                        <ReferenceLine yAxisId="left" y={0} stroke="#64748b" strokeWidth={1} />
+                        <ReferenceLine x={pontoIdeal.precoVenda} stroke="#10B981" strokeDasharray="3 3" label={{ position: 'top', value: 'IDEAL', fontSize: 10, fill: '#065f46', dy: -20 }} />
+                        {isAlvoDifferentFromIdeal && (
+                            <ReferenceLine x={pontoAlvo.precoVenda} stroke="#f59e0b" strokeDasharray="5 5" label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', dy: -10 }} />
+                        )}
+                        <ReferenceLine x={precoAtual} stroke="#3b82f6" strokeWidth={3} label={{ position: 'top', value: 'VOCÊ', fontSize: 11, fill: '#1e40af', fontWeight: 800, dy: -5 }} />
+                    </ComposedChart>
+                </ResponsiveContainer>
+            </div>
+        );
+    };
+
+    const TaxasPrecoChart = ({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
+        inputs: MeliInput,
+        precoAtual: number,
+        isFullscreen: boolean,
+        onToggleFullscreen: () => void
+    }) => {
+        const points = [];
+        const minX = Math.max(20, (inputs.custoProduto || 0) * 0.5);
+        const maxX = Math.max(precoAtual * 1.5, 300);
+        const step = (maxX - minX) / 60;
+
+        for (let x = minX; x <= maxX; x += step) {
+            const res = calcularTaxasMeli({ ...inputs, precoVenda: x });
+            points.push({
+                x,
+                lucro: res.lucroLiquido,
+                taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor
+            });
+        }
+        // Injetar pontos críticos
+        [78.90, 79.00, 79.10, precoAtual].forEach(critical => {
+            const res = calcularTaxasMeli({ ...inputs, precoVenda: critical });
+            points.push({ x: critical, lucro: res.lucroLiquido, taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor });
+        });
+        points.sort((a, b) => a.x - b.x);
+
+        return (
+            <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
+                <div className="chart-header-actions">
+                    <h4 className="chart-title">Visualização do Escopo Meli 2026</h4>
+                    <button className="fullscreen-toggle" onClick={onToggleFullscreen}>
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+                <ResponsiveContainer width="100%" height={isFullscreen ? "85%" : 320}>
+                    <ComposedChart data={points} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis dataKey="x" type="number" domain={['auto', 'auto']} tickFormatter={(val) => `R$${val.toFixed(0)}`} />
+                        <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} />
+                        <Tooltip formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`} />
+                        <Legend verticalAlign="top" align="right" />
+                        <Area yAxisId="left" type="monotone" dataKey="lucro" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
+                        <Line yAxisId="left" type="monotone" dataKey="taxas" name="Taxas Totais (R$)" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                        <ReferenceLine x={79} stroke="#ef4444" strokeWidth={2} strokeDasharray="3 3" label={{ value: 'Regra Frete R$ 79', position: 'top', fill: '#ef4444', fontSize: 10 }} />
+                        <ReferenceLine x={precoAtual} stroke="#3b82f6" strokeWidth={3} label={{ value: 'SEU PREÇO', position: 'top', fill: '#1d4ed8', fontSize: 11, fontWeight: 900 }} />
+                    </ComposedChart>
+                </ResponsiveContainer>
+            </div>
+        );
     };
 
     const handleLimpar = () => setIsResetModalOpen(true);
@@ -254,6 +571,186 @@ const MeliPage: React.FC = () => {
 
             <div className="calculator-main">
                 <div className="calculator-left">
+                    {/* Barra de Busca de Catálogo */}
+                    <div className="card" style={{ marginBottom: '1rem', position: 'relative', zIndex: 10 }}>
+                        <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                            <Package size={18} /> BUSCAR NO CATÁLOGO
+                            {loadingCatalog && <RefreshCcw size={14} className="spinning" style={{ marginLeft: 'auto', opacity: 0.6 }} />}
+                        </div>
+                        
+                        {!selectedCatalogProduct ? (
+                            <div style={{ position: 'relative' }}>
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <Search size={18} style={{ position: 'absolute', left: '12px', color: '#9ca3af' }} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Digite SKU ou Descrição do produto..." 
+                                        value={searchQuery}
+                                        onChange={(e) => {
+                                            setSearchQuery(e.target.value);
+                                            setShowSearchDropdown(true);
+                                        }}
+                                        onFocus={() => setShowSearchDropdown(true)}
+                                        autoComplete="off"
+                                        style={{ 
+                                            width: '100%', 
+                                            padding: '0.75rem 0.75rem 0.75rem 2.5rem', 
+                                            borderRadius: '8px', 
+                                            border: '1px solid #e5e7eb',
+                                            fontSize: '0.95rem',
+                                            outline: 'none',
+                                            transition: 'border-color 0.2s',
+                                            backgroundColor: '#fff'
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Escape') setShowSearchDropdown(false);
+                                        }}
+                                    />
+                                    {searchQuery && (
+                                        <button 
+                                            onClick={() => {
+                                                setSearchQuery('');
+                                                setShowSearchDropdown(false);
+                                            }}
+                                            style={{ 
+                                                position: 'absolute', 
+                                                right: '10px', 
+                                                background: 'none', 
+                                                border: 'none', 
+                                                color: '#9ca3af',
+                                                cursor: 'pointer',
+                                                padding: '4px'
+                                            }}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {showSearchDropdown && searchQuery.length >= 2 && (
+                                    <div style={{ 
+                                        position: 'absolute', 
+                                        top: '100%', 
+                                        left: 0, 
+                                        right: 0, 
+                                        backgroundColor: '#fff', 
+                                        borderRadius: '8px', 
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                        border: '1px solid #e5e7eb',
+                                        marginTop: '4px',
+                                        maxHeight: '300px',
+                                        overflowY: 'auto',
+                                        zIndex: 50
+                                    }}>
+                                        {catalogProducts.filter(p => 
+                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                        ).length === 0 ? (
+                                            <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
+                                                Nenhum produto encontrado no catálogo.
+                                            </div>
+                                        ) : catalogProducts.filter(p => 
+                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                        ).slice(0, 15).map((p, idx) => (
+                                            <div 
+                                                key={idx}
+                                                style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                onClick={() => {
+                                                    setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
+                                                    setSearchQuery('');
+                                                    setShowSearchDropdown(false);
+                                                    
+                                                    // Preencher campos automaticamente
+                                                    setInputs(prev => ({
+                                                        ...prev,
+                                                        custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
+                                                        impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
+                                                        despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
+                                                        despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
+                                                        adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
+                                                        freteGratis: p.freteLiquidoMELI !== undefined && p.freteLiquidoMELI !== 0 ? p.freteLiquidoMELI : prev.freteGratis
+                                                    }));
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '85%' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
+                                                        Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
+                                                    </span>
+                                                </div>
+                                                <div style={{ color: '#9ca3af' }}>
+                                                    <Plus size={14} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                background: '#f9fafb', 
+                                border: '1px solid #e5e7eb', 
+                                borderRadius: '8px', 
+                                padding: '0.65rem 0.75rem',
+                                width: '100%',
+                                minHeight: '45.6px'
+                            }}>
+                                <Search size={16} style={{ color: '#6b7280', flexShrink: 0 }} />
+                                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ 
+                                        background: selectedCatalogProduct._wh === 'SP' ? '#e0f2fe' : '#fef08a', 
+                                        color: selectedCatalogProduct._wh === 'SP' ? '#0284c7' : '#854d0e', 
+                                        fontWeight: 800, 
+                                        fontSize: '0.7rem', 
+                                        padding: '2px 8px', 
+                                        borderRadius: '4px',
+                                        flexShrink: 0
+                                    }}>
+                                        {selectedCatalogProduct._wh}
+                                    </span>
+                                    <span style={{ 
+                                        color: '#1f2937', 
+                                        fontWeight: 700, 
+                                        fontSize: '0.85rem',
+                                        whiteSpace: 'nowrap', 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis' 
+                                    }}>
+                                        {selectedCatalogProduct.sku} — <span style={{ fontWeight: 500, opacity: 0.8 }}>{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
+                                    </span>
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedCatalogProduct(null)}
+                                    style={{ 
+                                        background: '#f3f4f6', 
+                                        border: 'none', 
+                                        borderRadius: '50%', 
+                                        width: '24px', 
+                                        height: '24px', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        cursor: 'pointer', 
+                                        color: '#ef4444',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#fecaca')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="tabs">
                         <button className={`tab ${aba === 'margem' ? 'active' : ''}`} onClick={() => setAba('margem')}><Calculator size={18} /> Calcular Margem</button>
                         <button className={`tab ${aba === 'ideal' ? 'active' : ''}`} onClick={() => setAba('ideal')}><CircleDollarSign size={18} /> Preço Ideal</button>
@@ -391,7 +888,104 @@ const MeliPage: React.FC = () => {
                                 {statusIcon} <span>{statusText}</span>
                             </div>
 
-                            <div className="dre-container" style={{ marginTop: '1rem' }}>
+                            <div className="premium-results-grid" style={{ marginTop: '1rem' }}>
+                                <div className="result-card primary" style={{
+                                    backgroundColor: results.lucroLiquido <= 0 ? '#fef2f2' : (results.lucroLiquido < 10 ? '#fff7ed' : '#f0fdf4'),
+                                    borderColor: results.lucroLiquido <= 0 ? '#fecaca' : (results.lucroLiquido < 10 ? '#fed7aa' : '#bbf7d0')
+                                }}>
+                                    <div className="result-label" style={{ color: results.lucroLiquido <= 0 ? '#991b1b' : '#166534' }}>PREÇO DE VENDA {s('PDV')}</div>
+                                    <div className="result-value" style={{ color: results.lucroLiquido <= 0 ? '#dc2626' : '#10B981' }}>R$ {moeda(results.precoVenda)}</div>
+                                    <div className="result-sub">Valor do anúncio</div>
+                                    <ShoppingCart size={24} className="card-icon" style={{ opacity: 0.1 }} />
+                                </div>
+                                <div className="result-card secondary" style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}>
+                                    <div className="result-label" style={{ color: '#1e3a8a' }}>LUCRO LÍQUIDO {s('LLV')}</div>
+                                    <div className="result-value" style={{ color: '#1e40af' }}>R$ {moeda(results.lucroLiquido)}</div>
+                                    <div className="result-sub">Margem: {results.margemSobreVenda.toFixed(1)}%</div>
+                                    <TrendingUp size={24} className="card-icon" style={{ opacity: 0.1 }} />
+                                </div>
+                            </div>
+
+                            {/* --- Sensor de Otimização (Paridade Shopee) --- */}
+                            {otimizacaoIdeal && (otimizacaoIdeal.isOtimizado || otimizacaoIdeal.isAlavancagem) && (
+                                <div className="sensor-section" style={{ marginTop: '1.5rem' }}>
+                                    <div className="sensor-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', color: '#1e40af' }}>
+                                        <Zap size={20} className="flash-icon" /> 
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>SENSOR DE OTIMIZAÇÃO LCG</h3>
+                                    </div>
+                                    
+                                    {otimizacaoIdeal.isOtimizado && (
+                                        <div className="sensor-card opt-gold" style={{ 
+                                            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                                            border: '2px solid #fbbf24',
+                                            padding: '1.25rem',
+                                            borderRadius: '12px',
+                                            marginBottom: '1rem',
+                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                        }}>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <div className="opt-icon-vibe" style={{ background: '#f59e0b', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Award size={24} color="white" />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Oportunidade Sweet Spot Identificada!</div>
+                                                    <p style={{ fontSize: '0.95rem', color: '#78350f', margin: '4px 0 12px 0', lineHeight: 1.4 }}>
+                                                        Reduzindo o preço para <strong>R$ {moeda(otimizacaoIdeal.precoOtimizado)}</strong>, sua taxa fixa cai e seu lucro <strong>AUMENTA</strong> para <strong>R$ {moeda(otimizacaoIdeal.lucroOtimizado)}</strong>.
+                                                    </p>
+                                                    <button 
+                                                        onClick={() => setInputs(p => ({ ...p, precoVenda: otimizacaoIdeal.precoOtimizado }))}
+                                                        className="btn-opt-apply"
+                                                        style={{ 
+                                                            background: '#f59e0b', 
+                                                            color: 'white', 
+                                                            border: 'none', 
+                                                            padding: '0.5rem 1rem', 
+                                                            borderRadius: '6px', 
+                                                            fontWeight: 700, 
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}
+                                                    >
+                                                        <MousePointer2 size={16} /> Aplicar Preço Otimizado
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {otimizacaoIdeal.isAlavancagem && !otimizacaoIdeal.isOtimizado && (
+                                        <div className="sensor-card leverage-card" style={{ 
+                                            background: 'linear-gradient(135deg, #f0fdff 0%, #e0faff 100%)',
+                                            border: '2px solid #06b6d4',
+                                            padding: '1.25rem',
+                                            borderRadius: '12px',
+                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                        }}>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <div style={{ background: '#06b6d4', padding: '10px', borderRadius: '10px' }}>
+                                                    <TrendingUp size={24} color="white" />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0e7490', textTransform: 'uppercase' }}>ESTRATÉGIA DE GIRO (ALAVANCAGEM: {otimizacaoIdeal.fatorAlavancagem}x)</div>
+                                                    <p style={{ fontSize: '0.95rem', color: '#155e75', margin: '4px 0 12px 0', lineHeight: 1.4 }}>
+                                                        Você sacrifica apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem para baixar <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> no preço. Alta chance de explodir em vendas!
+                                                    </p>
+                                                    <button 
+                                                        onClick={() => setInputs(p => ({ ...p, precoVenda: otimizacaoIdeal.precoOtimizado }))}
+                                                        style={{ background: '#06b6d4', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        Aplicar Estratégia de Giro
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="dre-container" style={{ marginTop: '1.5rem' }}>
                                 <div className="dre-header">
                                     <div className="dre-col-label">CONTA</div>
                                     <div className="dre-col-val">{inputs.tipoAnuncio.toUpperCase()}</div>
@@ -422,6 +1016,16 @@ const MeliPage: React.FC = () => {
                                     <div className="dre-val">- R$ {moeda(results.custoAds)}</div>
                                     {resultsAlt && <div className="dre-val">- R$ {moeda(resultsAlt.custoAds)}</div>}
                                 </div>
+                                <div className="dre-row negative">
+                                    <div className="dre-label">Impostos (IMP)</div>
+                                    <div className="dre-val">- R$ {moeda(results.impostoValor)}</div>
+                                    {resultsAlt && <div className="dre-val">- R$ {moeda(resultsAlt.impostoValor)}</div>}
+                                </div>
+                                <div className="dre-row negative">
+                                    <div className="dre-label">Despesas (DF + OD + EMB)</div>
+                                    <div className="dre-val">- R$ {moeda(results.despesaFixaValor + results.despesaAdicionalValor + results.custoEmbalagem)}</div>
+                                    {resultsAlt && <div className="dre-val">- R$ {moeda(resultsAlt.despesaFixaValor + resultsAlt.despesaAdicionalValor + resultsAlt.custoEmbalagem)}</div>}
+                                </div>
                                 <div className="dre-divider"></div>
                                 <div className="dre-row highlight">
                                     <div className="dre-label">Lucro Líquido Final {s('LLV')}</div>
@@ -434,16 +1038,63 @@ const MeliPage: React.FC = () => {
                                     {resultsAlt && <div className="dre-val">{resultsAlt.margemSobreVenda.toFixed(2)}%</div>}
                                 </div>
                             </div>
-                            <button className="btn-calculate-full" onClick={handleCalcular} style={{ width: '100%', marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', borderRadius: '8px', border: 'none', background: '#00a650', color: 'white', fontWeight: '600', cursor: 'pointer' }}>
-                                <Calculator size={20} /> Calcular Minha Margem Agora
-                            </button>
-                            <button className="btn-clear-outline" onClick={handleLimpar} style={{ width: '100%', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', color: '#6b7280', fontWeight: '500', cursor: 'pointer' }}>
-                                <RotateCcw size={18} /> Limpar
-                            </button>
+
+                            <div className="summary-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1.5rem' }}>
+                                <button className="btn-calculate-full" onClick={handleCalcular} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', borderRadius: '8px', border: 'none', background: '#00a650', color: 'white', fontWeight: '800', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                    <Calculator size={20} /> CALCULAR AGORA
+                                </button>
+                                <button className="btn-clear-outline" onClick={handleLimpar} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
+                                    <RotateCcw size={18} /> LIMPAR TUDO
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {results && simulacao && (
+                <div className="charts-main-section" style={{ marginTop: '3rem' }}>
+                    <div className="section-divider" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+                        <div style={{ height: '1px', flex: 1, background: '#e2e8f0' }}></div>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e2937', fontStyle: 'italic' }}>ANÁLISE ANALÍTICA LCG</h2>
+                        <div style={{ height: '1px', flex: 1, background: '#e2e8f0' }}></div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                        <div className="card" style={{ padding: '20px' }}>
+                            <ComposicaoPrecoChart res={results} />
+                            <div style={{ display: 'flex', alignItems: 'start', gap: '10px', marginTop: '1.5rem', padding: '12px', background: '#f8fafc', borderRadius: '10px' }}>
+                                <Info size={18} style={{ color: '#3b82f6', marginTop: '2px', flexShrink: 0 }} />
+                                <p style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, margin: 0 }}>
+                                    Este gráfico mostra como cada real do faturamento é distribuído. O <strong>Lucro Líquido (Verde)</strong> é o que realmente sobra no seu bolso.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ padding: '20px' }}>
+                            <EstrategiaPrecoChart 
+                                dados={simulacao.cenarios} 
+                                precoAtual={results.precoVenda} 
+                                pontoIdeal={simulacao.pontoIdeal} 
+                                pontoAlvo={simulacao.pAlvo || simulacao.pontoIdeal}
+                                onPriceSelect={(p) => setInputs(prev => ({ ...prev, precoVenda: p }))}
+                                isFullscreen={isFullscreenStrategy}
+                                onToggleFullscreen={() => setIsFullscreenStrategy(!isFullscreenStrategy)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="card" style={{ padding: '20px' }}>
+                        <TaxasPrecoChart 
+                            inputs={inputs} 
+                            precoAtual={results.precoVenda} 
+                            isFullscreen={isFullscreenScope}
+                            onToggleFullscreen={() => setIsFullscreenScope(!isFullscreenScope)}
+                        />
+                    </div>
+                </div>
+            )}
+
 
             <div className="info-section" style={{ marginTop: '5rem', textAlign: 'center' }}>
                 <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>O que é Margem de Contribuição?</h2>
