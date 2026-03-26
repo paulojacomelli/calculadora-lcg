@@ -15,15 +15,12 @@ import {
     Plus,
     RefreshCcw,
     Info,
-    Lock,
-    Scale,
     MousePointer2,
     Zap,
     Award,
     Minimize2,
     Maximize2,
-    ShoppingCart,
-    HelpCircle
+    ShoppingCart
 } from 'lucide-react';
 
 import {
@@ -35,7 +32,6 @@ import {
     CartesianGrid,
     Tooltip,
     Legend,
-    Cell,
     ComposedChart,
     Area,
     Line,
@@ -46,7 +42,7 @@ import type { MeliInput, MeliOutput, ResultadoSimulacaoMeli, TipoAnuncio, Otimiz
 import { calcularTaxasMeli, calcularPrecoIdealMeli, simularCenariosPrecoMeli, arredondar, calcularPrecoIdealMeliDetalhado } from '../utils/meliLogic';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { logCalculo, auth, db } from '../firebase';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getUserCatalog } from '../services/catalogService';
 
 const defaultInputs: MeliInput = {
@@ -122,9 +118,6 @@ const MeliPage: React.FC = () => {
     // Estados para gráficos e tela cheia (paridade Shopee)
     const [isFullscreenStrategy, setIsFullscreenStrategy] = useState(false);
     const [isFullscreenScope, setIsFullscreenScope] = useState(false);
-    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-    const [passwordInput, setPasswordInput] = useState('');
-    const [isUnlocked, setIsUnlocked] = useState(false);
 
     const [statusClass, setStatusClass] = useState('');
     const [statusText, setStatusText] = useState('');
@@ -253,7 +246,7 @@ const MeliPage: React.FC = () => {
                 localStorage.removeItem('@meliPCC:margemDesejada');
             }
         }
-        handleCalcular();
+        // Cálculo removido deste effect — disparado apenas pelo botão CALCULAR AGORA
     }, [inputs, aba, margemDesejada, isAutoCalcMode, compararTipos]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -371,7 +364,7 @@ const MeliPage: React.FC = () => {
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: string) => [`R$ ${Number(value).toFixed(2)}`, name]}
+                            formatter={(value: any, name: any) => [`R$ ${Number(value).toFixed(2)}`, name]}
                         />
                         <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
                         <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" radius={[0, 0, 0, 0]} />
@@ -451,7 +444,7 @@ const MeliPage: React.FC = () => {
                             shared={true}
                             cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }}
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: string) => [
+                            formatter={(value: any, name: any) => [
                                 String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`,
                                 name
                             ]}
@@ -767,7 +760,7 @@ const MeliPage: React.FC = () => {
                                 <div className="input-group">
                                     <label>
                                         {aba === 'margem' ? <TrendingUp size={16} /> : <CircleDollarSign size={16} />}
-                                        {aba === 'margem' ? ' Preço de Venda (R$) ' : ' Margem Desejada (%) '}
+                                        {aba === 'margem' ? <span> Preço de Venda (R$) </span> : <span> Margem Desejada (%) </span>}
                                         {aba === 'margem' ? s('PDV') : s('MAR')}
                                     </label>
                                     <input type="text" inputMode="decimal" name={aba === 'margem' ? 'precoVenda' : 'margemDesejada'} placeholder="0,00" value={aba === 'margem' ? getInputValue('precoVenda', inputs.precoVenda) : getInputValue('margemDesejada', margemDesejada)} onFocus={() => setFocusedInput(aba === 'margem' ? 'precoVenda' : 'margemDesejada')} onChange={handleChange} />
@@ -872,7 +865,7 @@ const MeliPage: React.FC = () => {
                                         </label>
                                     </div>
                                     <div className="input-group">
-                                        <label>{inputs.adsTipo === 'roas' ? 'ROAS Desejado' : 'Custo Ads (R$)'}</label>
+                                        <label>{inputs.adsTipo === 'roas' ? <span>ROAS Desejado</span> : <span>Custo Ads (R$)</span>}</label>
                                         <input type="text" inputMode="decimal" name="adsValor" value={getInputValue('adsValor', inputs.adsValor)} onFocus={() => setFocusedInput('adsValor')} onChange={handleChange} />
                                     </div>
                                 </>

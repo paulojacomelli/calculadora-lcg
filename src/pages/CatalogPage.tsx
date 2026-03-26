@@ -132,6 +132,32 @@ const CatalogPage: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Auto-save do catálogo após alterações (Debounce de 3s)
+  useEffect(() => {
+    if (!userId || loading) return;
+
+    const timeoutId = setTimeout(async () => {
+      setSaveStatus('saving');
+      try {
+        await Promise.all([
+          saveUserCatalog(userId, 'SP', productsSP),
+          saveUserCatalog(userId, 'SC', productsSC)
+        ]);
+
+        localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(productsSP));
+        localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(productsSC));
+        
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } catch (error) {
+        console.error("Erro no auto-save do catálogo:", error);
+        setSaveStatus('idle');
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeoutId);
+  }, [productsSP, productsSC, userId, loading]);
+
   const activeProducts = activeWarehouse === 'SP' ? productsSP : productsSC;
   const setActiveProducts = activeWarehouse === 'SP' ? setProductsSP : setProductsSC;
 

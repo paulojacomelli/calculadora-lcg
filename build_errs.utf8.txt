@@ -1,0 +1,21 @@
+src/pages/MeliPage.tsx(18,5): error TS6133: 'Lock' is declared but its value is never read.
+src/pages/MeliPage.tsx(19,5): error TS6133: 'Scale' is declared but its value is never read.
+src/pages/MeliPage.tsx(26,5): error TS6133: 'HelpCircle' is declared but its value is never read.
+src/pages/MeliPage.tsx(38,5): error TS6133: 'Cell' is declared but its value is never read.
+src/pages/MeliPage.tsx(49,35): error TS6133: 'User' is declared but its value is never read.
+src/pages/MeliPage.tsx(125,12): error TS6133: 'isPasswordModalOpen' is declared but its value is never read.
+src/pages/MeliPage.tsx(125,33): error TS6133: 'setIsPasswordModalOpen' is declared but its value is never read.
+src/pages/MeliPage.tsx(126,12): error TS6133: 'passwordInput' is declared but its value is never read.
+src/pages/MeliPage.tsx(126,27): error TS6133: 'setPasswordInput' is declared but its value is never read.
+src/pages/MeliPage.tsx(127,12): error TS6133: 'isUnlocked' is declared but its value is never read.
+src/pages/MeliPage.tsx(127,24): error TS6133: 'setIsUnlocked' is declared but its value is never read.
+src/pages/MeliPage.tsx(374,29): error TS2322: Type '(value: any, name: string) => [string, string]' is not assignable to type 'Formatter<any, string> & ((value: any, name: string, item: Payload<any, string>, index: number, payload: Payload<any, string>[]) => ReactNode | [...])'.
+  Type '(value: any, name: string) => [string, string]' is not assignable to type 'Formatter<any, string>'.
+    Types of parameters 'name' and 'name' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
+src/pages/MeliPage.tsx(454,29): error TS2322: Type '(value: any, name: string) => [string, string]' is not assignable to type 'Formatter<any, string> & ((value: any, name: string, item: Payload<any, string>, index: number, payload: Payload<any, string>[]) => ReactNode | [...])'.
+  Type '(value: any, name: string) => [string, string]' is not assignable to type 'Formatter<any, string>'.
+    Types of parameters 'name' and 'name' are incompatible.
+      Type 'string | undefined' is not assignable to type 'string'.
+        Type 'undefined' is not assignable to type 'string'.
