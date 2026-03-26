@@ -20,7 +20,8 @@ import {
     ShieldCheck,
     Lock,
     Zap,
-    Table
+    Table,
+    Search
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -104,14 +105,37 @@ const ShopeePage: React.FC = () => {
         return undefined;
     });
     const [results, setResults] = useState<ShopeeOutput | null>(null);
+    const [lastCalculatedInputs, setLastCalculatedInputs] = useState<ShopeeInput | null>(null);
     const [simulacao, setSimulacao] = useState<any>(null);
     const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
     // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
     const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [isAutoCalcMode, setIsAutoCalcMode] = useState<boolean>(true); // Força true por padrão agora
+    const [isAutoCalcMode, setIsAutoCalcMode] = useState<boolean>(false); // Desativado por padrão conforme solicitação do usuário
+    const [isCalculating, setIsCalculating] = useState<boolean>(false);
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
+    // Estado da barra de pesquisa de Catálogo
+    const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const sp = JSON.parse(localStorage.getItem('@shoperLCG:catalog_SP') || '[]');
+                const sc = JSON.parse(localStorage.getItem('@shoperLCG:catalog_SC') || '[]');
+                const combined = [
+                    ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                    ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+                ];
+                setCatalogProducts(combined);
+            } catch (e) {
+                console.error("Erro ao carregar catálogo:", e);
+            }
+        }
+    }, []);
     const [focusedValue, setFocusedValue] = useState<string>('');
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(() => {
         return localStorage.getItem('@shopperPCC:isAdvancedOpen') === 'true';
@@ -301,7 +325,9 @@ const ShopeePage: React.FC = () => {
 
     // Função para disparar o cálculo imediato (ex: ao sair do input)
     const triggerCalculation = () => {
-        handleCalcular();
+        if (isAutoCalcMode) {
+            handleCalcular();
+        }
     };
 
     // Cálculo automático em tempo real e persistência local
@@ -319,7 +345,11 @@ const ShopeePage: React.FC = () => {
             localStorage.setItem('@shopperPCC:isAdvancedOpen', String(isAdvancedOpen));
             localStorage.setItem('@shopperPCC:isPasswordAuthorized', String(isPasswordAuthorized));
         }
-        handleCalcular();
+        
+        // Só calcula automaticamente se o modo auto estiver ativado
+        if (isAutoCalcMode) {
+            handleCalcular();
+        }
     }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAutoCalcMode, isAdvancedOpen, isPasswordAuthorized]);
 
 
@@ -396,6 +426,16 @@ const ShopeePage: React.FC = () => {
     };
 
     const handleCalcular = () => {
+        setIsCalculating(true);
+        
+        // Simulação de processamento para feedback visual (800ms conforme solicitado)
+        setTimeout(() => {
+            executarCalculo();
+            setIsCalculating(false);
+        }, 800);
+    };
+
+    const executarCalculo = () => {
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
 
@@ -462,7 +502,7 @@ const ShopeePage: React.FC = () => {
         setSimulacao(simComIdeal as any);
 
         setResults(resultado);
-
+        setLastCalculatedInputs(inputs);
 
         logCalculo(parseFloat(precoFinalStr), resultado.margemSobreVenda, "CNPJ");
     };
@@ -1025,7 +1065,19 @@ const ShopeePage: React.FC = () => {
     };
 
     // --- ESTADO DERIVADO PARA RENDERIZAÇÃO ---
-    const activeResults = results || calcularTaxasShopee(inputs);
+    // resultsRef mantém o último cálculo realizado para evitar "flashing" ou retorno ao tempo real indesejado
+    const resultsRef = useRef<ShopeeOutput | null>(null);
+    if (results) resultsRef.current = results;
+    
+    // Se estiver no modo automático, calculamos em tempo real. 
+    // Se estiver no modo manual, usamos o último 'results' salvo (resultsRef) ou um cálculo inicial se for o primeiro acesso.
+    const activeResults = isAutoCalcMode 
+        ? (results || calcularTaxasShopee(inputs)) 
+        : (results || resultsRef.current || calcularTaxasShopee(inputs));
+
+    // O activeInputs garante que simulações e gráficos (Sensor, Charts)
+    // usem apenas o snapshot do último cálculo quando em modo manual.
+    const activeInputs = isAutoCalcMode ? inputs : (lastCalculatedInputs || inputs);
     
     let statusClass = 'status-orange';
     let statusIcon = <AlertCircle size={20} />;
@@ -1095,72 +1147,74 @@ const ShopeePage: React.FC = () => {
     const mainResultsContent = renderResultsCards(activeResults, aba === 'ideal');
 
     // Sugestões do Sensor - Refeito com base na lógica exata do calcularPrecoIdealDetalhado
-    const lucroAtualComp = activeResults.lucroLiquido;
-    const precoAtualSimComp = activeResults.precoComCupom; // Usando o PA como base para descida
+    const sensorData = React.useMemo(() => {
+        let melhorAnteriorComp: any = null;
+        let melhorLeverageComp: any = null;
+        
+        const lucroAtualComp = activeResults?.lucroLiquido || 0;
+        const precoAtualSimComp = activeResults?.precoComCupom || 0; // Usando o PA como base para descida
 
-    let melhorAnteriorComp: any = null;
-    let melhorLeverageComp: any = null;
+        if (activeResults?.precoVenda && (activeInputs.custoProduto || 0) > 0 && activeInputs.fatorAlavancagemAtivo !== false) {
+            let melhorPaOtimo = precoAtualSimComp;
+            const resAtualComp = calcularTaxasShopee(activeInputs, true);
+            const lucroRefArredondado = resAtualComp.lucroLiquido;
 
-    if (activeResults.precoVenda && (inputs.custoProduto || 0) > 0 && inputs.fatorAlavancagemAtivo !== false) {
-        let melhorPaOtimo = precoAtualSimComp;
-        const resAtualComp = calcularTaxasShopee(inputs, true);
-        const lucroRefArredondado = resAtualComp.lucroLiquido;
-
-        // 1. Busca por Otimização "Sweet Spot"
-        for (let i = 1; i <= 5000; i++) {
-            const paTeste = arredondar(precoAtualSimComp - (i / 100), 2);
-            if (paTeste <= (inputs.custoProduto || 0.01)) break;
-
-            const resTeste = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, true);
-
-            // Regra Inviolável: 
-            // 1. Lucro aumentou de verdade (> 1 centavo)
-            // 2. OU Lucro se manteve mas a tarifa fixa diminuiu (mudança de faixa real)
-            const isLucroMaior = resTeste.lucroLiquido > lucroRefArredondado + 0.001;
-            const isFaixaMelhor = resTeste.tarifaFixa < resAtualComp.tarifaFixa;
-
-            if (isLucroMaior || (isFaixaMelhor && resTeste.lucroLiquido >= lucroRefArredondado - 0.001)) {
-                melhorPaOtimo = paTeste;
-                melhorAnteriorComp = resTeste;
-                break; 
-            }
-        }
-
-        if (melhorPaOtimo >= precoAtualSimComp) {
-            // 2. Se não achou Otimização, busca Estratégia de Giro (Alavancagem)
-            const MAX_LUCRO_PERDIDO_PCT = 0.15;
-            const MIN_ALAVANCAGEM = inputs.fatorAlavancagem ?? 5.0;
-            let melhorPaGiro = precoAtualSimComp;
-
-
+            // 1. Busca por Otimização "Sweet Spot"
             for (let i = 1; i <= 5000; i++) {
                 const paTeste = arredondar(precoAtualSimComp - (i / 100), 2);
-                if (paTeste <= (inputs.custoProduto || 0.01)) break;
+                if (paTeste <= (activeInputs.custoProduto || 0.01)) break;
 
-                const resTeste = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, true);
-                
-                const qPreco = precoAtualSimComp - paTeste;
-                // qLucro baseado no que está na tela
-                const qLucro = activeResults.lucroLiquido - resTeste.lucroLiquido;
+                const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
 
-                if (qLucro > 0) {
-                    const fator = qPreco / qLucro;
-                    const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
+                // Regra Inviolável: 
+                // 1. Lucro aumentou de verdade (> 1 centavo)
+                // 2. OU Lucro se manteve mas a tarifa fixa diminuiu (mudança de faixa real)
+                const isLucroMaior = resTeste.lucroLiquido > lucroRefArredondado + 0.001;
+                const isFaixaMelhor = resTeste.tarifaFixa < resAtualComp.tarifaFixa;
 
-                    if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
-                        // Regra Inviolável: Encontrou o primeiro ponto de alavancagem, para de calcular
-                        melhorPaGiro = paTeste;
-                        const finalGiro = calcularTaxasShopee({ ...inputs, precoVenda: paTeste }, true);
-                        melhorLeverageComp = {
-                           ...finalGiro,
-                           fator: fator
-                        };
-                        break; 
+                if (isLucroMaior || (isFaixaMelhor && resTeste.lucroLiquido >= lucroRefArredondado - 0.001)) {
+                    melhorPaOtimo = paTeste;
+                    melhorAnteriorComp = resTeste;
+                    break; 
+                }
+            }
+
+            if (melhorPaOtimo >= precoAtualSimComp) {
+                // 2. Se não achou Otimização, busca Estratégia de Giro (Alavancagem)
+                const MAX_LUCRO_PERDIDO_PCT = 0.15;
+                const MIN_ALAVANCAGEM = activeInputs.fatorAlavancagem ?? 5.0;
+
+                for (let i = 1; i <= 5000; i++) {
+                    const paTeste = arredondar(precoAtualSimComp - (i / 100), 2);
+                    if (paTeste <= (activeInputs.custoProduto || 0.01)) break;
+
+                    const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
+                    
+                    const qPreco = precoAtualSimComp - paTeste;
+                    // qLucro baseado no que está na tela
+                    const qLucro = lucroAtualComp - resTeste.lucroLiquido;
+
+                    if (qLucro > 0) {
+                        const fator = qPreco / qLucro;
+                        const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
+
+                        if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
+                            // Regra Inviolável: Encontrou o primeiro ponto de alavancagem, para de calcular
+                            const finalGiro = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
+                            melhorLeverageComp = {
+                               ...finalGiro,
+                               fator: fator
+                            };
+                            break; 
+                        }
                     }
                 }
             }
         }
-    }
+        return { melhorAnteriorComp, melhorLeverageComp };
+    }, [activeInputs, activeResults?.precoVenda, activeResults?.precoComCupom, activeResults?.lucroLiquido]);
+
+    const { melhorAnteriorComp, melhorLeverageComp } = sensorData;
 
     return (
         <div className="container">
@@ -1204,6 +1258,74 @@ const ShopeePage: React.FC = () => {
 
                         <div className="parameters-grid">
                             <div className="input-section-title">Valores Base</div>
+
+                            <div className="input-group" style={{ position: 'relative', marginBottom: '1rem', zIndex: showSearchDropdown ? 100 : 1 }}>
+                                <label style={{ color: '#ef4444', fontWeight: 700 }}><Search size={16} /> Buscar no Catálogo</label>
+                                <input
+                                    type="text"
+                                    placeholder="Digite SKU ou descrição para carregar os custos..."
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        setShowSearchDropdown(true);
+                                    }}
+                                    onFocus={() => setShowSearchDropdown(true)}
+                                    // Timeout para permitir clique na lista antes de sumir
+                                    onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
+                                    className="input-field"
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '2px dashed #f87171', backgroundColor: '#fef2f2' }}
+                                />
+                                {showSearchDropdown && searchQuery.trim().length > 1 && (
+                                    <div style={{
+                                        position: 'absolute', top: '100%', left: 0, right: 0,
+                                        background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px',
+                                        maxHeight: '220px', overflowY: 'auto', zIndex: 1000,
+                                        boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px'
+                                    }}>
+                                        {catalogProducts.filter(p => 
+                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                        ).length === 0 ? (
+                                            <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
+                                                Nenhum produto encontrado no catálogo.
+                                            </div>
+                                        ) : catalogProducts.filter(p => 
+                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
+                                        ).slice(0, 15).map((p, idx) => (
+                                            <div 
+                                                key={idx}
+                                                style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                onClick={() => {
+                                                    setSearchQuery('');
+                                                    setShowSearchDropdown(false);
+                                                    setInputs(prev => ({
+                                                        ...prev,
+                                                        custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
+                                                        impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
+                                                        despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
+                                                        despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
+                                                        adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
+                                                        rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
+                                                    }));
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.sku} - {p.descricao}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
+                                                        Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | DF: {(p.despesaFixaDF || 0).toFixed(2).replace('.', ',')}%
+                                                    </span>
+                                                </div>
+                                                <div style={{ backgroundColor: p._wh === 'SP' ? '#e0f2fe' : '#fef08a', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, color: p._wh === 'SP' ? '#0284c7' : '#854d0e', border: p._wh === 'SP' ? '1px solid #bae6fd' : '1px solid #fde047' }}>
+                                                    {p._wh}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="input-group">
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
@@ -1636,6 +1758,33 @@ const ShopeePage: React.FC = () => {
                             {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
+                            <button 
+                                className="btn-primary" 
+                                style={{ 
+                                    width: '100%', 
+                                    background: '#ee4d2d', 
+                                    borderColor: '#ee4d2d', 
+                                    marginBottom: '0.5rem',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem',
+                                    padding: '0.8rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    transition: 'all 0.3s ease',
+                                    opacity: isCalculating ? 0.8 : 1
+                                }} 
+                                onClick={handleCalcular}
+                                disabled={isCalculating}
+                            >
+                                {isCalculating ? (
+                                    <RefreshCcw size={22} className="animate-spin" />
+                                ) : (
+                                    <Calculator size={22} />
+                                )}
+                                {isCalculating ? ' CALCULANDO...' : ' CALCULAR AGORA'}
+                            </button>
                             <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
                                 <RotateCcw size={18} /> Reiniciar Calculadora
                             </button>
@@ -1660,7 +1809,7 @@ const ShopeePage: React.FC = () => {
                                     {/* Sensores de Otimização */}
                                     {(() => {
                                         // 1. Otimização da Aba Ideal (Sensor Integrado)
-                                        if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado && inputs.fatorAlavancagemAtivo !== false) {
+                                        if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado && activeInputs.fatorAlavancagemAtivo !== false) {
                                             const paOri = otimizacaoIdeal.precoOriginal;
                                             const paOpt = otimizacaoIdeal.precoOtimizado;
 
@@ -1709,7 +1858,7 @@ const ShopeePage: React.FC = () => {
                                         }
 
                                         // 2. Otimização da Aba Margem (Detecção via Simulação)
-                                        if (melhorAnteriorComp && aba !== 'ideal' && inputs.fatorAlavancagemAtivo !== false) {
+                                        if (melhorAnteriorComp && aba !== 'ideal' && activeInputs.fatorAlavancagemAtivo !== false) {
                                             return (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                     <div className={`alert-box-result ${statusClass}`}>
@@ -1731,7 +1880,7 @@ const ShopeePage: React.FC = () => {
                                             );
                                         }
 
-                                        if (melhorLeverageComp && aba !== 'ideal' && inputs.fatorAlavancagemAtivo !== false) {
+                                        if (melhorLeverageComp && aba !== 'ideal' && activeInputs.fatorAlavancagemAtivo !== false) {
                                             const qP = activeResults.precoComCupom - melhorLeverageComp.precoComCupom;
                                             const qL = activeResults.lucroLiquido - melhorLeverageComp.lucroLiquido;
                                             const f = melhorLeverageComp.fator;
@@ -1840,8 +1989,8 @@ const ShopeePage: React.FC = () => {
                                         <div className="detail-row">
                                             <span>Custo do Produto {s('CDP')}:</span>
                                             <div className="detail-values">
-                                                <span className="perc">({porc((inputs.custoProduto || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                <span className="val text-red">- R$ {moeda(inputs.custoProduto)}</span>
+                                                <span className="perc">({porc((activeInputs.custoProduto || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <span className="val text-red">- R$ {moeda(activeInputs.custoProduto)}</span>
                                             </div>
                                         </div>
                                         {(activeResults.impostoValor ?? 0) > 0 && (
@@ -1918,7 +2067,7 @@ const ShopeePage: React.FC = () => {
                                 {simulacao && (
                                     <div className="analytical-charts-section" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2.5rem' }}>
                                         <TaxasPrecoChart
-                                            inputs={inputs}
+                                            inputs={activeInputs}
                                             precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
                                             isFullscreen={fullscreenChart === 'taxas'}
                                             onToggleFullscreen={() => setFullscreenChart(fullscreenChart === 'taxas' ? null : 'taxas')}

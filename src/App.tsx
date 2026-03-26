@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { auth } from './firebase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import ShopeePage from './pages/ShopeePage';
 import ShopeeLotePage from './pages/ShopeeLotePage';
 import CatalogPage from './pages/CatalogPage';
@@ -9,6 +11,14 @@ import LoginAvatar from './components/LoginAvatar';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <nav className="main-nav">
@@ -27,13 +37,15 @@ const Navigation: React.FC = () => {
           <ShoppingBag size={18} />
           <span>Mercado Livre</span>
         </Link>
-        <Link
-          to="/shopee/catalogo"
-          className={`nav-item ${location.pathname === '/shopee/catalogo' ? 'active' : ''}`}
-        >
-          <Database size={18} />
-          <span>Catálogo</span>
-        </Link>
+        {user && (
+          <Link
+            to="/shopee/catalogo"
+            className={`nav-item ${location.pathname === '/shopee/catalogo' ? 'active' : ''}`}
+          >
+            <Database size={18} />
+            <span>Catálogo</span>
+          </Link>
+        )}
         <div style={{ marginLeft: 'auto' }}>
           <LoginAvatar />
         </div>
