@@ -114,6 +114,7 @@ const MeliPage: React.FC = () => {
     const [simulacao, setSimulacao] = useState<ResultadoSimulacaoMeli | null>(null);
     const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isCalculating, setIsCalculating] = useState<boolean>(false);
     
     // Estados para gráficos e tela cheia (paridade Shopee)
     const [isFullscreenStrategy, setIsFullscreenStrategy] = useState(false);
@@ -249,22 +250,7 @@ const MeliPage: React.FC = () => {
         // Cálculo removido deste effect — disparado apenas pelo botão CALCULAR AGORA
     }, [inputs, aba, margemDesejada, isAutoCalcMode, compararTipos]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        if (focusedInput === name) setFocusedValue(value);
-
-        let val: any = value;
-        const isNotNumeric = name.endsWith('Tipo') || name === 'tipoAnuncio' || name === 'pesoKg';
-
-        if (!isNotNumeric) {
-            if (value === '' || value === '-' || value === ',' || value === '.') {
-                val = undefined;
-            } else {
-                val = parseFloat(value.replace(',', '.'));
-                if (isNaN(val)) val = undefined;
-            }
-        }
-
+    const updateNumericValue = (name: string, val: number | undefined) => {
         if (name === 'margemDesejada') {
             setMargemDesejada(val);
         } else {
@@ -275,8 +261,61 @@ const MeliPage: React.FC = () => {
         }
     };
 
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const target = e.target as HTMLInputElement;
+        const { name, type, value } = target;
+
+        if (type === 'checkbox') {
+            // @ts-ignore
+            setInputs(prev => ({ ...prev, [name]: target.checked }));
+            return;
+        }
+
+        const isNotNumeric = name.endsWith('Tipo') || name === 'tipoAnuncio' || name === 'pesoKg' || name === 'aba';
+
+        if (!isNotNumeric && target.tagName === 'INPUT') {
+            // Máscara Financeira: remove tudo que não for dígito e trata como centavos
+            const digits = value.replace(/\D/g, '');
+
+            if (digits === '') {
+                if (focusedInput === name) setFocusedValue('');
+                updateNumericValue(name, undefined);
+                return;
+            }
+
+            const numericValue = parseInt(digits, 10) / 100;
+            const formatted = numericValue.toFixed(2).replace('.', ',');
+
+            if (focusedInput === name) {
+                setFocusedValue(formatted);
+            }
+            updateNumericValue(name, numericValue);
+        } else {
+            if (focusedInput === name) {
+                setFocusedValue(value);
+            }
+
+            if (name === 'aba') {
+                setAba(value as any);
+            } else {
+                setInputs((prev: MeliInput) => ({
+                    ...prev,
+                    [name]: value,
+                }));
+            }
+        }
+    };
+
 
     const handleCalcular = () => {
+        setIsCalculating(true);
+        setTimeout(() => {
+            executarCalculo();
+            setIsCalculating(false);
+        }, 800);
+    };
+
+    const executarCalculo = () => {
         let resultado: MeliOutput;
         let resultadoAlt: MeliOutput | null = null;
 
@@ -546,6 +585,21 @@ const MeliPage: React.FC = () => {
                 </div>
                 <h1 className="hero-title">Calculadora de Margem Mercado Livre</h1>
                 <p className="hero-subtitle">Descubra sua margem de contribuição após comissão, custo de envio e publicidade. Resultado em segundos! ⚡</p>
+                
+                <div className="calculation-mode-toggle" style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
+                    <button 
+                        className={`mode-btn ${aba === 'margem' ? 'active' : ''}`}
+                        onClick={() => setAba('margem')}
+                    >
+                        <Calculator size={18} /> Calcular Margem
+                    </button>
+                    <button 
+                        className={`mode-btn ${aba === 'ideal' ? 'active' : ''}`}
+                        onClick={() => setAba('ideal')}
+                    >
+                        <CircleDollarSign size={18} /> Preço Ideal
+                    </button>
+                </div>
 
                 <div className="alert-box alert-green" style={{ marginTop: '1.5rem' }}>
                     <Sparkles className="alert-icon" size={20} />
@@ -577,7 +631,7 @@ const MeliPage: React.FC = () => {
                                     <Search size={18} style={{ position: 'absolute', left: '12px', color: '#9ca3af' }} />
                                     <input 
                                         type="text" 
-                                        placeholder="Digite SKU ou Descrição do produto..." 
+                                        placeholder="Digite SKU ou Descrição..." 
                                         value={searchQuery}
                                         onChange={(e) => {
                                             setSearchQuery(e.target.value);
@@ -621,258 +675,203 @@ const MeliPage: React.FC = () => {
                                 </div>
 
                                 {showSearchDropdown && searchQuery.length >= 2 && (
-                                    <div style={{ 
-                                        position: 'absolute', 
-                                        top: '100%', 
-                                        left: 0, 
-                                        right: 0, 
-                                        backgroundColor: '#fff', 
-                                        borderRadius: '8px', 
-                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                        border: '1px solid #e5e7eb',
-                                        marginTop: '4px',
-                                        maxHeight: '300px',
-                                        overflowY: 'auto',
-                                        zIndex: 50
-                                    }}>
-                                        {catalogProducts.filter(p => 
-                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).length === 0 ? (
-                                            <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
-                                                Nenhum produto encontrado no catálogo.
-                                            </div>
-                                        ) : catalogProducts.filter(p => 
-                                            (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                            (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                        ).slice(0, 15).map((p, idx) => (
-                                            <div 
-                                                key={idx}
-                                                style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                                onClick={() => {
-                                                    setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
-                                                    setSearchQuery('');
-                                                    setShowSearchDropdown(false);
-                                                    
-                                                    // Preencher campos automaticamente
-                                                    setInputs(prev => ({
-                                                        ...prev,
-                                                        custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
-                                                        impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
-                                                        despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
-                                                        despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
-                                                        adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
-                                                        freteGratis: p.freteLiquidoMELI !== undefined && p.freteLiquidoMELI !== 0 ? p.freteLiquidoMELI : prev.freteGratis
-                                                    }));
-                                                }}
-                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
-                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                            >
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '85%' }}>
-                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
-                                                    </span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
-                                                        Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
-                                                    </span>
+                                    <div className="search-dropdown">
+                                        {(() => {
+                                            const searchLower = searchQuery.toLowerCase().trim();
+                                            const filteredResults = catalogProducts
+                                                .map(p => {
+                                                    let score = 0;
+                                                    const skuLower = (p.sku || '').toLowerCase().trim();
+                                                    const descLower = (p.descricao || '').toLowerCase().trim();
+
+                                                    // Relevância Exata
+                                                    if (skuLower === searchLower) score += 200;
+                                                    else if (skuLower.startsWith(searchLower)) score += 150;
+                                                    else if (skuLower.includes(searchLower)) score += 100;
+
+                                                    // Relevância Descrição
+                                                    if (descLower === searchLower) score += 80;
+                                                    else if (descLower.startsWith(searchLower)) score += 60;
+                                                    else if (descLower.includes(searchLower)) score += 40;
+
+                                                    // Bônus para termos inteiros (ajuda no meio da string)
+                                                    if (descLower.split(' ').some((word: string) => word === searchLower)) score += 30;
+
+                                                    // Penalidade por diferença de tamanho (premia matches mais curtos/diretos)
+                                                    if (score > 0) {
+                                                        score -= (skuLower.length - searchLower.length) * 0.1;
+                                                    }
+
+                                                    return { ...p, _score: score };
+                                                })
+                                                .filter(p => p._score > 0)
+                                                .sort((a, b) => b._score - a._score)
+                                                .slice(0, 15);
+
+                                            return filteredResults.length === 0 ? (
+                                                <div className="search-no-results">
+                                                    Nenhum produto encontrado.
                                                 </div>
-                                                <div style={{ color: '#9ca3af' }}>
-                                                    <Plus size={14} />
+                                            ) : filteredResults.map((p, idx) => (
+                                                <div 
+                                                    key={idx}
+                                                    className="search-result-item"
+                                                    onClick={() => {
+                                                        setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
+                                                        setSearchQuery('');
+                                                        setShowSearchDropdown(false);
+                                                        
+                                                        setInputs(prev => ({
+                                                            ...prev,
+                                                            custoProduto: p.custoCDP || prev.custoProduto,
+                                                            impostoPorcentagem: p.impostosIMP || prev.impostoPorcentagem,
+                                                            despesaFixa: p.despesaFixaDF || prev.despesaFixa,
+                                                            despesaAdicional: p.outrasDespesasOD || prev.despesaAdicional,
+                                                            adsValor: p.adsADS || prev.adsValor,
+                                                            freteGratis: p.freteLiquidoMELI || prev.freteGratis
+                                                        }));
+                                                    }}
+                                                >
+                                                    <div className="search-item-info">
+                                                        <span className="search-item-title">
+                                                            <span className={`search-badge ${p._wh === 'SP' ? 'bg-blue' : 'bg-yellow'}`}>[{p._wh}]</span> {p.sku} - {p.descricao}
+                                                        </span>
+                                                        <span className="search-item-meta">
+                                                            Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
+                                                        </span>
+                                                    </div>
+                                                    <Plus size={14} className="search-item-icon" />
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ));
+                                        })()}
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                background: '#f9fafb', 
-                                border: '1px solid #e5e7eb', 
-                                borderRadius: '8px', 
-                                padding: '0.65rem 0.75rem',
-                                width: '100%',
-                                minHeight: '45.6px'
-                            }}>
-                                <Search size={16} style={{ color: '#6b7280', flexShrink: 0 }} />
-                                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ 
-                                        background: selectedCatalogProduct._wh === 'SP' ? '#e0f2fe' : '#fef08a', 
-                                        color: selectedCatalogProduct._wh === 'SP' ? '#0284c7' : '#854d0e', 
-                                        fontWeight: 800, 
-                                        fontSize: '0.7rem', 
-                                        padding: '2px 8px', 
-                                        borderRadius: '4px',
-                                        flexShrink: 0
-                                    }}>
+                            <div className="selected-product-bar">
+                                <Search size={16} className="selected-icon" />
+                                <div className="selected-info">
+                                    <span className={`search-badge ${selectedCatalogProduct._wh === 'SP' ? 'bg-blue' : 'bg-yellow'}`}>
                                         {selectedCatalogProduct._wh}
                                     </span>
-                                    <span style={{ 
-                                        color: '#1f2937', 
-                                        fontWeight: 700, 
-                                        fontSize: '0.85rem',
-                                        whiteSpace: 'nowrap', 
-                                        overflow: 'hidden', 
-                                        textOverflow: 'ellipsis' 
-                                    }}>
-                                        {selectedCatalogProduct.sku} — <span style={{ fontWeight: 500, opacity: 0.8 }}>{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
+                                    <span className="selected-text">
+                                        {selectedCatalogProduct.sku} — <span className="selected-desc">{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
                                     </span>
                                 </div>
-                                <button 
-                                    onClick={() => setSelectedCatalogProduct(null)}
-                                    style={{ 
-                                        background: '#f3f4f6', 
-                                        border: 'none', 
-                                        borderRadius: '50%', 
-                                        width: '24px', 
-                                        height: '24px', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center',
-                                        cursor: 'pointer', 
-                                        color: '#ef4444',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#fecaca')}
-                                    onMouseLeave={(e) => (e.currentTarget.style.background = '#f3f4f6')}
-                                >
+                                <button onClick={() => setSelectedCatalogProduct(null)} className="btn-remove-product">
                                     <X size={14} />
                                 </button>
                             </div>
                         )}
                     </div>
 
-                    <div className="tabs">
-                        <button className={`tab ${aba === 'margem' ? 'active' : ''}`} onClick={() => setAba('margem')}><Calculator size={18} /> Calcular Margem</button>
-                        <button className={`tab ${aba === 'ideal' ? 'active' : ''}`} onClick={() => setAba('ideal')}><CircleDollarSign size={18} /> Preço Ideal</button>
-                    </div>
-
+                    {/* Card de Parâmetros Consolidado (Padrão Shopee) */}
                     <div className="card input-card-highlight">
-                        <div className="parameters-grid-rows">
-                            <div className="input-row-flex">
-                                <div className="input-group">
-                                    <label><Package size={16} /> Custo do Produto (R$) {s('CDP')} *</label>
-                                    <input type="text" inputMode="decimal" name="custoProduto" placeholder="0,00" value={getInputValue('custoProduto', inputs.custoProduto)} onFocus={() => setFocusedInput('custoProduto')} onChange={handleChange} />
-                                    <span className="input-hint">Quanto você pagou pelo produto</span>
-                                </div>
-                                <div className="input-group">
-                                    <label>
-                                        {aba === 'margem' ? <TrendingUp size={16} /> : <CircleDollarSign size={16} />}
-                                        {aba === 'margem' ? <span> Preço de Venda (R$) </span> : <span> Margem Desejada (%) </span>}
-                                        {aba === 'margem' ? s('PDV') : s('MAR')}
-                                    </label>
-                                    <input type="text" inputMode="decimal" name={aba === 'margem' ? 'precoVenda' : 'margemDesejada'} placeholder="0,00" value={aba === 'margem' ? getInputValue('precoVenda', inputs.precoVenda) : getInputValue('margemDesejada', margemDesejada)} onFocus={() => setFocusedInput(aba === 'margem' ? 'precoVenda' : 'margemDesejada')} onChange={handleChange} />
-                                    <span className="input-hint">{aba === 'margem' ? 'Por quanto você está vendendo' : 'Ex: 15% de lucro sobre o preço final'}</span>
-                                </div>
-                            </div>
+                        <div className="parameter-section-header">
+                            <span className="step-number">1</span>
+                            <h3 className="section-title">Custos e Margem</h3>
+                        </div>
 
-                            <div className="input-group" style={{ marginTop: '1rem' }}>
-                                <label><Truck size={16} /> Faixa de Peso do Produto *</label>
-                                <select name="pesoKg" value={inputs.pesoKg} onChange={handleChange} className="select-full">
-                                    <option value="0.3">Até 0,3 kg</option>
-                                    <option value="0.5">Até 0,5 kg</option>
-                                    <option value="1">Até 1 kg</option>
-                                    <option value="2">Até 2 kg</option>
-                                    <option value="5">Até 5 kg</option>
-                                    <option value="9">Até 9 kg</option>
-                                    <option value="14">Até 14 kg</option>
-                                    <option value="19">Até 19 kg</option>
-                                    <option value="24">Até 24 kg</option>
-                                    <option value="29">Até 29 kg</option>
+                        <div className="input-group" style={{ marginTop: '1rem' }}>
+                            <label><Package size={16} /> Custo do Produto (R$) {s('CDP')}</label>
+                            <input 
+                                type="text" 
+                                inputMode="decimal" 
+                                name="custoProduto" 
+                                placeholder="0,00" 
+                                value={getInputValue('custoProduto', inputs.custoProduto)} 
+                                onFocus={() => setFocusedInput('custoProduto')} 
+                                onChange={handleChange} 
+                            />
+                        </div>
+
+                        <div className="input-group">
+                            <label>
+                                {aba === 'margem' ? <TrendingUp size={16} /> : <CircleDollarSign size={16} />}
+                                {aba === 'margem' ? <span> Preço de Venda (R$) </span> : <span> Margem Desejada (%) </span>}
+                                {aba === 'margem' ? s('PDV') : s('MAR')}
+                            </label>
+                            <input 
+                                type="text" 
+                                inputMode="decimal" 
+                                name={aba === 'margem' ? 'precoVenda' : 'margemDesejada'} 
+                                placeholder="0,00" 
+                                value={aba === 'margem' ? getInputValue('precoVenda', inputs.precoVenda) : getInputValue('margemDesejada', margemDesejada)} 
+                                onFocus={() => setFocusedInput(aba === 'margem' ? 'precoVenda' : 'margemDesejada')} 
+                                onChange={handleChange} 
+                            />
+                        </div>
+
+                        <div className="parameter-divider"><span>OPERACIONAL E TAXAS</span></div>
+
+                        <div className="input-with-label-row">
+                            <div className="input-group" style={{ flex: 1 }}>
+                                <label><Package size={16} /> Embalagem (R$)</label>
+                                <input type="text" inputMode="decimal" name="custoEmbalagem" placeholder="0,00" value={getInputValue('custoEmbalagem', inputs.custoEmbalagem)} onFocus={() => setFocusedInput('custoEmbalagem')} onChange={handleChange} />
+                            </div>
+                            <div className="input-group" style={{ flex: 1 }}>
+                                <label><CircleDollarSign size={16} /> Imposto (%)</label>
+                                <input type="text" inputMode="decimal" name="impostoPorcentagem" placeholder="0,00" value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)} onFocus={() => setFocusedInput('impostoPorcentagem')} onChange={handleChange} />
+                            </div>
+                        </div>
+
+                        <div className="input-group">
+                            <label><Award size={16} /> Tipo de Anúncio</label>
+                            <select name="tipoAnuncio" value={inputs.tipoAnuncio} onChange={handleChange} className="select-full">
+                                <option value="classico">Clássico (12% ~ 14%)</option>
+                                <option value="premium">Premium (17% ~ 19%)</option>
+                            </select>
+                        </div>
+
+                        <div className="input-group">
+                            <label><Truck size={16} /> Faixa de Peso {s('PES')}</label>
+                            <select name="pesoKg" value={inputs.pesoKg} onChange={handleChange} className="select-full">
+                                <option value="0.3">Até 0,3 kg</option>
+                                <option value="0.5">Até 0,5 kg</option>
+                                <option value="1">Até 1 kg</option>
+                                <option value="2">Até 2 kg</option>
+                                <option value="5">Até 5 kg</option>
+                                <option value="9">Até 9 kg</option>
+                                <option value="14">Até 14 kg</option>
+                                <option value="19">Até 19 kg</option>
+                                <option value="24">Até 24 kg</option>
+                                <option value="29">Até 29 kg</option>
+                            </select>
+                        </div>
+
+                        <div className="parameter-divider"><span>PUBLICIDADE</span></div>
+
+                        <div className="input-group">
+                            <label><Zap size={16} /> Mercado Ads {s('ADS')}</label>
+                            <div className="input-with-select">
+                                <input type="text" inputMode="decimal" name="adsValor" placeholder="0,00" value={getInputValue('adsValor', inputs.adsValor)} onFocus={() => setFocusedInput('adsValor')} onChange={handleChange} />
+                                <select name="adsTipo" value={inputs.adsTipo} onChange={handleChange}>
+                                    <option value="roas">ROAS</option>
+                                    <option value="porcentagem">%</option>
                                 </select>
-                                <span className="input-hint">Peso do produto para calcular o custo de envio (Agência/Coleta)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="card">
-                        <div className="card-title">CUSTOS PADRÃO</div>
-                        <div className="parameters-grid-rows">
-                            <div className="input-row-flex">
-                                <div className="input-group">
-                                    <label>Embalagem (R$) {s('EMB')}</label>
-                                    <input type="text" inputMode="decimal" name="custoEmbalagem" placeholder="0,00" value={getInputValue('custoEmbalagem', inputs.custoEmbalagem)} onFocus={() => setFocusedInput('custoEmbalagem')} onChange={handleChange} />
-                                </div>
-                                <div className="input-group">
-                                    <label>Alíquota de Imposto (%) {s('IMP')}</label>
-                                    <input type="text" inputMode="decimal" name="impostoPorcentagem" placeholder="0,00" value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)} onFocus={() => setFocusedInput('impostoPorcentagem')} onChange={handleChange} />
-                                </div>
                             </div>
                         </div>
 
-                        <div className="card-title" style={{ marginTop: '1.5rem' }}>COMISSÕES MERCADO LIVRE</div>
-                        <div className="parameters-grid-rows">
-                            <div className="input-row-flex">
-                                <div className="input-group">
-                                    <label>Comissão Clássico (%)</label>
-                                    <input type="text" inputMode="decimal" name="comissaoPorcentagem" placeholder="12,00" value={getInputValue('comissaoPorcentagem', inputs.comissaoPorcentagem)} onFocus={() => setFocusedInput('comissaoPorcentagem')} onChange={handleChange} />
-                                </div>
-                                <div className="input-group">
-                                    <label>Comissão Premium (%)</label>
-                                    <input type="text" placeholder="17,00" readOnly value="17,00" className="read-only-input" />
-                                </div>
-                            </div>
-
-                            <div className="toggle-card-row">
-                                <div className="toggle-text">
-                                    <strong>Calcular os Dois Tipos?</strong>
-                                    <span>Exibir resultados de Clássico e Premium simultaneamente</span>
-                                </div>
-                                <div className="toggle-switch">
-                                    <input type="checkbox" id="compararTipos" checked={compararTipos} onChange={(e) => setCompararTipos(e.target.checked)} />
-                                    <label htmlFor="compararTipos"></label>
-                                </div>
-                            </div>
-
-                            <div className="input-group-radio">
-                                <p className="radio-label">Tipo de Anúncio Padrão:</p>
-                                <label className="radio-option">
-                                    <input type="radio" name="tipoAnuncio" value="classico" checked={inputs.tipoAnuncio === 'classico'} onChange={handleChange} />
-                                    <span>Anúncio Clássico ({inputs.comissaoPorcentagem || 12}% comissão)</span>
-                                </label>
-                                <label className="radio-option">
-                                    <input type="radio" name="tipoAnuncio" value="premium" checked={inputs.tipoAnuncio === 'premium'} onChange={handleChange} />
-                                    <span>Anúncio Premium (17% comissão)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="card-title" style={{ marginTop: '1.5rem' }}>PUBLICIDADE</div>
-                        <div className="parameters-grid-rows">
-                            <div className="toggle-card-row">
-                                <div className="toggle-text">
-                                    <strong>Usar Publicidade?</strong>
-                                    <span>Incluir custos de Mercado Ads nos cálculos</span>
-                                </div>
-                                <div className="toggle-switch green">
-                                    <input type="checkbox" id="useAds" checked={inputs.adsValor !== undefined} onChange={(e) => setInputs((p: MeliInput) => ({ ...p, adsValor: e.target.checked ? 5 : undefined }))} />
-                                    <label htmlFor="useAds"></label>
-                                </div>
-                            </div>
-
-                            {inputs.adsValor !== undefined && (
-                                <>
-                                    <div className="input-group-radio" style={{ marginTop: '0.5rem' }}>
-                                        <label className="radio-option">
-                                            <input type="radio" name="adsTipo" value="fixo" checked={inputs.adsTipo === 'fixo'} onChange={handleChange} />
-                                            <span>Custo fixo por pedido</span>
-                                        </label>
-                                        <label className="radio-option">
-                                            <input type="radio" name="adsTipo" value="roas" checked={inputs.adsTipo === 'roas'} onChange={handleChange} />
-                                            <span>ROAS desejado</span>
-                                        </label>
-                                    </div>
-                                    <div className="input-group">
-                                        <label>{inputs.adsTipo === 'roas' ? <span>ROAS Desejado</span> : <span>Custo Ads (R$)</span>}</label>
-                                        <input type="text" inputMode="decimal" name="adsValor" value={getInputValue('adsValor', inputs.adsValor)} onFocus={() => setFocusedInput('adsValor')} onChange={handleChange} />
-                                    </div>
-                                </>
-                            )}
+                        <div className="action-buttons" style={{ marginTop: '1.5rem' }}>
+                            <button 
+                                className={`btn btn-primary btn-calc ${isCalculating ? 'calculating' : ''}`} 
+                                onClick={handleCalcular}
+                                disabled={isCalculating}
+                                style={{ flex: 2 }}
+                            >
+                                {isCalculating ? (
+                                    <><RefreshCcw size={20} className="spinning" /> CALCULANDO...</>
+                                ) : (
+                                    <><Calculator size={20} /> CALCULAR</>
+                                )}
+                            </button>
+                            <button className="btn btn-outline" onClick={handleLimpar} style={{ flex: 1 }}>
+                                <RotateCcw size={18} /> Limpar
+                            </button>
                         </div>
                     </div>
                 </div>
+
 
                 <div className="calculator-right">
                     {results && (

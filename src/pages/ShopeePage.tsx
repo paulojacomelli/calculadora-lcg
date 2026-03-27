@@ -1346,17 +1346,49 @@ const ShopeePage: React.FC = () => {
                                                     maxHeight: '220px', overflowY: 'auto', zIndex: 1000,
                                                     boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px'
                                                 }}>
-                                                    {catalogProducts.filter(p => 
-                                                        (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                                        (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                                    ).length === 0 ? (
+                                                    {(() => {
+                                                        const searchLower = searchQuery.toLowerCase();
+                                                        return catalogProducts
+                                                            .map(p => {
+                                                                let score = 0;
+                                                                const skuLower = (p.sku || '').toLowerCase();
+                                                                const descLower = (p.descricao || '').toLowerCase();
+
+                                                                if (skuLower === searchLower) score = 100;
+                                                                else if (skuLower.startsWith(searchLower)) score = 80;
+                                                                else if (descLower.startsWith(searchLower)) score = 60;
+                                                                else if (skuLower.includes(searchLower)) score = 40;
+                                                                else if (descLower.includes(searchLower)) score = 20;
+
+                                                                return { ...p, _score: score };
+                                                            })
+                                                            .filter(p => p._score > 0)
+                                                            .sort((a, b) => b._score - a._score)
+                                                            .slice(0, 15);
+                                                    })().length === 0 ? (
                                                         <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
                                                             Nenhum produto encontrado no catálogo.
                                                         </div>
-                                                    ) : catalogProducts.filter(p => 
-                                                        (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                                        (p.descricao || '').toLowerCase().includes(searchQuery.toLowerCase())
-                                                    ).slice(0, 15).map((p, idx) => (
+                                                    ) : (() => {
+                                                        const searchLower = searchQuery.toLowerCase();
+                                                        return catalogProducts
+                                                            .map(p => {
+                                                                let score = 0;
+                                                                const skuLower = (p.sku || '').toLowerCase();
+                                                                const descLower = (p.descricao || '').toLowerCase();
+
+                                                                if (skuLower === searchLower) score = 100;
+                                                                else if (skuLower.startsWith(searchLower)) score = 80;
+                                                                else if (descLower.startsWith(searchLower)) score = 60;
+                                                                else if (skuLower.includes(searchLower)) score = 40;
+                                                                else if (descLower.includes(searchLower)) score = 20;
+
+                                                                return { ...p, _score: score };
+                                                            })
+                                                            .filter(p => p._score > 0)
+                                                            .sort((a, b) => b._score - a._score)
+                                                            .slice(0, 15);
+                                                    })().map((p, idx) => (
                                                         <div 
                                                             key={idx}
                                                             style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
