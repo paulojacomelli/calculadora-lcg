@@ -1508,7 +1508,7 @@ const ShopeePage: React.FC = () => {
                                         <div className="input-group" style={{ marginTop: '1rem' }}>
                                             <label style={{ margin: 0, marginBottom: '0.4rem', display: 'flex' }}>
                                                 <TrendingUp size={16} />
-                                                Lucro desejado {tipoMargemIdeal !== 'reais' ? '(%)' : '(R$)'}:
+                                                <span>Lucro desejado {tipoMargemIdeal !== 'reais' ? '(%)' : '(R$)'}:</span>
                                                 {tipoMargemIdeal === 'custo' ? (aba === 'ideal' ? s('MSCD') : s('MSC')) : (tipoMargemIdeal === 'venda' ? (aba === 'ideal' ? s('LLVD') : s('LLV')) : '')}
                                                 <HelpCircle size={14} className="label-help" />
                                             </label>

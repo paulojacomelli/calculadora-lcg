@@ -33,7 +33,7 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Inicializa o Firestore com o ID específico 'default'
-export const db = getFirestore(app);
+export const db = getFirestore(app, 'default');
 
 
 
