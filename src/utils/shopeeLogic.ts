@@ -295,10 +295,16 @@ export const calcularPrecoIdealDetalhado = (
       const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
 
       // Regra de Parada: Só otimiza se o lucro SUBIR ou se o lucro for igual mas a TARIFA FIXA cair
+      // Importante: A redução de tarifa deve compensar qualquer perda de lucro
       const isLucroMaior = resTeste.lucroLiquido > melhorLucro + 0.001;
-      const isFaixaMelhor = resTeste.tarifaFixa < resultadoReferencia.tarifaFixa;
+      
+      // Para mudança de faixa: só aceita se a tarifa fixa diminuir E o lucro não cair mais que 1 centavo
+      // Isso evita saltos grandes de preço (ex: de R$ 102 para R$ 96) por pouca vantagem
+      const isFaixaMelhorEconomicamente = resTeste.tarifaFixa < resultadoReferencia.tarifaFixa 
+        && resTeste.lucroLiquido >= resultadoReferencia.lucroLiquido - 0.01
+        && (resultadoReferencia.tarifaFixa - resTeste.tarifaFixa) > 0.50; // Só aceita se economia > R$ 0,50
 
-      if (isLucroMaior || (isFaixaMelhor && resTeste.lucroLiquido >= melhorLucro - 0.001)) {
+      if (isLucroMaior || isFaixaMelhorEconomicamente) {
         melhorPa = paTeste;
         melhorLucro = resTeste.lucroLiquido;
         // Ao identificar um momento de otimização real, ele para de calcular
