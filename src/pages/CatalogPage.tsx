@@ -15,15 +15,40 @@ import {
   Warehouse,
   CheckSquare,
   Square,
-  Edit3
+  Edit3,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getUserCatalog, saveUserCatalog, type Product } from '../services/catalogService';
 
-// A interface Product foi movida para o service para evitar duplicação
+/**
+ * CatalogPage - Gestão Central de Produtos
+ * Versão: 0.9.0-beta
+ * 
+ * Funcionalidades:
+ * - Sincronização inteligente com Firestore (Estoque SP e SC)
+ * - Importação CSV/Excel com mapeador de colunas
+ * - Edição em massa e exclusão múltipla
+ * - Auto-save e fallback localStorage
+ */
+
+// Tipo Product
+interface Product {
+  id: string;
+  sku: string;
+  descricao: string;
+  custoCDP: number;
+  impostosIMP: number;
+  despesaFixaDF: number;
+  outrasDespesasOD: number;
+  adsADS: number;
+  rebateCR: number;
+}
 
 // Mapeamento de campos internos para labels amigáveis
 const FIELD_LABELS: Record<string, string> = {
@@ -47,7 +72,25 @@ const CatalogPage: React.FC = () => {
   const [productsSC, setProductsSC] = useState<Product[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+
+  // Sistema de Notificações Internas
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const notify = (message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Estado para Modal de Confirmação Genérico
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, title: '', message: '', onConfirm: () => {} });
+  
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'pending'>('idle');
   const [loading, setLoading] = useState(true);
   
   // Seleção em massa
@@ -71,13 +114,49 @@ const CatalogPage: React.FC = () => {
 
   // Monitorar autenticação e carregar dados
   useEffect(() => {
+    // Primeiro carrega do localStorage (sempre, independente de login)
+    const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
+    const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
+    
+    if (savedSP) {
+      try { 
+        const parsed = JSON.parse(savedSP);
+        setProductsSP(parsed); 
+        console.log('[load] Carregado SP do localStorage:', parsed.length, 'produtos');
+      } catch(e){}
+    }
+    if (savedSC) {
+      try { 
+        const parsed = JSON.parse(savedSC);
+        setProductsSC(parsed); 
+        console.log('[load] Carregado SC do localStorage:', parsed.length, 'produtos');
+      } catch(e){}
+    }
+
+    // Se não houver dados locais, cria exemplo
+    if (!savedSP && !savedSC) {
+      const initial = [{
+        id: crypto.randomUUID(),
+        sku: 'EX-001',
+        descricao: 'Produto Exemplo',
+        custoCDP: 50.00,
+        impostosIMP: 6.5,
+        despesaFixaDF: 8.0,
+        outrasDespesasOD: 1.0,
+        adsADS: 2.0,
+        rebateCR: 0
+      }];
+      setProductsSP(initial);
+      setProductsSC(initial);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid);
+        // Carregar do Firestore
         setLoading(true);
-        
         try {
-          // Primeiro tenta carregar do Firestore
+          const { getUserCatalog } = await import('../services/catalogService');
           const [cloudSP, cloudSC] = await Promise.all([
             getUserCatalog(user.uid, 'SP'),
             getUserCatalog(user.uid, 'SC')
@@ -86,40 +165,11 @@ const CatalogPage: React.FC = () => {
           if (cloudSP.length > 0 || cloudSC.length > 0) {
             setProductsSP(cloudSP);
             setProductsSC(cloudSC);
-            // Sincroniza o localStorage para fallback offline
             localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(cloudSP));
             localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(cloudSC));
-          } else {
-            // Se não houver na nuvem, tenta o localStorage (migração legacy)
-            const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
-            const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
-            
-            if (savedSP) setProductsSP(JSON.parse(savedSP));
-            if (savedSC) setProductsSC(JSON.parse(savedSC));
-
-            if (!savedSP && !savedSC) {
-              const initial = [{
-                id: crypto.randomUUID(),
-                sku: 'EX-001',
-                descricao: 'Produto Exemplo',
-                custoCDP: 50.00,
-                impostosIMP: 6.5,
-                despesaFixaDF: 8.0,
-                outrasDespesasOD: 1.0,
-                adsADS: 2.0,
-                rebateCR: 0
-              }];
-              setProductsSP(initial);
-              setProductsSC(initial);
-            }
           }
         } catch (error) {
           console.error("Erro ao sincronizar catálogo:", error);
-          // Fallback para localStorage em caso de erro de rede
-          const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
-          const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
-          if (savedSP) try { setProductsSP(JSON.parse(savedSP)); } catch(e){}
-          if (savedSC) try { setProductsSC(JSON.parse(savedSC)); } catch(e){}
         } finally {
           setLoading(false);
         }
@@ -132,59 +182,85 @@ const CatalogPage: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Auto-save do catálogo após alterações (Debounce de 3s)
-  useEffect(() => {
-    if (!userId || loading) return;
-
-    const timeoutId = setTimeout(async () => {
-      setSaveStatus('saving');
-      try {
-        await Promise.all([
-          saveUserCatalog(userId, 'SP', productsSP),
-          saveUserCatalog(userId, 'SC', productsSC)
-        ]);
-
-        localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(productsSP));
-        localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(productsSC));
-        
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 3000);
-      } catch (error) {
-        console.error("Erro no auto-save do catálogo:", error);
-        setSaveStatus('idle');
-      }
-    }, 3000);
-
-    return () => clearTimeout(timeoutId);
-  }, [productsSP, productsSC, userId, loading]);
+  // Removido auto-save em background - salvamento local apenas via botão
 
   const activeProducts = activeWarehouse === 'SP' ? productsSP : productsSC;
-  const setActiveProducts = activeWarehouse === 'SP' ? setProductsSP : setProductsSC;
-
-  const handleSave = async () => {
-    if (!userId) {
-      alert("Você precisa estar logado para salvar o catálogo na nuvem.");
-      return;
+  const setActiveProducts = (newProducts: Product[]) => {
+    console.log(`[setActiveProducts] Salvando ${newProducts.length} produtos no ${activeWarehouse}`);
+    if (activeWarehouse === 'SP') {
+      setProductsSP(newProducts);
+      saveToLocalStorage('SP', newProducts);
+    } else {
+      setProductsSC(newProducts);
+      saveToLocalStorage('SC', newProducts);
     }
-
-    setSaveStatus('saving');
-    
+    // Marca que há alterações pendentes de sincronização
+    // setPendingSync(true); // Removido - funcionalidade não utilizada
+  };
+  
+  // Função auxiliar para garantir salvamento no localStorage
+  const saveToLocalStorage = (warehouse: 'SP' | 'SC', products: Product[]) => {
+    const key = `@shopperPCC:catalog_${warehouse}`;
     try {
-      // Salva no Firestore
-      await Promise.all([
-        saveUserCatalog(userId, 'SP', productsSP),
-        saveUserCatalog(userId, 'SC', productsSC)
-      ]);
+      localStorage.setItem(key, JSON.stringify(products));
+      console.log(`[saveToLocalStorage] ${warehouse}: ${products.length} produtos salvos`);
+      return true;
+    } catch (e) {
+      console.error(`[saveToLocalStorage] Erro ao salvar ${warehouse}:`, e);
+      return false;
+    }
+  };
+  
+  // Lógica de Paginação e Filtragem (Consolidada)
+  const filteredProducts = activeProducts.filter(p => 
+    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.descricao.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-      // Também mantém no localStorage por segurança/cache
-      localStorage.setItem('@shopperPCC:catalog_SP', JSON.stringify(productsSP));
-      localStorage.setItem('@shopperPCC:catalog_SC', JSON.stringify(productsSC));
-      
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const handleSave = async (targetWarehouse?: 'SP' | 'SC') => {
+    console.log("Salvando...", targetWarehouse || 'ambos');
+    
+    // Sempre salvar no localStorage
+    if (targetWarehouse === 'SP' || !targetWarehouse) {
+      saveToLocalStorage('SP', productsSP);
+    }
+    if (targetWarehouse === 'SC' || !targetWarehouse) {
+      saveToLocalStorage('SC', productsSC);
+    }
+    
+    // Salvar no Firebase se usuário estiver logado
+    if (userId) {
+      try {
+        setSaveStatus('saving');
+        const { saveUserCatalog } = await import('../services/catalogService');
+        const warehousesToSave = targetWarehouse ? [targetWarehouse] : ['SP', 'SC'] as ('SP' | 'SC')[];
+        
+        const savePromises = warehousesToSave.map(wh => 
+          saveUserCatalog(userId, wh, wh === 'SP' ? productsSP : productsSC)
+        );
+        
+        await Promise.all(savePromises);
+        console.log("Sincronização com Firebase concluída!");
+        // setPendingSync(false); // Removido - funcionalidade não utilizada
+        setSaveStatus('saved');
+        notify("Catálogo salvo e sincronizado com a nuvem!", "success");
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } catch (error: any) {
+        console.error("Erro ao sincronizar com Firebase:", error);
+        setSaveStatus('saved');
+        notify("Salvo localmente. Erro ao sincronizar com nuvem.", "error");
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
+    } else {
       setSaveStatus('saved');
+      notify("Catálogo salvo localmente!", "success");
       setTimeout(() => setSaveStatus('idle'), 3000);
-    } catch (error) {
-      alert("Erro ao salvar catálogo no servidor. Tente novamente.");
-      setSaveStatus('idle');
     }
   };
 
@@ -204,12 +280,38 @@ const CatalogPage: React.FC = () => {
   };
 
   const removeProduct = (id: string) => {
-    if (window.confirm('Deseja realmente excluir este produto?')) {
-      setActiveProducts(activeProducts.filter(p => p.id !== id));
-      const nextSelected = new Set(selectedIds);
-      nextSelected.delete(id);
-      setSelectedIds(nextSelected);
-    }
+    setConfirmModal({
+      show: true,
+      title: 'Excluir Produto',
+      message: 'Deseja realmente excluir este produto?',
+      onConfirm: () => {
+        setActiveProducts(activeProducts.filter(p => p.id !== id));
+        const nextSelected = new Set(selectedIds);
+        nextSelected.delete(id);
+        setSelectedIds(nextSelected);
+        setConfirmModal(prev => ({ ...prev, show: false }));
+        notify("Produto excluído com sucesso!");
+      }
+    });
+  };
+
+  const [focusedCusto, setFocusedCusto] = useState<string | null>(null);
+  const [focusedPercent, setFocusedPercent] = useState<{id: string, field: string} | null>(null);
+
+  const formatCustoDisplay = (valor: number | undefined): string => {
+    if (valor === undefined || valor === null || valor === 0) return '';
+    return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const formatPercentDisplay = (valor: number | undefined): string => {
+    if (valor === undefined || valor === null || valor === 0) return '';
+    return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
+  };
+
+  const getPercentEditValue = (valor: number | undefined): string => {
+    if (valor === undefined || valor === null || valor === 0) return '';
+    // Converte para string com vírgula (ex: 6,55)
+    return (Math.round(valor * 100) / 100).toFixed(2).replace('.', ',');
   };
 
   const updateProduct = (id: string, field: keyof Product, value: string) => {
@@ -218,8 +320,19 @@ const CatalogPage: React.FC = () => {
         if (field === 'sku' || field === 'descricao') {
           return { ...p, [field]: value };
         }
-        const numVal = value === '' ? 0 : parseFloat(value.replace(',', '.'));
-        return { ...p, [field]: isNaN(numVal) ? 0 : numVal };
+        if (field === 'custoCDP') {
+          // Permite digitar com vírgula ou ponto, mantendo precisão de até 4 casas
+          const cleaned = value.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
+          const numVal = cleaned === '' ? 0 : parseFloat(cleaned);
+          return { ...p, [field]: isNaN(numVal) ? 0 : numVal };
+        }
+        // Máscara Financeira padrão: trata os dígitos como centavos (2 casas)
+        const digits = value.replace(/\D/g, '');
+        if (digits === '') {
+          return { ...p, [field]: 0 };
+        }
+        const numericValue = parseInt(digits, 10) / 100;
+        return { ...p, [field]: numericValue };
       }
       return p;
     }));
@@ -242,10 +355,18 @@ const CatalogPage: React.FC = () => {
   };
 
   const bulkDelete = () => {
-    if (window.confirm(`Deseja excluir ${selectedIds.size} produtos selecionados?`)) {
-      setActiveProducts(activeProducts.filter((p: Product) => !selectedIds.has(p.id)));
-      setSelectedIds(new Set());
-    }
+    setConfirmModal({
+      show: true,
+      title: 'Excluir em Massa',
+      message: `Deseja realmente excluir ${selectedIds.size} produtos selecionados?`,
+      onConfirm: () => {
+        setActiveProducts(activeProducts.filter((p: Product) => !selectedIds.has(p.id)));
+        setSelectedIds(new Set());
+        setCurrentPage(1);
+        setConfirmModal(prev => ({ ...prev, show: false }));
+        notify(`${selectedIds.size} produtos excluídos.`);
+      }
+    });
   };
 
   const applyBulkEdit = () => {
@@ -291,10 +412,26 @@ const CatalogPage: React.FC = () => {
     XLSX.writeFile(wb, `catalogo_lcg_${activeWarehouse.toLowerCase()}.xlsx`);
   };
 
+  /**
+   * Converte strings brasileiras (R$ 50,00 ou 50.000,00) em número JS
+   */
   const parseBRNumber = (val: any): number => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
-    const cleaned = String(val).replace(/\./g, '').replace(',', '.').trim();
+    const cleaned = String(val).replace(/R\$/g, '').replace(/[^\d.,]/g, '').replace(/\s/g, '').trim();
+    
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+      const parts = cleaned.split(',');
+      const withDot = parts[0].replace(/\./g, '') + '.' + parts[1];
+      const num = parseFloat(withDot);
+      return isNaN(num) ? 0 : num;
+    }
+    
+    if (cleaned.includes(',')) {
+      const num = parseFloat(cleaned.replace(',', '.'));
+      return isNaN(num) ? 0 : num;
+    }
+
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : num;
   };
@@ -314,7 +451,6 @@ const CatalogPage: React.FC = () => {
 
     const usedCols = new Set<string>();
 
-    // Pass 1: Prioritize exact matches (normalized)
     Object.keys(rules).forEach(field => {
       const keywords = rules[field as keyof typeof rules];
       const match = cols.find(col => {
@@ -327,7 +463,6 @@ const CatalogPage: React.FC = () => {
       }
     });
 
-    // Pass 2: Partial matches for unmapped fields, avoiding double mapping
     Object.keys(rules).forEach(field => {
       if (mapping[field]) return;
       const keywords = rules[field as keyof typeof rules];
@@ -335,7 +470,7 @@ const CatalogPage: React.FC = () => {
         if (usedCols.has(col)) return false;
         const slug = col.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
         return keywords.some(k => {
-          if (k.length <= 2) return slug === k; // Short keywords must be exact
+          if (k.length <= 2) return slug === k;
           return slug.includes(k);
         });
       });
@@ -385,7 +520,7 @@ const CatalogPage: React.FC = () => {
           const ws = wb.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws);
           onDataRead(data);
-        } catch { alert('Erro ao ler Excel.'); }
+        } catch { notify('Erro ao ler arquivo Excel.', 'error'); }
       };
       reader.readAsBinaryString(file);
     }
@@ -393,43 +528,62 @@ const CatalogPage: React.FC = () => {
   };
 
   const processMapping = () => {
-    const processed = importRawData.map(row => ({
-      id: crypto.randomUUID(),
-      sku: String(row[columnMapping['sku']] || '').trim(),
-      descricao: String(row[columnMapping['descricao']] || '').trim(),
-      custoCDP: parseBRNumber(row[columnMapping['custoCDP']] || 0),
-      impostosIMP: parseBRNumber(row[columnMapping['impostosIMP']] || 0),
-      despesaFixaDF: parseBRNumber(row[columnMapping['despesaFixaDF']] || 0),
-      outrasDespesasOD: parseBRNumber(row[columnMapping['outrasDespesasOD']] || 0),
-      adsADS: parseBRNumber(row[columnMapping['adsADS']] || 0),
-      rebateCR: parseBRNumber(row[columnMapping['rebateCR']] || 0),
-    })) as Product[];
+    const processed = importRawData
+      .map(row => {
+        const sku = String(row[columnMapping['sku']] || '').trim();
+        const desc = String(row[columnMapping['descricao']] || '').trim();
+        
+        if ((!sku || sku === 'undefined') && (!desc || desc === 'undefined')) return null;
+
+        return {
+          id: crypto.randomUUID(),
+          sku: sku === 'undefined' ? '' : sku,
+          descricao: desc === 'undefined' ? '' : desc,
+          custoCDP: parseBRNumber(row[columnMapping['custoCDP']] || 0),
+          impostosIMP: parseBRNumber(row[columnMapping['impostosIMP']] || 0),
+          despesaFixaDF: parseBRNumber(row[columnMapping['despesaFixaDF']] || 0),
+          outrasDespesasOD: parseBRNumber(row[columnMapping['outrasDespesasOD']] || 0),
+          adsADS: parseBRNumber(row[columnMapping['adsADS']] || 0),
+          rebateCR: parseBRNumber(row[columnMapping['rebateCR']] || 0),
+        } as Product;
+      })
+      .filter(p => p !== null) as Product[];
 
     setImportPreview(processed);
     setShowMappingModal(false);
     setShowImportModal(true);
   };
 
-  const confirmImport = (replace: boolean) => {
+  const confirmImport = async (replace: boolean) => {
+    let newList = [];
     if (replace) {
-      setActiveProducts(importPreview);
+      newList = importPreview;
     } else {
       const importedSkus = new Set(importPreview.map(p => p.sku.trim().toLowerCase()).filter(s => s !== ""));
       const remainingProducts = activeProducts.filter(p => !importedSkus.has(p.sku.trim().toLowerCase()));
-      setActiveProducts([...importPreview, ...remainingProducts]);
+      newList = [...importPreview, ...remainingProducts];
     }
     
+    setActiveProducts(newList);
+    // Salvar também no localStorage do outro estoque para manter sincronizado
+    saveToLocalStorage(activeWarehouse, newList);
     setShowImportModal(false);
     setImportPreview([]);
     setImportRawData([]);
+
+    // Forçar salvamento na nuvem imediatamente
+    setTimeout(() => {
+      handleSave();
+    }, 500);
   };
 
   const triggerImport = () => fileInputRef.current?.click();
 
-  const filteredProducts = activeProducts.filter(p => 
-    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.descricao.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Resetar página quando a busca ou o estoque mudar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeWarehouse]);
+
 
   if (loading) {
     return (
@@ -467,7 +621,10 @@ const CatalogPage: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowMappingModal(false)}>Cancelar</button><button className="btn-primary" onClick={processMapping}>Próximo</button></div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowMappingModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={processMapping}>Próximo</button>
+            </div>
           </div>
         </div>
       )}
@@ -572,9 +729,12 @@ const CatalogPage: React.FC = () => {
           <button className="btn-secondary" onClick={triggerImport}><FileUp size={20} /> Importar</button>
           <button className="btn-secondary" onClick={exportToExcel}><FileDown size={20} /> Exportar</button>
           <div className="v-divider"></div>
-          <button className="btn-primary" onClick={handleSave} disabled={saveStatus !== 'idle'} 
-            style={{ minWidth: '200px', background: saveStatus === 'saved' ? '#10b981' : 'var(--red-main)', borderColor: saveStatus === 'saved' ? '#10b981' : 'var(--red-main)' }}>
-            {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? <><CheckCircle2 size={20} /> Catálogo Salvo!</> : <><Save size={20} /> Salvar Catálogo</>}
+          <button className="btn-primary" onClick={() => handleSave(activeWarehouse)} disabled={saveStatus === 'saving'} 
+            style={{ minWidth: '200px', 
+              background: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)', 
+              borderColor: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)' 
+            }}>
+            {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? <><CheckCircle2 size={20} /> Salvo!</> : <><Save size={20} /> Salvar</>}
           </button>
         </div>
       </div>
@@ -610,28 +770,28 @@ const CatalogPage: React.FC = () => {
               <tr>
                 <th style={{ width: '40px' }}>
                    <button className="select-all-btn" onClick={toggleSelectAll}>
-                      {selectedIds.size === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare size={20} color="var(--red-main)" /> : <Square size={20} />}
+                      {selectedIds.size === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare size={20} color="var(--primary-main)" /> : <Square size={20} />}
                    </button>
                 </th>
                 <th>SKU</th><th>Descrição</th><th>Custo Produto (R$)</th><th>Imposto (%)</th><th>Despesa Fixa (%)</th><th>Outras Despesas (%)</th><th>Ads (%)</th><th>Rebate (%)</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((p: Product) => (
+              {paginatedProducts.map((p: Product) => (
                 <tr key={p.id} className={`catalog-row ${selectedIds.has(p.id) ? 'row-selected' : ''}`}>
                   <td className="text-center">
                     <button className="row-select-btn" onClick={() => toggleSelect(p.id)}>
-                       {selectedIds.has(p.id) ? <CheckSquare size={20} color="var(--red-main)" /> : <Square size={20} color="#cbd5e1" />}
+                       {selectedIds.has(p.id) ? <CheckSquare size={20} color="var(--primary-main)" /> : <Square size={20} color="#cbd5e1" />}
                     </button>
                   </td>
                   <td><input className="cell-input" value={p.sku} onChange={(e) => updateProduct(p.id, 'sku', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input" value={p.descricao} onChange={(e) => updateProduct(p.id, 'descricao', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center text-green" value={p.custoCDP ?? ''} onChange={(e) => updateProduct(p.id, 'custoCDP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={p.impostosIMP ?? ''} onChange={(e) => updateProduct(p.id, 'impostosIMP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={p.despesaFixaDF ?? ''} onChange={(e) => updateProduct(p.id, 'despesaFixaDF', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={p.outrasDespesasOD ?? ''} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={p.adsADS ?? ''} onChange={(e) => updateProduct(p.id, 'adsADS', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={p.rebateCR ?? ''} onChange={(e) => updateProduct(p.id, 'rebateCR', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center text-green custo-input" value={focusedCusto === p.id ? (p.custoCDP ? p.custoCDP.toString().replace('.', ',') : '') : formatCustoDisplay(p.custoCDP)} onFocus={() => setFocusedCusto(p.id)} onBlur={() => setFocusedCusto(null)} onChange={(e) => updateProduct(p.id, 'custoCDP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'impostosIMP' ? getPercentEditValue(p.impostosIMP) : formatPercentDisplay(p.impostosIMP)} onFocus={() => setFocusedPercent({id: p.id, field: 'impostosIMP'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'impostosIMP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'despesaFixaDF' ? getPercentEditValue(p.despesaFixaDF) : formatPercentDisplay(p.despesaFixaDF)} onFocus={() => setFocusedPercent({id: p.id, field: 'despesaFixaDF'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'despesaFixaDF', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'outrasDespesasOD' ? getPercentEditValue(p.outrasDespesasOD) : formatPercentDisplay(p.outrasDespesasOD)} onFocus={() => setFocusedPercent({id: p.id, field: 'outrasDespesasOD'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'adsADS' ? getPercentEditValue(p.adsADS) : formatPercentDisplay(p.adsADS)} onFocus={() => setFocusedPercent({id: p.id, field: 'adsADS'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'adsADS', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'rebateCR' ? getPercentEditValue(p.rebateCR) : formatPercentDisplay(p.rebateCR)} onFocus={() => setFocusedPercent({id: p.id, field: 'rebateCR'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'rebateCR', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td className="text-center"><button onClick={() => removeProduct(p.id)} className="delete-btn"><Trash2 size={20} /></button></td>
                 </tr>
               ))}
@@ -651,15 +811,69 @@ const CatalogPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Controles de Paginação */}
+      {totalPages > 1 && (
+        <div className="pagination-container fade-in">
+          <button 
+            className="pagination-arr-btn" 
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            title="Página Anterior"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          
+          <div className="pagination-numbers">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => {
+                // Lógica para mostrar apenas algumas páginas (primeira, última e arredores da atual)
+                if (totalPages <= 7) return true;
+                if (page === 1 || page === totalPages) return true;
+                return page >= currentPage - 1 && page <= currentPage + 1;
+              })
+              .map((page, idx, arr) => {
+                const elements = [];
+                // Adicionar reticências se houver salto
+                if (idx > 0 && page - arr[idx - 1] > 1) {
+                  elements.push(<span key={`dots-${page}`} className="pagination-dots">...</span>);
+                }
+                elements.push(
+                  <button 
+                    key={page} 
+                    className={`pagination-num-btn ${currentPage === page ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </button>
+                );
+                return elements;
+              })}
+          </div>
+
+          <button 
+            className="pagination-arr-btn" 
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            title="Próxima Página"
+          >
+            <ChevronRight size={20} />
+          </button>
+          
+          <div className="pagination-info">
+            Mostrando <strong>{paginatedProducts.length}</strong> de <strong>{filteredProducts.length}</strong> produtos
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{ __html: `
         .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding: 1.5rem; background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
-        .header-icon { background: var(--red-main); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 16px rgba(223, 26, 34, 0.2); }
+        .header-icon { background: var(--primary-main); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 16px rgba(223, 26, 34, 0.2); }
         .header-title { font-size: 1.5rem; font-weight: 900; color: #111827; margin: 0; letter-spacing: -0.02em; }
         .header-subtitle { color: #6b7280; font-size: 0.9rem; font-weight: 500; margin: 2px 0 0 0; }
         
         .warehouse-selector-large { display: flex; background: #f1f5f9; padding: 6px; border-radius: 18px; gap: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
         .wh-option-large { border: none; padding: 0.8rem 2rem; border-radius: 14px; font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 0.75rem; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: #64748b; background: transparent; }
-        .wh-option-large.active { background: white; color: var(--red-main); box-shadow: 0 10px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+        .wh-option-large.active { background: white; color: var(--primary-main); box-shadow: 0 10px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
         
         .bulk-actions-bar { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 0.75rem 1.5rem; border-radius: 16px; display: flex; align-items: center; gap: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.3); z-index: 1000; border: 1px solid rgba(255,255,255,0.1); }
         .bulk-info { display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; }
@@ -683,15 +897,22 @@ const CatalogPage: React.FC = () => {
         .catalog-table tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.2s; }
         .catalog-table tbody tr:hover { background: #fdfcfc; }
         .cell-input { width: 100%; border: 2px solid transparent; padding: 0.75rem 0.5rem; border-radius: 8px; background: transparent; font-size: 0.95rem; color: #334155; font-weight: 500; text-align: inherit; }
-        .cell-input:focus { outline: none; background: white; border-color: var(--red-main); }
-        .catalog-table th:nth-child(2), .catalog-table td:nth-child(2) { width: 180px; min-width: 180px; } /* SKU */
-        .catalog-table th:nth-child(3), .catalog-table td:nth-child(3) { min-width: 350px; } /* Descrição */
-        .catalog-table th:nth-child(4), .catalog-table td:nth-child(4) { width: 220px; min-width: 220px; } /* Custo */
-        .catalog-table th:nth-child(5), .catalog-table td:nth-child(5) { width: 140px; min-width: 140px; } /* Imposto */
-        .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { width: 160px; min-width: 160px; } /* Despesa Fixa */
-        .catalog-table th:nth-child(7), .catalog-table td:nth-child(7) { width: 230px; min-width: 230px; } /* Outras Despesas */
-        .catalog-table th:nth-child(8), .catalog-table td:nth-child(8) { width: 110px; min-width: 110px; } /* Ads */
-        .catalog-table th:nth-child(9), .catalog-table td:nth-child(9) { width: 110px; min-width: 110px; } /* Rebate */
+        .cell-input:focus { outline: none; background: white; border-color: var(--primary-main); }
+        .catalog-table th:nth-child(2), .catalog-table td:nth-child(2) { width: 120px; min-width: 120px; } /* SKU */
+        .catalog-table th:nth-child(3), .catalog-table td:nth-child(3) { min-width: 200px; max-width: 300px; } /* Descrição */
+        .catalog-table td:nth-child(3) .cell-input {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .catalog-table th:nth-child(4), .catalog-table td:nth-child(4) { width: 150px; min-width: 150px; } /* Custo */
+        .custo-input { font-weight: 700; color: #059669; }
+        .custo-input:focus { background: white; border-color: var(--primary-main); }
+        .catalog-table th:nth-child(5), .catalog-table td:nth-child(5) { width: 110px; min-width: 110px; } /* Imposto */
+        .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { width: 120px; min-width: 120px; } /* Despesa Fixa */
+        .catalog-table th:nth-child(7), .catalog-table td:nth-child(7) { width: 140px; min-width: 140px; } /* Outras Despesas */
+        .catalog-table th:nth-child(8), .catalog-table td:nth-child(8) { width: 90px; min-width: 90px; } /* Ads */
+        .catalog-table th:nth-child(9), .catalog-table td:nth-child(9) { width: 90px; min-width: 90px; } /* Rebate */
         .text-center { text-align: center; }
         .text-green { color: #059669; font-weight: 700; }
         .delete-btn { color: #cbd5e1; background: none; border: none; cursor: pointer; padding: 0.6rem; }
@@ -715,7 +936,61 @@ const CatalogPage: React.FC = () => {
         .preview-table th { background: #f1f5f9; padding: 0.75rem; text-align: left; font-size: 0.7rem; color: #475569; }
         .preview-table td { padding: 0.75rem; font-size: 0.85rem; border-top: 1px solid #e2e8f0; }
         .checkbox-container { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-weight: 600; padding: 0.5rem 0; }
+
+        /* Notificações Toast */
+        .toast-notification { position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem; border-radius: 12px; background: #1e293b; color: white; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 10002; font-weight: 600; font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.1); }
+        .toast-notification.error { background: #ef4444; border-color: #f87171; }
+        .toast-notification.success { background: #10b981; border-color: #34d399; }
+
+        /* Estilo para Círculo de Ícone nos Modais */
+        .icon-circle { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .bg-blue { background: #eff6ff; }
+        .bg-yellow { background: #fefce8; }
+        .bg-red { background: #fef2f2; }
+
+        /* Paginação */
+        .pagination-container { display: flex; align-items: center; justify-content: center; margin-top: 2rem; gap: 1rem; flex-wrap: wrap; }
+        .pagination-numbers { display: flex; align-items: center; gap: 0.5rem; }
+        .pagination-num-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; color: #64748b; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .pagination-num-btn:hover { border-color: var(--primary-main); color: var(--primary-main); background: #fef2f2; }
+        .pagination-num-btn.active { background: var(--primary-main); color: white; border-color: var(--primary-main); box-shadow: 0 4px 12px rgba(223, 26, 34, 0.2); }
+        
+        .pagination-arr-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; color: #64748b; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .pagination-arr-btn:hover:not(:disabled) { border-color: var(--primary-main); color: var(--primary-main); background: #fef2f2; }
+        .pagination-arr-btn:disabled { opacity: 0.4; cursor: not-allowed; background: #f8fafc; }
+        
+        .pagination-dots { color: #94a3b8; font-weight: 700; padding: 0 0.5rem; }
+        .pagination-info { font-size: 0.9rem; color: #6b7280; font-weight: 500; margin-left: 1rem; }
       `}} />
+
+      {/* 4. Sistema de Notificações Toast */}
+      {notification && (
+        <div className={`toast-notification ${notification.type} slide-up`}>
+          {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+          {notification.message}
+        </div>
+      )}
+
+      {/* 5. Modal de Confirmação Genérico */}
+      {confirmModal.show && (
+        <div className="modal-overlay">
+          <div className="modal-content card slide-up" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="icon-circle bg-red"><Info size={24} color="#ef4444" /></div>
+                <div><h2 style={{ margin: 0 }}>{confirmModal.title}</h2></div>
+              </div>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: '#64748b', lineHeight: 1.5 }}>{confirmModal.message}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setConfirmModal(prev => ({...prev, show: false}))}>Cancelar</button>
+              <button className="btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={confirmModal.onConfirm}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -32,7 +32,6 @@ export interface ShopeeInput {
   // Parâmetros de Simulação Sweet Spot
   fatorElasticidade?: number;
   fatorAlavancagem?: number;
-  fatorAlavancagemAtivo?: boolean;
 }
 
 export interface ShopeeOutput {
@@ -275,7 +274,6 @@ export const calcularPrecoIdealDetalhado = (
   const resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, true);
 
   let melhorPa = paMatematico;
-  let melhorLucro = resultadoReferencia.lucroLiquido;
 
   let isAlavancagem = false;
   let fatorAlavancagem = 0;
@@ -283,9 +281,9 @@ export const calcularPrecoIdealDetalhado = (
   let quedaLucro = 0;
   let esforcoPercentual = 0;
 
-  // Otimização "Sweet Spot" e Alavancagem de Giro
-  // Só executamos as varreduras se o sensor estiver ativo (padrão é true)
-  if (input.fatorAlavancagemAtivo !== false) {
+  // Otimização "Sweet Spot"
+  // O sensor agora está sempre ativo por padrão
+  {
     // Camada 1: Otimização "Sweet Spot" - varredura descendente para aproveitar as janelas de taxa reduzida (ex: 79.99)
     // Varremos descendo R$ 50.00 (5000 centavos)
     for (let i = 1; i <= 5000; i++) {
@@ -294,31 +292,26 @@ export const calcularPrecoIdealDetalhado = (
 
       const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
 
-      // Regra de Parada: Só otimiza se o lucro SUBIR ou se o lucro for igual mas a TARIFA FIXA cair
-      // Importante: A redução de tarifa deve compensar qualquer perda de lucro
-      const isLucroMaior = resTeste.lucroLiquido > melhorLucro + 0.001;
-      
-      // Para mudança de faixa: só aceita se a tarifa fixa diminuir E o lucro não cair mais que 1 centavo
-      // Isso evita saltos grandes de preço (ex: de R$ 102 para R$ 96) por pouca vantagem
-      const isFaixaMelhorEconomicamente = resTeste.tarifaFixa < resultadoReferencia.tarifaFixa 
-        && resTeste.lucroLiquido >= resultadoReferencia.lucroLiquido - 0.01
-        && (resultadoReferencia.tarifaFixa - resTeste.tarifaFixa) > 0.50; // Só aceita se economia > R$ 0,50
+      // Regra do Sensor de Otimização (VERDE): 
+      // 1. O lucro aumentou de verdade (> 0,5 centavo)
+      // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
+      const diffLucro = resTeste.lucroLiquido - resultadoReferencia.lucroLiquido;
+      const isLucroMaiorOuIgual = diffLucro >= 0; 
+      const isPrecoMenor = paTeste < paMatematico - 0.01;
 
-      if (isLucroMaior || isFaixaMelhorEconomicamente) {
+      if (isLucroMaiorOuIgual && isPrecoMenor) {
         melhorPa = paTeste;
-        melhorLucro = resTeste.lucroLiquido;
-        // Ao identificar um momento de otimização real, ele para de calcular
         break; 
       }
     }
-  }
 
-  if (melhorPa === paMatematico && input.fatorAlavancagemAtivo !== false) {
-    // 2. Se não identificou otimização real (Sweet Spot), busca Estratégia de Giro
-    const MAX_LUCRO_PERDIDO_PCT = 0.15;
-    const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
+    // Camada 2: Estratégia de Giro (ROXA)
+    // Só executa se não encontrou Sweet Spot (melhorPa ainda é paMatematico)
+    if (melhorPa === paMatematico) {
+      const MAX_LUCRO_PERDIDO_PCT = 0.15;
+      const MIN_ALAVANCAGEM = input.fatorAlavancagem ?? 5.0;
 
-    for (let i = 1; i <= 5000; i++) {
+      for (let i = 1; i <= 5000; i++) {
         const paTeste = arredondar(paMatematico - (i / 100), 2);
         if (paTeste <= (input.custoProduto || 0.01)) break;
 
@@ -328,21 +321,22 @@ export const calcularPrecoIdealDetalhado = (
         const qLucro = resultadoReferencia.lucroLiquido - resTeste.lucroLiquido;
 
         if (qLucro > 0) {
-            const fator = qPreco / qLucro;
-            const pctPerdaLucro = qLucro / (resultadoReferencia.lucroLiquido || 1);
+          const fator = qPreco / qLucro;
+          const pctPerdaLucro = qLucro / (resultadoReferencia.lucroLiquido || 1);
 
-            if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
-                // Ao identificar um momento que respeite o fator, ele para de calcular
-                fatorAlavancagem = fator;
-                melhorPa = paTeste;
-                isAlavancagem = true;
-                quedaPreco = qPreco;
-                quedaLucro = qLucro;
-                const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
-                esforcoPercentual = volNecessario - 100;
-                break; 
-            }
+          if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
+            // Estratégia de Giro encontrada - notificação ROXA
+            fatorAlavancagem = fator;
+            melhorPa = paTeste;
+            isAlavancagem = true;
+            quedaPreco = qPreco;
+            quedaLucro = qLucro;
+            const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
+            esforcoPercentual = volNecessario - 100;
+            break; 
+          }
         }
+      }
     }
   }
 

@@ -1,41 +1,46 @@
 # Arquitetura do Projeto - Calculadora LCG
 
-Este documento descreve a estrutura e os padrões técnicos utilizados no desenvolvimento da Calculadora LCG.
+Este documento descreve a estrutura técnica, decisões de design e fluxos da Calculadora LCG.
 
-## Tecnologias
-- **Frontend**: React 19 + Vite
-- **Estilização**: Vanilla CSS (CSS Modules/Global)
-- **Banco de Dados**: Firebase Firestore (banco `default`)
-- **Autenticação**: Firebase Auth
-- **Icons**: Lucide React
-- **Gráficos**: Recharts
+## 1. Visão Geral
+A Calculadora LCG é uma Progressive Web App (PWA) desenvolvida com **React**, **Vite** e **Firebase**, focada em fornecer cálculos precisos de margem e preço ideal para vendedores do Mercado Livre e Shopee.
 
-## Estrutura de Pastas
-- `src/pages/`: Contém as páginas principais (`ShopeePage.tsx`, `MeliPage.tsx`).
-- `src/services/`: Serviços de integração (Ex: `catalogService.ts`).
-- `src/firebase.ts`: Configuração e instâncias do Firebase.
+## 2. Stack Tecnológica
+- **Framework:** React 18+ (TypeScript)
+- **Estilização:** Vanilla CSS (Moderno, com variáveis e Grid/Flexbox)
+- **Ícones:** Lucide React
+- **Gráficos:** Recharts
+- **Backend:** Firebase (Firestore, Auth, Hosting)
+- **Cálculos:** Decimal.js (para precisão aritmética)
 
-## Padronização de Componentes (Shopee vs Mercado Livre)
-Para garantir paridade entre os marketplaces, seguimos estes padrões:
+## 3. Estrutura de Pastas
+- `src/pages/`: Componentes de página principais (ShopeePage, MeliPage, etc.)
+- `src/utils/`: Lógica de negócio pura (shopeeLogic, meliLogic)
+- `src/services/`: Integrações com APIs externas e Firebase
+- `src/components/`: Componentes de interface reutilizáveis
+- `src/assets/`: Arquivos estáticos e globais de CSS
 
-### 1. Máscara Financeira (Inputs)
-Todos os campos monetários utilizam uma máscara que formata o valor em tempo real para o padrão brasileiro (`0,00`).
-- A lógica de processamento converte a string formatada para um número `float` apenas no momento do cálculo, preservando a experiência de digitação do usuário.
+## 4. Decisões Técnicas Principais
 
-### 2. Algoritmo de Busca no Catálogo
-A busca por produtos no catálogo utiliza um sistema de pesos (scoring):
-- **SKU Exato**: +200 pontos
-- **SKU Começa com**: +150 pontos
-- **SKU Contém**: +100 pontos
-- **Descrição Exata**: +80 pontos
-- **Termo Inteiro na Descrição**: +30 pontos
-- **Penalidade por Tamanho**: Matches mais curtos (mais precisos) ganham prioridade.
+### Separação de Lógica e UI
+Toda a lógica de cálculo é mantida em arquivos `utils` separados, permitindo testes unitários e garantindo que a UI apenas reflita o estado dos dados.
 
-## Fluxo de Dados
-1. O usuário digita os dados ou seleciona um produto do catálogo.
-2. Os dados são salvos no Firestore de forma assíncrona (debounce de 5s) para persistência.
-3. Os cálculos são realizados localmente e os resultados exibidos em tempo real via `Recharts`.
-4. Logs de cálculo são enviados para o Firestore para fins de analytics básico.
+### Sistema de Segurança (Menu Avançado)
+Implementamos uma camada de proteção por senha para configurações críticas (taxas fixas, IR, ICMS) via Firestore:
+- **Coleção:** `config`
+- **Documento:** `access`
+- **Fluxo:** Validação assíncrona contra o banco de dados antes de desbloquear a seção.
 
----
-*Versão Atual: 1.6.0-beta*
+### Persistência de Dados
+Utilizamos o `localStorage` para manter os inputs do usuário entre sessões, garantindo que o progresso não seja perdido ao recarregar a página.
+
+### Design Premium
+- **Fichas de Resultados:** Exibição em 3 colunas para paridade visual entre plataformas.
+- **Micro-animações:** Uso de transições suaves e estados de carregamento para melhor UX.
+- **Inputs Compostos:** Sistema padronizado de seleção R$ / % para despesas fixas e variáveis.
+
+## 5. Versionamento e Deploy
+O versionamento segue o padrão Semantic Versioning com sufixo `-beta` para ambiente de desenvolvimento. O deploy é automatizado via Firebase Hosting.
+
+## 6. Registro de Correções
+- 31/03/2026: Normalizamos o tipo de Ads no Mercado Livre para evitar ROAS oculto no carregamento do localStorage e protegemos a busca de preço ideal contra margem inválida (NaN/infinito).

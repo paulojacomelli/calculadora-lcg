@@ -73,8 +73,23 @@ Para usar o processamento em lote, envie um arquivo `.csv` com os seguintes cabe
 
 ---
 
+## 🧪 Testes de QA (Hierarchy & Precision)
+
+Para garantir a precisão matemática e a hierarquia correta das notificações (Verde vs Roxa), utilize o script de validação:
+
+```bash
+# Executa os cenários críticos de otimização
+npm run test:shopee
+```
+
+### Cenários Validados:
+1.  **Otimização Verde (Sweet Spot):** Identifica se o lucro é **maior ou igual** ao alvo reduzindo o preço (Ex: CDP 50, Alvo 9,99 -> Sugere 79,99 como Verde).
+2.  **Estratégia Roxa (Giro):** Identifica se há ganho de volume (Alavancagem) aceitando uma perda mínima de lucro (Ex: CDP 50, Alvo 10,00 -> Sugere 79,99 como Roxa).
+
+---
+
 ## 📝 Versão e Manutenção
-- **Versão Atual:** 1.1.198-beta
+- **Versão Atual:** 0.1.19-beta
 - **Desenvolvido por:** Antigravity (LCG Eletro Collaboration)
 - **Licença:** Privada / LCG Eletro
 

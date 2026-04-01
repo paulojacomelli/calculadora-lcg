@@ -1,15 +1,22 @@
 /**
  * Lógica de Cálculo Mercado Livre 2025/2026
  * Contém as regras de comissão (Clássico/Premium), taxa fixa e frete grátis.
+ * 
+ * ATUALIZAÇÃO: Tabela de frete agora é dinâmica, buscando do Firestore
+ * com fallback para valores hardcoded quando offline.
  */
 
 import Decimal from 'decimal.js';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export type UnidadeValor = 'fixo' | 'porcentagem';
 export type TipoAnuncio = 'classico' | 'premium';
 export type TipoAds = 'fixo' | 'porcentagem' | 'roas';
+export type TipoReputacao = 'cinza' | 'verde_sem_reputacao' | 'amarela' | 'laranja' | 'vermelha';
 
-export const TABELA_FRETE_MELI: Record<string, number> = {
+// Tabela de frete padrão hardcoded (fallback quando Firestore indisponível)
+export const TABELA_FRETE_MELI_PADRAO: Record<string, number> = {
     '0.3': 22.90,
     '0.5': 24.90,
     '1': 29.90,
@@ -22,13 +29,118 @@ export const TABELA_FRETE_MELI: Record<string, number> = {
     '29': 144.90
 };
 
+// Cache da tabela dinâmica para evitar requisições repetidas
+let tabelaFreteCache: Record<string, number> | null = null;
+let ultimaAtualizacaoCache: number = 0;
+const TEMPO_CACHE_MS = 5 * 60 * 1000; // 5 minutos
+
+/**
+ * Interface para faixa de peso do frete
+ */
+export interface FaixaPesoFrete {
+    pesoMaximoKg: number;
+    custoEnvioPadrao: number;
+    custoEnvioRapido: number;
+}
+
+/**
+ * Busca a tabela de frete mais recente do Firestore
+ * Retorna null se não encontrar ou houver erro
+ */
+export const buscarTabelaFreteFirestore = async (
+    tipoReputacao: TipoReputacao = 'verde_sem_reputacao'
+): Promise<Record<string, number> | null> => {
+    try {
+        const docRef = doc(db, 'tabelas_frete_meli', tipoReputacao);
+        const snapshot = await getDoc(docRef);
+        
+        if (snapshot.exists()) {
+            const dados = snapshot.data();
+            if (dados.faixas && Array.isArray(dados.faixas)) {
+                const tabela: Record<string, number> = {};
+                dados.faixas.forEach((faixa: FaixaPesoFrete) => {
+                    const chave = faixa.pesoMaximoKg.toString();
+                    // Usa o custo de envio rápido (frete grátis acima de R$ 79)
+                    tabela[chave] = faixa.custoEnvioRapido;
+                });
+                return tabela;
+            }
+        }
+        return null;
+    } catch (error) {
+        console.warn('[MeliLogic] Erro ao buscar tabela de frete do Firestore:', error);
+        return null;
+    }
+};
+
+/**
+ * Obtém a tabela de frete atual, usando cache ou buscando do Firestore
+ * Fallback para tabela hardcoded se necessário
+ */
+export const getTabelaFreteMeli = async (
+    tipoReputacao: TipoReputacao = 'verde_sem_reputacao'
+): Promise<Record<string, number>> => {
+    const agora = Date.now();
+    
+    // Verifica se o cache ainda é válido
+    if (tabelaFreteCache && (agora - ultimaAtualizacaoCache) < TEMPO_CACHE_MS) {
+        return tabelaFreteCache;
+    }
+    
+    // Tenta buscar do Firestore
+    const tabelaFirestore = await buscarTabelaFreteFirestore(tipoReputacao);
+    
+    if (tabelaFirestore && Object.keys(tabelaFirestore).length > 0) {
+        tabelaFreteCache = tabelaFirestore;
+        ultimaAtualizacaoCache = agora;
+        console.log('[MeliLogic] Tabela de frete carregada do Firestore');
+        return tabelaFirestore;
+    }
+    
+    // Fallback para tabela hardcoded
+    console.log('[MeliLogic] Usando tabela de frete hardcoded (fallback)');
+    return TABELA_FRETE_MELI_PADRAO;
+};
+
+/**
+ * Versão síncrona da tabela (usa cache ou fallback)
+ * Para uso em cálculos que não podem esperar async
+ */
+export const getTabelaFreteMeliSync = (): Record<string, number> => {
+    return tabelaFreteCache || TABELA_FRETE_MELI_PADRAO;
+};
+
+// Tabela de frete atual (será atualizada dinamicamente)
+export let TABELA_FRETE_MELI: Record<string, number> = { ...TABELA_FRETE_MELI_PADRAO };
+
+/**
+ * Atualiza a tabela de frete na memória
+ * Chamado quando novos dados são carregados do Firestore
+ */
+export const atualizarTabelaFrete = (novaTabela: Record<string, number>): void => {
+    TABELA_FRETE_MELI = { ...novaTabela };
+    tabelaFreteCache = { ...novaTabela };
+    ultimaAtualizacaoCache = Date.now();
+};
+
+/**
+ * Inicializa a tabela de frete buscando do Firestore
+ * Deve ser chamado no carregamento da aplicação
+ */
+export const inicializarTabelaFrete = async (): Promise<void> => {
+    const tabela = await getTabelaFreteMeli();
+    atualizarTabelaFrete(tabela);
+};
+
 /**
  * Retorna a chave da faixa de peso baseada no peso real em kg.
  * Regra: Encontra a primeira chave na tabela que seja maior ou igual ao peso informado.
+ * Usa a tabela em cache ou fallback hardcoded.
  */
 export const getFaixaPesoAutomatico = (peso: number): string => {
     if (!peso || peso <= 0) return '0.3';
-    const chaves = Object.keys(TABELA_FRETE_MELI).map(Number).sort((a, b) => a - b);
+    const tabelaAtual = getTabelaFreteMeliSync();
+    const chaves = Object.keys(tabelaAtual).map(Number).sort((a, b) => a - b);
     for (const threshold of chaves) {
         if (peso <= threshold) return threshold.toString();
     }
@@ -37,7 +149,9 @@ export const getFaixaPesoAutomatico = (peso: number): string => {
 
 export interface MeliInput {
     custoProduto?: number;
-    precoVenda?: number;
+    precoVenda?: number; // Legado - mantido para compatibilidade
+    precoAnunciadoClassico?: number; // PAC - Novo campo
+    precoAnunciadoPremium?: number;  // PAP - Novo campo
 
     tipoAnuncio: TipoAnuncio;
     comissaoPorcentagem?: number; // % da categoria
@@ -64,6 +178,13 @@ export interface MeliInput {
     cupomDesconto?: number;
     cupomTipo: UnidadeValor;
 
+    descontoCadastro?: number;
+    descontoCadastroTipo: UnidadeValor;
+    descontoCadastroValorDe?: number; // Valor original calculado (De: R$ X)
+    descontoCadastroValorPor?: number; // Valor final informado (Por: R$ Y)
+
+    reputacao?: TipoReputacao; // Reputação do vendedor para cálculo de frete
+
     fatorAlavancagem?: number;
     fatorAlavancagemAtivo?: boolean;
 }
@@ -76,6 +197,9 @@ export interface MeliOutput {
     custoAds: number;
     rebateValor: number;
     cupomValor: number;
+    descontoCadastroValor: number;
+    descontoCadastroValorDe: number; // Valor original calculado (De: R$ X)
+    descontoCadastroValorPor: number; // Valor final informado (Por: R$ Y)
     custoTotal: number;
     lucroLiquido: number;
     margemSobreVenda: number;
@@ -120,46 +244,81 @@ const normalizarMargemDesejada = (margem: number | undefined): number => {
 
 /**
  * Calcula as taxas do Mercado Livre 2026
+ * NOVA LÓGICA: PA é o preço base, cupom desconta do PA para chegar ao PDV
  */
 export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
-    const PDV = input.precoVenda || 0;
-
+    // NOVA LÓGICA: O input.precoVenda agora representa o PA (Preço Anunciado)
+    const PA = input.precoVenda || 0;
+    
     const mapUnidade = (tipo: UnidadeValor): TaxaType => tipo === 'porcentagem' ? 'percent' : 'fixed';
 
-    // 1. Definição das Variáveis
+    // 1. Calcular o cupom sobre o PA (Preço Anunciado)
+    const cupomValor = arredondar(VAL({ value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') }, PA), 2);
+    
+    // 1.1 Calcular o desconto no cadastro - cálculo reverso
+    // Se PA é o valor final "Por", então valor "De" = PA / (1 - desconto%)
+    const dcPercent = input.descontoCadastro || 0;
+    const dcTipo = input.descontoCadastroTipo || 'porcentagem';
+    
+    let descontoCadastroValorDe: number; // Valor original (De: R$ X)
+    let descontoCadastroValorPor: number; // Valor final informado (Por: R$ Y) = PA
+    let descontoCadastroValor: number; // Valor do desconto em si
+    
+    if (dcTipo === 'porcentagem' && dcPercent > 0) {
+        // Cálculo reverso: PA é o valor após desconto
+        // PA = ValorDe * (1 - desconto%) => ValorDe = PA / (1 - desconto%)
+        descontoCadastroValorDe = arredondar(PA / (1 - dcPercent / 100), 2);
+        descontoCadastroValorPor = PA;
+        descontoCadastroValor = arredondar(descontoCadastroValorDe - descontoCadastroValorPor, 2);
+    } else if (dcTipo === 'fixo' && dcPercent > 0) {
+        // Se é valor fixo, o "De" é PA + desconto fixo
+        descontoCadastroValorDe = arredondar(PA + dcPercent, 2);
+        descontoCadastroValorPor = PA;
+        descontoCadastroValor = dcPercent;
+    } else {
+        descontoCadastroValorDe = PA;
+        descontoCadastroValorPor = PA;
+        descontoCadastroValor = 0;
+    }
+    
+    // 2. Calcular o PDV (Preço de Venda) = PA - cupom (o DC já está "embutido" no PA)
+    const PDV = arredondar(PA - cupomValor, 2);
+
+    // 3. Definição das Variáveis - Política ML sobre PA, demais custos sobre PDV
     const CDP: TaxaInput = { value: input.custoProduto || 0, type: 'fixed' };
     const IMP: TaxaInput = { value: input.impostoPorcentagem || 0, type: mapUnidade(input.impostoTipo || 'porcentagem') };
     const DF: TaxaInput = { value: input.despesaFixa || 0, type: mapUnidade(input.despesaFixaTipo || 'fixo') };
     const OD: TaxaInput = { value: input.despesaAdicional || 0, type: mapUnidade(input.despesaAdicionalTipo || 'fixo') };
     const ADS: TaxaInput = { value: input.adsValor || 0, type: input.adsTipo === 'roas' ? 'fixed' : mapUnidade(input.adsTipo as UnidadeValor) };
 
-    // 2. Comissão Mercado Livre
+    // 4. Comissão Mercado Livre (sobre PA - política do ML)
     const comissaoPct = input.comissaoPorcentagem || (input.tipoAnuncio === 'premium' ? 17 : 12);
-    const comissaoValor = arredondar(VAL({ value: comissaoPct, type: 'percent' }, PDV), 2);
+    const comissaoValor = arredondar(VAL({ value: comissaoPct, type: 'percent' }, PA), 2);
 
-    // 3. Taxa Fixa (Vendas abaixo de R$ 79,00)
-    const taxaFixa = (PDV < 79 && PDV > 0) ? 6.00 : 0;
+    // 5. Taxa Fixa (sobre PA - política do ML)
+    const taxaFixa = (PA < 79 && PA > 0) ? 6.00 : 0;
 
-    // 4. Frete Grátis (Vendas a partir de R$ 79,00)
+    // 6. Frete Grátis (sobre PA - política do ML)
     let freteGratisValor = input.freteGratis || 0;
     const faixaPeso = input.pesoRealKg !== undefined 
         ? getFaixaPesoAutomatico(input.pesoRealKg) 
         : input.pesoKg;
 
-    if (PDV >= 79 && faixaPeso && TABELA_FRETE_MELI[faixaPeso]) {
-        freteGratisValor = TABELA_FRETE_MELI[faixaPeso];
+    const tabelaFreteAtual = getTabelaFreteMeliSync();
+    if (PA >= 79 && faixaPeso && tabelaFreteAtual[faixaPeso]) {
+        freteGratisValor = tabelaFreteAtual[faixaPeso];
     }
 
-    // 5. Demais Custos
+    // 7. Demais Custos (sobre PDV)
     const custoProdutoValor = arredondar(VAL(CDP, PDV), 2);
     const impostoValor = arredondar(VAL(IMP, PDV), 2);
     const despesaFixaValor = arredondar(VAL(DF, PDV), 2);
     const despesaAdicionalValor = arredondar(VAL(OD, PDV), 2);
 
-    // Rebate e Cupom
+    // 8. Rebate (sobre PDV)
     const rebateValor = arredondar(VAL({ value: input.rebatePorcentagem || 0, type: mapUnidade(input.rebateTipo || 'porcentagem') }, PDV), 2);
-    const cupomValor = arredondar(VAL({ value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') }, PDV), 2);
 
+    // 9. Ads (sobre PDV)
     let custoAds = 0;
     if (input.adsTipo === 'roas' && input.adsValor && input.adsValor > 0) {
         custoAds = arredondar(PDV / input.adsValor, 2);
@@ -167,6 +326,7 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         custoAds = arredondar(VAL(ADS, PDV), 2);
     }
 
+    // 10. Soma dos custos (cupom não entra nos custos totais, é um desconto dado ao cliente)
     const dCustosTotal = new Decimal(comissaoValor)
         .plus(taxaFixa)
         .plus(freteGratisValor)
@@ -175,9 +335,9 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         .plus(despesaFixaValor)
         .plus(despesaAdicionalValor)
         .plus(custoAds)
-        .plus(cupomValor)
         .minus(rebateValor);
 
+    // 11. Lucro e margens calculados sobre o PDV (valor efetivo de venda)
     const LLV = new Decimal(PDV).minus(dCustosTotal).toNumber();
     const msv = PDV > 0 ? (LLV / PDV) * 100 : 0;
     const msc = custoProdutoValor > 0 ? (LLV / custoProdutoValor) * 100 : 0;
@@ -190,15 +350,18 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         custoAds,
         rebateValor,
         cupomValor,
+        descontoCadastroValor,
+        descontoCadastroValorDe,
+        descontoCadastroValorPor,
         custoTotal: arredondar(dCustosTotal.toNumber(), 2),
         lucroLiquido: arredondar(LLV, 2),
         margemSobreVenda: arredondar(msv, 2),
         margemSobreCusto: arredondar(msc, 2),
         despesaFixaValor,
         despesaAdicionalValor,
-        margem: arredondar(LLV, 2), // Mantendo retrocompatibilidade se 'margem' for usado como lucro
-        precoVenda: arredondar(PDV, 2),
-        precoAnunciado: arredondar(PDV + cupomValor, 2),
+        margem: arredondar(LLV, 2),
+        precoVenda: arredondar(PDV, 2),        // PDV = PA - cupom
+        precoAnunciado: arredondar(PA, 2),     // PA = valor informado
         nominalSobreCusto: arredondar(PDV - custoProdutoValor, 2),
         custoProdutoValor
     };
@@ -255,8 +418,9 @@ export const calcularPrecoIdealMeli = (
     // Cenário B: Acima de 79 (Com Frete Grátis)
     let freteMeli = input.freteGratis || 0;
     const faixaPeso = input.pesoRealKg !== undefined ? getFaixaPesoAutomatico(input.pesoRealKg) : input.pesoKg;
-    if (faixaPeso && TABELA_FRETE_MELI[faixaPeso]) {
-        freteMeli = TABELA_FRETE_MELI[faixaPeso];
+    const tabelaFreteCalc = getTabelaFreteMeliSync();
+    if (faixaPeso && tabelaFreteCalc[faixaPeso]) {
+        freteMeli = tabelaFreteCalc[faixaPeso];
     }
 
     const pdvB = resolverCenario(baseTaxasFixas + freteMeli, taxasVariaveis);

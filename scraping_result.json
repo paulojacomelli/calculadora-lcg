@@ -1,0 +1,899 @@
+{
+  "verde_sem_reputacao": {
+    "tipoReputacao": "verde_sem_reputacao",
+    "nomeReputacao": "MercadoLider, reputacao verde ou sem reputacao",
+    "faixas": [
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 5.65,
+        "custoEnvioRapido": 6.55
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 5.95,
+        "custoEnvioRapido": 6.65
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 6.05,
+        "custoEnvioRapido": 6.75
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 6.15,
+        "custoEnvioRapido": 6.85
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 6.25,
+        "custoEnvioRapido": 6.95
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 6.35,
+        "custoEnvioRapido": 7.95
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 6.45,
+        "custoEnvioRapido": 8.15
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 6.55,
+        "custoEnvioRapido": 8.35
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 6.65,
+        "custoEnvioRapido": 8.55
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 6.75,
+        "custoEnvioRapido": 8.75
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 6.85,
+        "custoEnvioRapido": 8.95
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 6.95,
+        "custoEnvioRapido": 9.15
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 7.05,
+        "custoEnvioRapido": 9.55
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 7.15,
+        "custoEnvioRapido": 9.95
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 7.25,
+        "custoEnvioRapido": 10.15
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 7.35,
+        "custoEnvioRapido": 10.35
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 7.45,
+        "custoEnvioRapido": 10.55
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 7.65,
+        "custoEnvioRapido": 10.95
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 7.75,
+        "custoEnvioRapido": 11.15
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 7.85,
+        "custoEnvioRapido": 11.35
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 7.95,
+        "custoEnvioRapido": 11.55
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 8.05,
+        "custoEnvioRapido": 11.75
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 8.15,
+        "custoEnvioRapido": 11.95
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 8.25,
+        "custoEnvioRapido": 12.15
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 8.35,
+        "custoEnvioRapido": 12.35
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 8.45,
+        "custoEnvioRapido": 12.55
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 8.55,
+        "custoEnvioRapido": 12.75
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 8.65,
+        "custoEnvioRapido": 12.75
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 8.75,
+        "custoEnvioRapido": 12.95
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 12.35,
+        "custoEnvioRapido": 12.35
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 13.25,
+        "custoEnvioRapido": 13.25
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 13.85,
+        "custoEnvioRapido": 13.85
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 14.15,
+        "custoEnvioRapido": 14.15
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 14.45,
+        "custoEnvioRapido": 14.45
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 15.75,
+        "custoEnvioRapido": 15.75
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 17.05,
+        "custoEnvioRapido": 17.05
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 18.45,
+        "custoEnvioRapido": 18.45
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 25.45,
+        "custoEnvioRapido": 25.45
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 27.05,
+        "custoEnvioRapido": 27.05
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 28.85,
+        "custoEnvioRapido": 28.85
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 29.65,
+        "custoEnvioRapido": 29.65
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 41.25,
+        "custoEnvioRapido": 41.25
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 42.15,
+        "custoEnvioRapido": 42.15
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 45.05,
+        "custoEnvioRapido": 45.05
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 48.55,
+        "custoEnvioRapido": 48.55
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 54.75,
+        "custoEnvioRapido": 54.75
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 64.05,
+        "custoEnvioRapido": 64.05
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 65.95,
+        "custoEnvioRapido": 65.95
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 67.75,
+        "custoEnvioRapido": 67.75
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 70.25,
+        "custoEnvioRapido": 70.25
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 74.95,
+        "custoEnvioRapido": 74.95
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 80.25,
+        "custoEnvioRapido": 80.25
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 83.95,
+        "custoEnvioRapido": 83.95
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 93.25,
+        "custoEnvioRapido": 93.25
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 106.55,
+        "custoEnvioRapido": 106.55
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 119.25,
+        "custoEnvioRapido": 119.25
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 126.55,
+        "custoEnvioRapido": 126.55
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 166.15,
+        "custoEnvioRapido": 166.15
+      }
+    ],
+    "dataAtualizacao": "2026-04-01T16:36:37.081Z",
+    "fonteUrl": "https://www.mercadolivre.com.br/ajuda/40538",
+    "fonte": "scraping"
+  },
+  "amarela": {
+    "tipoReputacao": "amarela",
+    "nomeReputacao": "Reputacao amarela",
+    "faixas": [
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 6.46,
+        "custoEnvioRapido": 7.49
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 6.8,
+        "custoEnvioRapido": 7.6
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 6.91,
+        "custoEnvioRapido": 7.71
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 7.03,
+        "custoEnvioRapido": 7.83
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 7.14,
+        "custoEnvioRapido": 7.94
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 7.26,
+        "custoEnvioRapido": 9.09
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 7.37,
+        "custoEnvioRapido": 9.31
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 7.49,
+        "custoEnvioRapido": 9.54
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 7.6,
+        "custoEnvioRapido": 9.77
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 7.71,
+        "custoEnvioRapido": 10
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 7.83,
+        "custoEnvioRapido": 10.23
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 7.94,
+        "custoEnvioRapido": 10.46
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 8.06,
+        "custoEnvioRapido": 10.91
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 8.17,
+        "custoEnvioRapido": 11.37
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 8.29,
+        "custoEnvioRapido": 11.6
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 8.4,
+        "custoEnvioRapido": 11.83
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 8.51,
+        "custoEnvioRapido": 12.06
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 8.74,
+        "custoEnvioRapido": 12.51
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 8.86,
+        "custoEnvioRapido": 12.74
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 8.97,
+        "custoEnvioRapido": 12.97
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 9.09,
+        "custoEnvioRapido": 13.2
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 9.2,
+        "custoEnvioRapido": 13.43
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 9.31,
+        "custoEnvioRapido": 13.66
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 9.43,
+        "custoEnvioRapido": 13.89
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 9.54,
+        "custoEnvioRapido": 14.11
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 9.66,
+        "custoEnvioRapido": 14.34
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 9.77,
+        "custoEnvioRapido": 14.57
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 9.89,
+        "custoEnvioRapido": 14.57
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 10,
+        "custoEnvioRapido": 14.57
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 14.82,
+        "custoEnvioRapido": 14.82
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 15.9,
+        "custoEnvioRapido": 15.9
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 16.62,
+        "custoEnvioRapido": 16.62
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 16.98,
+        "custoEnvioRapido": 16.98
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 17.34,
+        "custoEnvioRapido": 17.34
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 18.9,
+        "custoEnvioRapido": 18.9
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 20.46,
+        "custoEnvioRapido": 20.46
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 22.14,
+        "custoEnvioRapido": 22.14
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 30.54,
+        "custoEnvioRapido": 30.54
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 32.46,
+        "custoEnvioRapido": 32.46
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 34.62,
+        "custoEnvioRapido": 34.62
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 35.58,
+        "custoEnvioRapido": 35.58
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 49.5,
+        "custoEnvioRapido": 49.5
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 50.58,
+        "custoEnvioRapido": 50.58
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 54.06,
+        "custoEnvioRapido": 54.06
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 58.26,
+        "custoEnvioRapido": 58.26
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 65.7,
+        "custoEnvioRapido": 65.7
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 76.86,
+        "custoEnvioRapido": 76.86
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 79.14,
+        "custoEnvioRapido": 79.14
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 81.3,
+        "custoEnvioRapido": 81.3
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 84.3,
+        "custoEnvioRapido": 84.3
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 89.94,
+        "custoEnvioRapido": 89.94
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 96.3,
+        "custoEnvioRapido": 96.3
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 100.74,
+        "custoEnvioRapido": 100.74
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 111.9,
+        "custoEnvioRapido": 111.9
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 127.86,
+        "custoEnvioRapido": 127.86
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 143.1,
+        "custoEnvioRapido": 143.1
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 151.86,
+        "custoEnvioRapido": 151.86
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 199.38,
+        "custoEnvioRapido": 199.38
+      }
+    ],
+    "dataAtualizacao": "2026-04-01T16:36:43.776Z",
+    "fonteUrl": "https://www.mercadolivre.com.br/ajuda/40545",
+    "fonte": "scraping"
+  },
+  "laranja_vermelha": {
+    "tipoReputacao": "laranja_vermelha",
+    "nomeReputacao": "Reputacao laranja ou vermelha",
+    "faixas": [
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 8.07,
+        "custoEnvioRapido": 9.36
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 8.5,
+        "custoEnvioRapido": 9.5
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 8.64,
+        "custoEnvioRapido": 9.64
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 8.79,
+        "custoEnvioRapido": 9.79
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 8.93,
+        "custoEnvioRapido": 9.93
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 9.07,
+        "custoEnvioRapido": 11.36
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 9.21,
+        "custoEnvioRapido": 11.64
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 9.36,
+        "custoEnvioRapido": 11.93
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 9.5,
+        "custoEnvioRapido": 12.21
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 9.64,
+        "custoEnvioRapido": 12.5
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 9.79,
+        "custoEnvioRapido": 12.79
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 9.93,
+        "custoEnvioRapido": 13.07
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 10.07,
+        "custoEnvioRapido": 13.64
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 10.21,
+        "custoEnvioRapido": 14.21
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 10.36,
+        "custoEnvioRapido": 14.5
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 10.5,
+        "custoEnvioRapido": 14.79
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 10.64,
+        "custoEnvioRapido": 15.07
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 10.93,
+        "custoEnvioRapido": 15.64
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 11.07,
+        "custoEnvioRapido": 15.93
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 11.21,
+        "custoEnvioRapido": 16.21
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 11.36,
+        "custoEnvioRapido": 16.5
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 11.5,
+        "custoEnvioRapido": 16.79
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 11.64,
+        "custoEnvioRapido": 17.07
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 11.79,
+        "custoEnvioRapido": 17.36
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 11.93,
+        "custoEnvioRapido": 17.64
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 12.07,
+        "custoEnvioRapido": 17.93
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 12.21,
+        "custoEnvioRapido": 18.21
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 12.36,
+        "custoEnvioRapido": 18.21
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 12.5,
+        "custoEnvioRapido": 18.21
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 24.7,
+        "custoEnvioRapido": 24.7
+      },
+      {
+        "pesoMaximoKg": 0.3,
+        "custoEnvioPadrao": 26.5,
+        "custoEnvioRapido": 26.5
+      },
+      {
+        "pesoMaximoKg": 0.5,
+        "custoEnvioPadrao": 27.7,
+        "custoEnvioRapido": 27.7
+      },
+      {
+        "pesoMaximoKg": 1,
+        "custoEnvioPadrao": 28.3,
+        "custoEnvioRapido": 28.3
+      },
+      {
+        "pesoMaximoKg": 1.5,
+        "custoEnvioPadrao": 28.9,
+        "custoEnvioRapido": 28.9
+      },
+      {
+        "pesoMaximoKg": 2,
+        "custoEnvioPadrao": 31.5,
+        "custoEnvioRapido": 31.5
+      },
+      {
+        "pesoMaximoKg": 3,
+        "custoEnvioPadrao": 34.1,
+        "custoEnvioRapido": 34.1
+      },
+      {
+        "pesoMaximoKg": 4,
+        "custoEnvioPadrao": 36.9,
+        "custoEnvioRapido": 36.9
+      },
+      {
+        "pesoMaximoKg": 5,
+        "custoEnvioPadrao": 50.9,
+        "custoEnvioRapido": 50.9
+      },
+      {
+        "pesoMaximoKg": 6,
+        "custoEnvioPadrao": 54.1,
+        "custoEnvioRapido": 54.1
+      },
+      {
+        "pesoMaximoKg": 7,
+        "custoEnvioPadrao": 57.7,
+        "custoEnvioRapido": 57.7
+      },
+      {
+        "pesoMaximoKg": 8,
+        "custoEnvioPadrao": 59.3,
+        "custoEnvioRapido": 59.3
+      },
+      {
+        "pesoMaximoKg": 9,
+        "custoEnvioPadrao": 82.5,
+        "custoEnvioRapido": 82.5
+      },
+      {
+        "pesoMaximoKg": 11,
+        "custoEnvioPadrao": 84.3,
+        "custoEnvioRapido": 84.3
+      },
+      {
+        "pesoMaximoKg": 13,
+        "custoEnvioPadrao": 90.1,
+        "custoEnvioRapido": 90.1
+      },
+      {
+        "pesoMaximoKg": 15,
+        "custoEnvioPadrao": 97.1,
+        "custoEnvioRapido": 97.1
+      },
+      {
+        "pesoMaximoKg": 17,
+        "custoEnvioPadrao": 109.5,
+        "custoEnvioRapido": 109.5
+      },
+      {
+        "pesoMaximoKg": 20,
+        "custoEnvioPadrao": 128.1,
+        "custoEnvioRapido": 128.1
+      },
+      {
+        "pesoMaximoKg": 25,
+        "custoEnvioPadrao": 131.9,
+        "custoEnvioRapido": 131.9
+      },
+      {
+        "pesoMaximoKg": 30,
+        "custoEnvioPadrao": 135.5,
+        "custoEnvioRapido": 135.5
+      },
+      {
+        "pesoMaximoKg": 40,
+        "custoEnvioPadrao": 140.5,
+        "custoEnvioRapido": 140.5
+      },
+      {
+        "pesoMaximoKg": 50,
+        "custoEnvioPadrao": 149.9,
+        "custoEnvioRapido": 149.9
+      },
+      {
+        "pesoMaximoKg": 60,
+        "custoEnvioPadrao": 160.5,
+        "custoEnvioRapido": 160.5
+      },
+      {
+        "pesoMaximoKg": 70,
+        "custoEnvioPadrao": 167.9,
+        "custoEnvioRapido": 167.9
+      },
+      {
+        "pesoMaximoKg": 80,
+        "custoEnvioPadrao": 186.5,
+        "custoEnvioRapido": 186.5
+      },
+      {
+        "pesoMaximoKg": 90,
+        "custoEnvioPadrao": 213.1,
+        "custoEnvioRapido": 213.1
+      },
+      {
+        "pesoMaximoKg": 100,
+        "custoEnvioPadrao": 238.5,
+        "custoEnvioRapido": 238.5
+      },
+      {
+        "pesoMaximoKg": 125,
+        "custoEnvioPadrao": 253.1,
+        "custoEnvioRapido": 253.1
+      },
+      {
+        "pesoMaximoKg": 150,
+        "custoEnvioPadrao": 332.3,
+        "custoEnvioRapido": 332.3
+      }
+    ],
+    "dataAtualizacao": "2026-04-01T16:36:50.319Z",
+    "fonteUrl": "https://www.mercadolivre.com.br/ajuda/40547",
+    "fonte": "scraping"
+  }
+}

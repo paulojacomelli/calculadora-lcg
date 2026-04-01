@@ -18,16 +18,18 @@ export interface Product {
 }
 
 /**
- * Salva o catálogo completo de um estoque para um usuário específico
+ * Salva o catálogo completo de um estoque de forma global
  */
-export const saveUserCatalog = async (userId: string, warehouse: 'SP' | 'SC', products: Product[]) => {
+export const saveUserCatalog = async (_userId: string, warehouse: 'SP' | 'SC', products: Product[]) => {
   try {
-    const catalogRef = doc(db, 'users', userId, 'catalog', warehouse);
+    // Caminho global na raiz do banco: catalog/{warehouse}
+    const catalogRef = doc(db, 'catalog', warehouse);
     await setDoc(catalogRef, { 
       products,
       updatedAt: new Date().toISOString(),
       warehouse 
     });
+    console.log(`Sucesso: Catálogo ${warehouse} salvo em /catalog/${warehouse}`);
     return { success: true };
   } catch (error) {
     console.error(`Erro ao salvar catálogo ${warehouse}:`, error);
@@ -36,11 +38,12 @@ export const saveUserCatalog = async (userId: string, warehouse: 'SP' | 'SC', pr
 };
 
 /**
- * Carrega o catálogo de um estoque para um usuário específico
+ * Carrega o catálogo de um estoque de forma global
  */
-export const getUserCatalog = async (userId: string, warehouse: 'SP' | 'SC'): Promise<Product[]> => {
+export const getUserCatalog = async (_userId: string, warehouse: 'SP' | 'SC'): Promise<Product[]> => {
   try {
-    const catalogRef = doc(db, 'users', userId, 'catalog', warehouse);
+    // Caminho global na raiz do banco: catalog/{warehouse}
+    const catalogRef = doc(db, 'catalog', warehouse);
     const docSnap = await getDoc(catalogRef);
     
     if (docSnap.exists()) {

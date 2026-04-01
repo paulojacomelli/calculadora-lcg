@@ -19,10 +19,11 @@ import {
     ChevronDown,
     ShieldCheck,
     Lock,
-    Zap,
     Table,
     Search,
-    Plus
+    Plus,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -68,44 +69,14 @@ const defaultInputs: ShopeeInput = {
     rebateTipo: 'porcentagem',
     cupomDesconto: undefined,
     cupomTipo: 'porcentagem',
-    fatorAlavancagem: 5.0,
-    fatorAlavancagemAtivo: true
+    fatorAlavancagem: undefined
 };
 
 const ShopeePage: React.FC = () => {
-    const [aba, setAba] = useState<'margem' | 'ideal'>(() => {
-        return (localStorage.getItem('@shopperPCC:aba') as 'margem' | 'ideal') || 'ideal';
-    });
-    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo' | 'reais'>(() => {
-        return (localStorage.getItem('@shopperPCC:tipoMargemIdeal') as 'venda' | 'custo' | 'reais') || 'venda';
-    });
-    const [inputs, setInputs] = useState<ShopeeInput>(() => {
-        const saved = localStorage.getItem('@shopperPCC:inputs');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                // Sanitização: converte strings numericas antigas para number real
-                Object.keys(parsed).forEach(key => {
-                    if (!key.endsWith('Tipo') && typeof parsed[key] === 'string') {
-                        const val = parseFloat(parsed[key].replace(',', '.'));
-                        parsed[key] = isNaN(val) ? undefined : val;
-                    }
-                });
-                return parsed;
-            } catch (e) {
-                return defaultInputs;
-            }
-        }
-        return defaultInputs;
-    });
-    const [margemDesejada, setMargemDesejada] = useState<number | undefined>(() => {
-        const saved = localStorage.getItem('@shopperPCC:margemDesejada');
-        if (saved) {
-            const val = parseFloat(String(saved).replace(',', '.'));
-            return isNaN(val) ? undefined : val;
-        }
-        return undefined;
-    });
+    const [aba, setAba] = useState<'margem' | 'ideal'>('ideal');
+    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo' | 'reais'>('venda');
+    const [inputs, setInputs] = useState<ShopeeInput>(defaultInputs);
+    const [margemDesejada, setMargemDesejada] = useState<number | undefined>(undefined);
     const [results, setResults] = useState<ShopeeOutput | null>(null);
     const [lastCalculatedInputs, setLastCalculatedInputs] = useState<ShopeeInput | null>(null);
     const [simulacao, setSimulacao] = useState<any>(null);
@@ -115,25 +86,32 @@ const ShopeePage: React.FC = () => {
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
 
+    // Sistema de Notificações Toast
+    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info'; show: boolean } | null>(null);
+
+    const notify = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setNotification({ message, type, show: true });
+        setTimeout(() => {
+            setNotification(prev => prev ? { ...prev, show: false } : null);
+        }, 5000);
+    };
+
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
     // Estado da barra de pesquisa de Catálogo
     const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const [catalogPage, setCatalogPage] = useState(1);
     // Produto selecionado da busca (exibido como chip de referência)
     const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<{ sku: string; descricao: string; _wh: string } | null>(null);
 
     const [focusedValue, setFocusedValue] = useState<string>('');
-    const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(() => {
-        return localStorage.getItem('@shopperPCC:isAdvancedOpen') === 'true';
-    });
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Monitorar estado de autenticação
     const [user, setUser] = useState<User | null>(null);
-    const [isPasswordAuthorized, setIsPasswordAuthorized] = useState<boolean>(() => {
-        return localStorage.getItem('@shopperPCC:isPasswordAuthorized') === 'true';
-    });
+    const [isPasswordAuthorized, setIsPasswordAuthorized] = useState<boolean>(false);
     const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
     const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
     const [passwordError, setPasswordError] = useState(false);
@@ -155,14 +133,12 @@ const ShopeePage: React.FC = () => {
                         const data = userSettingsSnap.data();
                         console.log("Configurações recuperadas com sucesso.");
                         
-                        // Atualiza os estados locais com os dados do Firestore
+                        // Apenas configurações gerais, não inputs (persistência apenas por sessão)
                         if (data.aba) setAba(data.aba);
                         if (data.tipoMargemIdeal) setTipoMargemIdeal(data.tipoMargemIdeal);
-                        if (data.inputs) setInputs(data.inputs);
-                        if (data.margemDesejada !== undefined) setMargemDesejada(data.margemDesejada);
                         if (data.isAdvancedOpen !== undefined) setIsAdvancedOpen(data.isAdvancedOpen);
                         
-                        // Marca que o carregamento inicial foi feito para evitar que o save automático sobrescreva imediatamente
+                        // Marca que o carregamento inicial foi feito
                         isInitialLoadDone.current = true;
                     }
 
@@ -203,35 +179,21 @@ const ShopeePage: React.FC = () => {
                     setCatalogProducts(combined);
                 }
             } else {
-                setCatalogProducts([]);
+                // Usuário não logado - carrega do localStorage
+                const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+                const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+                const combined = [
+                    ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
+                    ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+                ];
+                setCatalogProducts(combined);
             }
         });
 
-        // Sync entre múltiplas abas abertas
-        const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === '@shopperPCC:inputs') {
-                try {
-                    const parsed = JSON.parse(e.newValue || '{}');
-                    Object.keys(parsed).forEach(key => {
-                        if (!key.endsWith('Tipo') && typeof parsed[key] === 'string') {
-                            const val = parseFloat(parsed[key].replace(',', '.'));
-                            parsed[key] = isNaN(val) ? undefined : val;
-                        }
-                    });
-                    setInputs(parsed);
-                } catch (err) {}
-            }
-            if (e.key === '@shopperPCC:margemDesejada') {
-                const val = parseFloat((e.newValue || '').replace(',', '.'));
-                setMargemDesejada(isNaN(val) ? undefined : val);
-            }
-        };
-        window.addEventListener('storage', handleStorageChange);
-
-        return () => {
-            unsubscribe();
-            window.removeEventListener('storage', handleStorageChange);
-        };
+        // Sync entre múltiplas abas - REMOVIDO para persistência apenas por sessão
+        // Os inputs não devem sincronizar entre abas
+        
+        return () => unsubscribe();
     }, []);
 
     const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -321,11 +283,11 @@ const ShopeePage: React.FC = () => {
 
     const isInitialLoadDone = useRef(false);
 
-    // Efeito para salvar dados no Firestore com Debounce
+    // Efeito para salvar configurações no Firestore com Debounce - APENAS CONFIGURAÇÕES (não inputs)
     useEffect(() => {
         if (!user || !isInitialLoadDone.current) return;
         
-        // Debounce para não sobrecarregar o Firestore (apenas para persistência em nuvem)
+        // Debounce para não sobrecarregar o Firestore
         const timer = setTimeout(async () => {
             try {
                 console.log("Salvando configurações no Firestore...");
@@ -333,8 +295,8 @@ const ShopeePage: React.FC = () => {
                 await setDoc(userSettingsRef, {
                     aba,
                     tipoMargemIdeal,
-                    inputs,
-                    margemDesejada,
+                    // inputs removido - persistência apenas por sessão
+                    // margemDesejada removido - persistência apenas por sessão
                     isAdvancedOpen,
                     updatedAt: new Date().toISOString()
                 }, { merge: true });
@@ -345,29 +307,15 @@ const ShopeePage: React.FC = () => {
         }, 5000); 
 
         return () => clearTimeout(timer);
-    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAdvancedOpen, user]);
+    }, [aba, tipoMargemIdeal, isAdvancedOpen, user]);
 
     // Função mantida por compatibilidade com onBlur de inputs, mas sem ação em modo manual
     const triggerCalculation = () => {
         // Modo manual: cálculo só via botão. Não executa nada aqui.
     };
 
-    // Persistência local dos dados do formulário (sem cálculo automático)
-    React.useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('@shopperPCC:aba', aba);
-            localStorage.setItem('@shopperPCC:tipoMargemIdeal', tipoMargemIdeal);
-            localStorage.setItem('@shopperPCC:inputs', JSON.stringify(inputs));
-            if (margemDesejada !== undefined) {
-                localStorage.setItem('@shopperPCC:margemDesejada', String(margemDesejada));
-            } else {
-                localStorage.removeItem('@shopperPCC:margemDesejada');
-            }
-            localStorage.setItem('@shopperPCC:isAdvancedOpen', String(isAdvancedOpen));
-            localStorage.setItem('@shopperPCC:isPasswordAuthorized', String(isPasswordAuthorized));
-        }
-        // Cálculo removido deste effect — disparado apenas pelo botão CALCULAR AGORA
-    }, [inputs, aba, margemDesejada, tipoMargemIdeal, isAdvancedOpen, isPasswordAuthorized]);
+    // Persistência removida - dados duram apenas a sessão
+    // Os inputs são perdidos quando a página é recarregada
 
 
     const updateNumericValue = (name: string, val: number | undefined) => {
@@ -442,6 +390,12 @@ const ShopeePage: React.FC = () => {
         (e.target as HTMLInputElement).blur();
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handleCalcular();
+        }
+    };
+
     const handleCalcular = () => {
         setIsCalculating(true);
         
@@ -484,6 +438,14 @@ const ShopeePage: React.FC = () => {
             
             resultado = calcularTaxasShopee({ ...inputs, precoVenda: pIdeal });
             precoFinalStr = pIdeal.toFixed(2);
+            
+            // Notificar se houve otimização
+            if (detalhesIdeal.isOtimizado) {
+                const msg = detalhesIdeal.isAlavancagem 
+                    ? "Sensor de Otimização: Estratégia de Giro (Alavancagem) aplicada!" 
+                    : "Sensor de Otimização: Sweet Spot encontrado para aumentar seu lucro!";
+                notify(msg, "success");
+            }
         }
 
         // 2. Com o resultado em mãos, gera a simulação analítica para os gráficos
@@ -794,7 +756,7 @@ const ShopeePage: React.FC = () => {
                                 strokeDasharray="5 5"
                                 label={{ 
                                     position: 'top', 
-                                    value: 'PICO DE LUCRO 🚀', 
+                                    value: 'PICO DE LUCRO', 
                                     fontSize: 11, 
                                     fill: '#064e3b', 
                                     fontWeight: 900, 
@@ -824,7 +786,7 @@ const ShopeePage: React.FC = () => {
                     </ComposedChart>
                 </ResponsiveContainer>
                 <div className="chart-footer">
-                    💡 Dica: <strong>Clique em qualquer ponto</strong> do gráfico para aplicar esse preço na calculadora.
+                    Dica: <strong>Clique em qualquer ponto</strong> do gráfico para aplicar esse preço na calculadora.
                 </div>
             </div>
         );
@@ -1049,7 +1011,7 @@ const ShopeePage: React.FC = () => {
                     </ComposedChart>
                 </ResponsiveContainer>
                 <div className="chart-footer" style={{ textAlign: 'center', marginTop: '10px', fontSize: '11px', color: '#64748b' }}>
-                    💡 Este gráfico compara diretamente em <strong>Reais (R$)</strong> o seu lucro real (verde) com as taxas totais da Shopee (laranja).
+                    Este gráfico compara diretamente em <strong>Reais (R$)</strong> o seu lucro real (verde) com as taxas totais da Shopee (laranja).
                 </div>
             </div>
         );
@@ -1206,39 +1168,42 @@ const ShopeePage: React.FC = () => {
 
     // Sugestões do Sensor - Refeito com base na lógica exata do calcularPrecoIdealDetalhado
     const sensorData = React.useMemo(() => {
+        if (aba === 'ideal') return { melhorAnteriorComp: null, melhorLeverageComp: null };
+        
         let melhorAnteriorComp: any = null;
         let melhorLeverageComp: any = null;
         
         const lucroAtualComp = activeResults?.lucroLiquido || 0;
         const precoAtualSimComp = activeResults?.precoComCupom || 0; // Usando o PA como base para descida
 
-        if (activeResults?.precoVenda && (activeInputs.custoProduto || 0) > 0 && activeInputs.fatorAlavancagemAtivo !== false) {
-            let melhorPaOtimo = precoAtualSimComp;
+
+        if (activeResults?.precoVenda && (activeInputs.custoProduto || 0) > 0) {
+
             const resAtualComp = calcularTaxasShopee(activeInputs, true);
             const lucroRefArredondado = resAtualComp.lucroLiquido;
 
-            // 1. Busca por Otimização "Sweet Spot"
+            // 1. Busca por Otimização "Sweet Spot" (VERDE) - PRIORIDADE MÁXIMA
             for (let i = 1; i <= 5000; i++) {
                 const paTeste = arredondar(precoAtualSimComp - (i / 100), 2);
                 if (paTeste <= (activeInputs.custoProduto || 0.01)) break;
 
                 const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
 
-                // Regra Inviolável: 
-                // 1. Lucro aumentou de verdade (> 1 centavo)
-                // 2. OU Lucro se manteve mas a tarifa fixa diminuiu (mudança de faixa real)
-                const isLucroMaior = resTeste.lucroLiquido > lucroRefArredondado + 0.001;
-                const isFaixaMelhor = resTeste.tarifaFixa < resAtualComp.tarifaFixa;
+                // Regra do Sensor de Otimização (VERDE):
+                // 1. O lucro aumentou de verdade (> 0,5 centavo)
+                // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
+                const diffLucro = resTeste.lucroLiquido - lucroRefArredondado;
+                const isLucroMaiorOuIgual = diffLucro >= 0; 
+                const isPrecoMenor = paTeste < precoAtualSimComp - 0.01;
 
-                if (isLucroMaior || (isFaixaMelhor && resTeste.lucroLiquido >= lucroRefArredondado - 0.001)) {
-                    melhorPaOtimo = paTeste;
+                if (isLucroMaiorOuIgual && isPrecoMenor) {
                     melhorAnteriorComp = resTeste;
                     break; 
                 }
             }
-
-            if (melhorPaOtimo >= precoAtualSimComp) {
-                // 2. Se não achou Otimização, busca Estratégia de Giro (Alavancagem)
+            
+            // 2. Só busca Estratégia de Giro (ROXA) se Sweet Spot NÃO encontrou nada
+            if (!melhorAnteriorComp) {
                 const MAX_LUCRO_PERDIDO_PCT = 0.15;
                 const MIN_ALAVANCAGEM = activeInputs.fatorAlavancagem ?? 5.0;
 
@@ -1249,7 +1214,6 @@ const ShopeePage: React.FC = () => {
                     const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
                     
                     const qPreco = precoAtualSimComp - paTeste;
-                    // qLucro baseado no que está na tela
                     const qLucro = lucroAtualComp - resTeste.lucroLiquido;
 
                     if (qLucro > 0) {
@@ -1257,7 +1221,6 @@ const ShopeePage: React.FC = () => {
                         const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
 
                         if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
-                            // Regra Inviolável: Encontrou o primeiro ponto de alavancagem, para de calcular
                             const finalGiro = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
                             melhorLeverageComp = {
                                ...finalGiro,
@@ -1267,12 +1230,26 @@ const ShopeePage: React.FC = () => {
                         }
                     }
                 }
+            } else {
+                melhorLeverageComp = null;
             }
         }
         return { melhorAnteriorComp, melhorLeverageComp };
-    }, [activeInputs, activeResults?.precoVenda, activeResults?.precoComCupom, activeResults?.lucroLiquido]);
+    }, [activeInputs, activeResults?.precoVenda, activeResults?.precoComCupom, activeResults?.lucroLiquido, aba]);
 
     const { melhorAnteriorComp, melhorLeverageComp } = sensorData;
+
+    // Efeito para disparar notificações do sensor após o cálculo (Aba Margem)
+    useEffect(() => {
+        // Se estivermos no modo Ideal ou sem resultados, não dispara o observer genérico
+        if (!results || aba === 'ideal') return;
+        
+        if (melhorAnteriorComp) {
+            notify("Oportunidade Detectada: Sweet Spot encontrado para aumentar seu lucro!", "success");
+        } else if (melhorLeverageComp) {
+            notify("Estratégia de Giro: Alavancagem sugerida para aumentar exposição.", "info");
+        }
+    }, [melhorAnteriorComp, melhorLeverageComp, results, aba]);
 
     return (
         <div className="container">
@@ -1299,7 +1276,7 @@ const ShopeePage: React.FC = () => {
                             className={`tab ${aba === 'margem' ? 'active' : ''} `}
                             onClick={() => setAba('margem')}
                         >
-                            <Calculator size={18} /> Calcular Margem
+                            <Calculator size={18} /> Calcular margem
                         </button>
                         <button
                             className={`tab ${aba === 'ideal' ? 'active' : ''} `}
@@ -1343,8 +1320,9 @@ const ShopeePage: React.FC = () => {
                                                 <div style={{
                                                     position: 'absolute', top: '100%', left: 0, right: 0,
                                                     background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px',
-                                                    maxHeight: '220px', overflowY: 'auto', zIndex: 1000,
-                                                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px'
+                                                    maxHeight: '380px', overflowY: 'auto', zIndex: 1000,
+                                                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px',
+                                                    display: 'flex', flexDirection: 'column'
                                                 }}>
                                                     {(() => {
                                                         const searchLower = searchQuery.toLowerCase();
@@ -1363,15 +1341,14 @@ const ShopeePage: React.FC = () => {
                                                                 return { ...p, _score: score };
                                                             })
                                                             .filter(p => p._score > 0)
-                                                            .sort((a, b) => b._score - a._score)
-                                                            .slice(0, 15);
+                                                            .sort((a, b) => b._score - a._score);
                                                     })().length === 0 ? (
                                                         <div style={{ padding: '0.8rem', color: '#6b7280', fontSize: '0.9rem', textAlign: 'center' }}>
                                                             Nenhum produto encontrado no catálogo.
                                                         </div>
                                                     ) : (() => {
                                                         const searchLower = searchQuery.toLowerCase();
-                                                        return catalogProducts
+                                                        const catalogResults = catalogProducts
                                                             .map(p => {
                                                                 let score = 0;
                                                                 const skuLower = (p.sku || '').toLowerCase();
@@ -1386,42 +1363,146 @@ const ShopeePage: React.FC = () => {
                                                                 return { ...p, _score: score };
                                                             })
                                                             .filter(p => p._score > 0)
-                                                            .sort((a, b) => b._score - a._score)
-                                                            .slice(0, 15);
-                                                    })().map((p, idx) => (
-                                                        <div 
-                                                            key={idx}
-                                                            style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                                            onClick={() => {
-                                                                setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
-                                                                setSearchQuery('');
-                                                                setShowSearchDropdown(false);
-                                                                setInputs(prev => ({
-                                                                    ...prev,
-                                                                    custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
-                                                                    impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
-                                                                    despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
-                                                                    despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
-                                                                    adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
-                                                                    rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
-                                                                }));
-                                                            }}
-                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
-                                                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                                                        >
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '85%' }}>
-                                                                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                    <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
-                                                                </span>
-                                                                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
-                                                                    Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
-                                                                </span>
-                                                            </div>
-                                                            <div style={{ color: '#9ca3af' }}>
-                                                                <Plus size={14} />
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                            .sort((a, b) => b._score - a._score);
+                                                            
+                                                        const ITEMS_PER_PAGE = 10;
+                                                        const totalPages = Math.ceil(catalogResults.length / ITEMS_PER_PAGE);
+                                                        const currentResults = catalogResults.slice((catalogPage - 1) * ITEMS_PER_PAGE, catalogPage * ITEMS_PER_PAGE);
+
+                                                        return (
+                                                            <>
+                                                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                                                    {currentResults.map((p, idx) => (
+                                                                        <div 
+                                                                            key={idx}
+                                                                            style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                                            onClick={() => {
+                                                                                setSelectedCatalogProduct({ sku: p.sku || '', descricao: p.descricao || '', _wh: p._wh || '' });
+                                                                                setSearchQuery('');
+                                                                                setShowSearchDropdown(false);
+                                                                                setInputs(prev => ({
+                                                                                    ...prev,
+                                                                                    custoProduto: p.custoCDP !== undefined && p.custoCDP !== 0 ? p.custoCDP : prev.custoProduto,
+                                                                                    impostoPorcentagem: p.impostosIMP !== undefined && p.impostosIMP !== 0 ? p.impostosIMP : prev.impostoPorcentagem,
+                                                                                    despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
+                                                                                    despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
+                                                                                    adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
+                                                                                    rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
+                                                                                }));
+                                                                            }}
+                                                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
+                                                                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                                                        >
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '85%' }}>
+                                                                                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                                    <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
+                                                                                </span>
+                                                                                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
+                                                                                    Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
+                                                                                </span>
+                                                                            </div>
+                                                                            <div style={{ color: '#9ca3af' }}>
+                                                                                <Plus size={14} />
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                {totalPages > 1 && (
+                                                                    <div style={{
+                                                                        display: 'flex',
+                                                                        justifyContent: 'space-between',
+                                                                        alignItems: 'center',
+                                                                        padding: '0.75rem 1rem',
+                                                                        borderTop: '1px solid #e5e7eb',
+                                                                        backgroundColor: '#f8fafc',
+                                                                        borderBottomLeftRadius: '8px',
+                                                                        borderBottomRightRadius: '8px',
+                                                                        boxShadow: '0 -2px 10px rgba(0,0,0,0.02)'
+                                                                    }}
+                                                                    onMouseDown={(e) => e.preventDefault()} // Evitar blur
+                                                                    >
+                                                                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>
+                                                                            Página {catalogPage} de {totalPages}
+                                                                        </span>
+                                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setCatalogPage(p => Math.max(1, p - 1));
+                                                                                }}
+                                                                                disabled={catalogPage === 1}
+                                                                                style={{
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    justifyContent: 'center',
+                                                                                    padding: '0.4rem',
+                                                                                    background: catalogPage === 1 ? '#f1f5f9' : '#fff',
+                                                                                    color: catalogPage === 1 ? '#94a3b8' : '#3b82f6',
+                                                                                    border: `1px solid ${catalogPage === 1 ? '#e2e8f0' : '#bfdbfe'}`,
+                                                                                    borderRadius: '6px',
+                                                                                    cursor: catalogPage === 1 ? 'not-allowed' : 'pointer',
+                                                                                    transition: 'all 0.2s ease',
+                                                                                    boxShadow: catalogPage === 1 ? 'none' : '0 1px 2px rgba(0,0,0,0.05)'
+                                                                                }}
+                                                                                onMouseEnter={(e) => {
+                                                                                    if (catalogPage !== 1) {
+                                                                                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                                                                                        e.currentTarget.style.borderColor = '#93c5fd';
+                                                                                    }
+                                                                                }}
+                                                                                onMouseLeave={(e) => {
+                                                                                    if (catalogPage !== 1) {
+                                                                                        e.currentTarget.style.backgroundColor = '#fff';
+                                                                                        e.currentTarget.style.borderColor = '#bfdbfe';
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <ChevronLeft size={16} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setCatalogPage(p => Math.min(totalPages, p + 1));
+                                                                                }}
+                                                                                disabled={catalogPage === totalPages}
+                                                                                style={{
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    justifyContent: 'center',
+                                                                                    padding: '0.4rem',
+                                                                                    background: catalogPage === totalPages ? '#f1f5f9' : '#fff',
+                                                                                    color: catalogPage === totalPages ? '#94a3b8' : '#3b82f6',
+                                                                                    border: `1px solid ${catalogPage === totalPages ? '#e2e8f0' : '#bfdbfe'}`,
+                                                                                    borderRadius: '6px',
+                                                                                    cursor: catalogPage === totalPages ? 'not-allowed' : 'pointer',
+                                                                                    transition: 'all 0.2s ease',
+                                                                                    boxShadow: catalogPage === totalPages ? 'none' : '0 1px 2px rgba(0,0,0,0.05)'
+                                                                                }}
+                                                                                onMouseEnter={(e) => {
+                                                                                    if (catalogPage !== totalPages) {
+                                                                                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                                                                                        e.currentTarget.style.borderColor = '#93c5fd';
+                                                                                    }
+                                                                                }}
+                                                                                onMouseLeave={(e) => {
+                                                                                    if (catalogPage !== totalPages) {
+                                                                                        e.currentTarget.style.backgroundColor = '#fff';
+                                                                                        e.currentTarget.style.borderColor = '#bfdbfe';
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <ChevronRight size={16} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             )}
                                         </>
@@ -1463,7 +1544,18 @@ const ShopeePage: React.FC = () => {
                                                     </span>
                                                 </div>
                                             <button 
-                                                onClick={() => setSelectedCatalogProduct(null)}
+                                                onClick={() => {
+                                                    setSelectedCatalogProduct(null);
+                                                    setInputs(prev => ({
+                                                        ...prev,
+                                                        custoProduto: undefined,
+                                                        impostoPorcentagem: undefined,
+                                                        despesaFixa: undefined,
+                                                        despesaAdicional: undefined,
+                                                        adsValor: undefined,
+                                                        rebatePorcentagem: undefined
+                                                    }));
+                                                }}
                                                 style={{ 
                                                     background: '#f3f4f6', 
                                                     border: 'none', 
@@ -1508,6 +1600,7 @@ const ShopeePage: React.FC = () => {
                                     }}
                                     onChange={handleChange}
                                     onWheel={handleWheel}
+                                    onKeyDown={handleKeyDown}
                                 />
                             </div>
 
@@ -1532,6 +1625,7 @@ const ShopeePage: React.FC = () => {
                                                 }}
                                                 onChange={handleChange}
                                                 onWheel={handleWheel}
+                                                onKeyDown={handleKeyDown}
                                             />
                                         </div>
                                     </>
@@ -1586,6 +1680,7 @@ const ShopeePage: React.FC = () => {
                                                     }}
                                                     onChange={handleChange}
                                                     onWheel={handleWheel}
+                                                    onKeyDown={handleKeyDown}
                                                 />
                                             </div>
                                         </div>
@@ -1593,257 +1688,6 @@ const ShopeePage: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Seção de Configurações Avançadas Colapsável */}
-                            <div
-                                className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!user && !isPasswordAuthorized ? 'locked' : ''}`}
-                                onClick={() => {
-                                    if (user || isPasswordAuthorized) {
-                                        setIsAdvancedOpen(!isAdvancedOpen);
-                                    } else {
-                                        setShowPasswordPrompt(!showPasswordPrompt);
-                                    }
-                                }}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <div className="header-title">
-                                    {(user || isPasswordAuthorized) ? (
-                                        <ChevronDown size={20} className="chevron-icon" />
-                                    ) : (
-                                        <Lock size={18} className="lock-icon" />
-                                    )}
-                                    <span>Configurações Avançadas</span>
-                                    {(!user && !isPasswordAuthorized) && <span className="locked-tag">Restrito</span>}
-                                    {isPasswordAuthorized && !user && <span className="unlocked-tag">Desbloqueado</span>}
-                                </div>
-                                <div className="header-line"></div>
-                            </div>
-
-                            {/* Prompt de Senha */}
-                            {showPasswordPrompt && !user && !isPasswordAuthorized && (
-                                <div className="password-prompt-container">
-                                    <form onSubmit={handlePasswordSubmit} className={`password-form ${passwordError ? 'shake' : ''}`}>
-                                        <Lock size={16} />
-                                        <input
-                                            type="password"
-                                            placeholder={isVerifyingPassword ? "Verificando..." : "Digite a senha"}
-                                            value={passwordInput}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordInput(e.target.value)}
-                                            disabled={isVerifyingPassword}
-                                            autoFocus
-                                        />
-                                        <button type="submit" disabled={isVerifyingPassword}>
-                                            {isVerifyingPassword ? '...' : 'OK'}
-                                        </button>
-                                    </form>
-                                    <p className="password-hint">
-                                        {passwordErrorMessage ? (
-                                            <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{passwordErrorMessage}</span>
-                                        ) : (
-                                            "Acesso exclusivo para administradores"
-                                        )}
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
-                                <div className="input-group" style={{ 
-                                    marginBottom: '1.5rem', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'space-between', 
-                                    backgroundColor: 'rgba(139, 92, 246, 0.05)', 
-                                    padding: '12px', 
-                                    borderRadius: '12px', 
-                                    border: '1px dashed rgba(139, 92, 246, 0.2)' 
-                                }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#6d28d9', fontWeight: 700 }}>
-                                            <Zap size={16} /> Sensor de Otimização
-                                        </label>
-                                        <span className="input-hint" style={{ margin: 0, fontSize: '0.75rem' }}>Sugere preços estratégicos e alavancagem de giro</span>
-                                    </div>
-                                    <div className="toggle-switch-premium">
-                                        <input
-                                            type="checkbox"
-                                            id="fatorAlavancagemAtivoCheck"
-                                            name="fatorAlavancagemAtivo"
-                                            checked={inputs.fatorAlavancagemAtivo !== false}
-                                            onChange={handleChange}
-                                        />
-                                        <label htmlFor="fatorAlavancagemAtivoCheck" className="switch-slider"></label>
-                                    </div>
-                                </div>
-
-                                <div className="input-group">
-                                    <label><RefreshCcw size={16} /> Fator de Alavancagem (Giro)</label>
-                                    <div className="input-with-icon">
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            name="fatorAlavancagem"
-                                            placeholder="5,00"
-                                            value={getInputValue('fatorAlavancagem', inputs.fatorAlavancagem)}
-                                            onFocus={() => {
-                                                setFocusedInput('fatorAlavancagem');
-                                                setFocusedValue(inputs.fatorAlavancagem !== undefined ? inputs.fatorAlavancagem.toFixed(2).replace('.', ',') : '');
-                                            }}
-                                            onBlur={() => {
-                                                setFocusedInput(null);
-                                                setFocusedValue('');
-                                                triggerCalculation();
-                                            }}
-                                            onChange={handleChange}
-                                            style={{ color: '#8b5cf6', fontWeight: 'bold' }}
-                                        />
-                                    </div>
-                                    <span className="input-hint">Ex: {moeda(inputs.fatorAlavancagem ?? 5)} significa que para cada R$ 1 perdido, o cliente ganha R$ {moeda(inputs.fatorAlavancagem ?? 5)} de desconto.</span>
-                                </div>
-
-                                <div className="input-section-title">Impostos e Custos Fixos</div>
-
-                                <div className="input-group">
-                                    <label><ShieldCheck size={16} /> Imposto {s('IMP')}</label>
-                                    <div className="input-composite">
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            name="impostoPorcentagem"
-                                            className="input-main"
-                                            value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)}
-                                            onFocus={() => {
-                                                setFocusedInput('impostoPorcentagem');
-                                                setFocusedValue(inputs.impostoPorcentagem !== undefined ? inputs.impostoPorcentagem.toFixed(2).replace('.', ',') : '');
-                                            }}
-                                            onBlur={() => {
-                                                setFocusedInput(null);
-                                                setFocusedValue('');
-                                                triggerCalculation();
-                                            }}
-                                            onChange={handleChange}
-                                            onWheel={handleWheel}
-                                            placeholder="0,00"
-                                        />
-                                        <select
-                                            name="impostoTipo"
-                                            className="input-unit"
-                                            value={inputs.impostoTipo}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="porcentagem">%</option>
-                                            <option value="fixo">R$</option>
-                                        </select>
-                                    </div>
-                                    <span className="input-hint">DAS, Simples Nacional, etc.</span>
-                                </div>
-
-                                <div className="input-group">
-                                    <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
-                                    <div className="input-composite">
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            name="despesaFixa"
-                                            className="input-main"
-                                            value={getInputValue('despesaFixa', inputs.despesaFixa)}
-                                            onFocus={() => {
-                                                setFocusedInput('despesaFixa');
-                                                setFocusedValue(inputs.despesaFixa !== undefined ? inputs.despesaFixa.toFixed(2).replace('.', ',') : '');
-                                            }}
-                                            onBlur={() => {
-                                                setFocusedInput(null);
-                                                setFocusedValue('');
-                                                triggerCalculation();
-                                            }}
-                                            onChange={handleChange}
-                                            onWheel={handleWheel}
-                                            placeholder="0,00"
-                                        />
-                                        <select
-                                            name="despesaFixaTipo"
-                                            className="input-unit"
-                                            value={inputs.despesaFixaTipo}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="fixo">R$</option>
-                                            <option value="porcentagem">%</option>
-                                        </select>
-                                    </div>
-                                    <span className="input-hint">Caixa, fita, etiqueta...</span>
-                                </div>
-
-                                <div className="input-group">
-                                    <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
-                                    <div className="input-composite">
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            name="despesaAdicional"
-                                            className="input-main"
-                                            value={getInputValue('despesaAdicional', inputs.despesaAdicional)}
-                                            onFocus={() => {
-                                                setFocusedInput('despesaAdicional');
-                                                setFocusedValue(inputs.despesaAdicional !== undefined ? inputs.despesaAdicional.toFixed(2).replace('.', ',') : '');
-                                            }}
-                                            onBlur={() => {
-                                                setFocusedInput(null);
-                                                setFocusedValue('');
-                                                triggerCalculation();
-                                            }}
-                                            onChange={handleChange}
-                                            onWheel={handleWheel}
-                                            placeholder="0,00"
-                                        />
-                                        <select
-                                            name="despesaAdicionalTipo"
-                                            className="input-unit"
-                                            value={inputs.despesaAdicionalTipo}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="porcentagem">%</option>
-                                            <option value="fixo">R$</option>
-                                        </select>
-                                    </div>
-                                    <span className="input-hint">Custos operacionais diversos</span>
-                                </div>
-
-                                <div className="input-section-title">Marketing e Descontos</div>
-
-                                <div className="input-group">
-                                    <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
-                                    <div className="input-composite">
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            name="adsValor"
-                                            className="input-main"
-                                            value={getInputValue('adsValor', inputs.adsValor)}
-                                            onFocus={() => {
-                                                setFocusedInput('adsValor');
-                                                setFocusedValue(inputs.adsValor !== undefined ? inputs.adsValor.toFixed(2).replace('.', ',') : '');
-                                            }}
-                                            onBlur={() => {
-                                                setFocusedInput(null);
-                                                setFocusedValue('');
-                                                triggerCalculation();
-                                            }}
-                                            onChange={handleChange}
-                                            onWheel={handleWheel}
-                                            placeholder="0,00"
-                                        />
-                                        <select
-                                            name="adsTipo"
-                                            className="input-unit"
-                                            value={inputs.adsTipo}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="fixo">R$</option>
-                                            <option value="porcentagem">%</option>
-                                            <option value="roas">ROAS</option>
-                                        </select>
-                                    </div>
-                                    <span className="input-hint">Shopee Ads por venda</span>
-                                </div>
-                            </div>
 
                             <div className="input-group">
                                 <label><Sparkles size={16} /> Crédito de Rebate {s('CR')}</label>
@@ -1915,7 +1759,239 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Valor do cupom da loja</span>
                             </div>
 
-                            {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
+                            {/* Seção de Configurações Avançadas Colapsável */}
+                            <div
+                                className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!user && !isPasswordAuthorized ? 'locked' : ''}`}
+                                onClick={() => {
+                                    if (user || isPasswordAuthorized) {
+                                        setIsAdvancedOpen(!isAdvancedOpen);
+                                    } else {
+                                        setShowPasswordPrompt(!showPasswordPrompt);
+                                    }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <div className="header-title">
+                                    {(user || isPasswordAuthorized) ? (
+                                        <ChevronDown size={20} className="chevron-icon" />
+                                    ) : (
+                                        <Lock size={18} className="lock-icon" />
+                                    )}
+                                    <span>Configurações Avançadas</span>
+                                    {(!user && !isPasswordAuthorized) && <span className="locked-tag">Restrito</span>}
+                                    {isPasswordAuthorized && !user && <span className="unlocked-tag">Desbloqueado</span>}
+                                </div>
+                                <div className="header-line"></div>
+                            </div>
+
+                            {/* Prompt de Senha */}
+                            {showPasswordPrompt && !user && !isPasswordAuthorized && (
+                                <div className="password-prompt-container">
+                                    <form onSubmit={handlePasswordSubmit} className={`password-form ${passwordError ? 'shake' : ''}`}>
+                                        <Lock size={16} />
+                                        <input
+                                            type="password"
+                                            placeholder={isVerifyingPassword ? "Verificando..." : "Digite a senha"}
+                                            value={passwordInput}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordInput(e.target.value)}
+                                            disabled={isVerifyingPassword}
+                                            autoFocus
+                                        />
+                                        <button type="submit" disabled={isVerifyingPassword}>
+                                            {isVerifyingPassword ? '...' : 'OK'}
+                                        </button>
+                                    </form>
+                                    <p className="password-hint">
+                                        {passwordErrorMessage ? (
+                                            <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{passwordErrorMessage}</span>
+                                        ) : (
+                                            "Acesso exclusivo para administradores"
+                                        )}
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
+
+
+                                <div className="input-group">
+                                    <label><RefreshCcw size={16} /> Fator de Alavancagem (Giro)</label>
+                                    <div className="input-with-icon">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="fatorAlavancagem"
+                                            placeholder="5,00"
+                                            value={getInputValue('fatorAlavancagem', inputs.fatorAlavancagem)}
+                                            onFocus={() => {
+                                                setFocusedInput('fatorAlavancagem');
+                                                setFocusedValue(inputs.fatorAlavancagem !== undefined ? inputs.fatorAlavancagem.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onKeyDown={handleKeyDown}
+                                            style={{ color: '#8b5cf6', fontWeight: 'bold' }}
+                                        />
+                                    </div>
+                                    <span className="input-hint">Ex: {moeda(inputs.fatorAlavancagem ?? 5)} significa que para cada R$ 1 perdido, o cliente ganha R$ {moeda(inputs.fatorAlavancagem ?? 5)} de desconto.</span>
+                                </div>
+
+                                <div className="input-section-title">Impostos e Custos Fixos</div>
+
+                                <div className="input-group">
+                                    <label><ShieldCheck size={16} /> Imposto {s('IMP')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="impostoPorcentagem"
+                                            className="input-main"
+                                            value={getInputValue('impostoPorcentagem', inputs.impostoPorcentagem)}
+                                            onFocus={() => {
+                                                setFocusedInput('impostoPorcentagem');
+                                                setFocusedValue(inputs.impostoPorcentagem !== undefined ? inputs.impostoPorcentagem.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="impostoTipo"
+                                            className="input-unit"
+                                            value={inputs.impostoTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="porcentagem">%</option>
+                                            <option value="fixo">R$</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">DAS, Simples Nacional, etc.</span>
+                                </div>
+
+                                <div className="input-group">
+                                    <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="despesaFixa"
+                                            className="input-main"
+                                            value={getInputValue('despesaFixa', inputs.despesaFixa)}
+                                            onFocus={() => {
+                                                setFocusedInput('despesaFixa');
+                                                setFocusedValue(inputs.despesaFixa !== undefined ? inputs.despesaFixa.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="despesaFixaTipo"
+                                            className="input-unit"
+                                            value={inputs.despesaFixaTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="fixo">R$</option>
+                                            <option value="porcentagem">%</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Caixa, fita, etiqueta...</span>
+                                </div>
+
+                                <div className="input-group">
+                                    <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="despesaAdicional"
+                                            className="input-main"
+                                            value={getInputValue('despesaAdicional', inputs.despesaAdicional)}
+                                            onFocus={() => {
+                                                setFocusedInput('despesaAdicional');
+                                                setFocusedValue(inputs.despesaAdicional !== undefined ? inputs.despesaAdicional.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="despesaAdicionalTipo"
+                                            className="input-unit"
+                                            value={inputs.despesaAdicionalTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="porcentagem">%</option>
+                                            <option value="fixo">R$</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Custos operacionais diversos</span>
+                                </div>
+
+                                <div className="input-section-title">Marketing e Descontos</div>
+
+                                <div className="input-group">
+                                    <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
+                                    <div className="input-composite">
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="adsValor"
+                                            className="input-main"
+                                            value={getInputValue('adsValor', inputs.adsValor)}
+                                            onFocus={() => {
+                                                setFocusedInput('adsValor');
+                                                setFocusedValue(inputs.adsValor !== undefined ? inputs.adsValor.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="0,00"
+                                        />
+                                        <select
+                                            name="adsTipo"
+                                            className="input-unit"
+                                            value={inputs.adsTipo}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="fixo">R$</option>
+                                            <option value="porcentagem">%</option>
+                                            <option value="roas">ROAS</option>
+                                        </select>
+                                    </div>
+                                    <span className="input-hint">Shopee Ads por venda</span>
+                                </div>
+
+                                {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
+                            </div>
+
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
                             <button 
@@ -1951,43 +2027,22 @@ const ShopeePage: React.FC = () => {
                             <Link to="/shopee/lote" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#3b82f6', borderColor: '#3b82f6', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                 <Table size={18} /> Processar Lote (CSV)
                             </Link>
+
                         </div>
                     </div>
                 </div>
 
                 <div className="calculator-right">
                     {!activeResults ? (
-                        <div className="empty-results-card" style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            height: '100%',
-                            minHeight: '400px',
-                            backgroundColor: '#f8fafc',
-                            borderRadius: '24px',
-                            border: '2px dashed #e2e8f0',
-                            padding: '40px',
-                            textAlign: 'center',
-                            gap: '16px'
-                        }}>
-                            <div style={{
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '16px',
-                                backgroundColor: '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                                marginBottom: '8px'
-                            }}>
-                                <Calculator size={32} style={{ color: '#94a3b8' }} />
+                        <div className="empty-results-card">
+                            <div className="empty-results-content">
+                                <div className="empty-results-icon-container">
+                                    <div className="empty-results-icon-pulse"></div>
+                                    <Sparkles size={48} className="empty-results-icon" style={{ color: '#EF4C29' }} />
+                                </div>
+                                <h3>Pronto para Calcular?</h3>
+                                <p>Insira os dados do seu produto ao lado para ver uma análise detalhada de margem e lucro na Shopee.</p>
                             </div>
-                            <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.5rem', color: '#475569' }}>Aguardando Parâmetros</h3>
-                            <p style={{ margin: 0, fontSize: '1rem', color: '#94a3b8', maxWidth: '300px' }}>
-                                Preencha os dados e clique no botão <strong>CALCULAR AGORA</strong> para ver os resultados.
-                            </p>
                         </div>
                     ) : (
                         <div id="quick-results">
@@ -1996,7 +2051,7 @@ const ShopeePage: React.FC = () => {
                                     {/* Sensores de Otimização */}
                                     {(() => {
                                         // 1. Otimização da Aba Ideal (Sensor Integrado)
-                                        if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado && activeInputs.fatorAlavancagemAtivo !== false) {
+                                        if (aba === 'ideal' && otimizacaoIdeal?.isOtimizado) {
                                             const paOri = otimizacaoIdeal.precoOriginal;
                                             const paOpt = otimizacaoIdeal.precoOtimizado;
 
@@ -2045,7 +2100,7 @@ const ShopeePage: React.FC = () => {
                                         }
 
                                         // 2. Otimização da Aba Margem (Detecção via Simulação)
-                                        if (melhorAnteriorComp && aba !== 'ideal' && activeInputs.fatorAlavancagemAtivo !== false) {
+                                        if (melhorAnteriorComp && aba !== 'ideal') {
                                             return (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                     <div className={`alert-box-result ${statusClass}`}>
@@ -2067,7 +2122,7 @@ const ShopeePage: React.FC = () => {
                                             );
                                         }
 
-                                        if (melhorLeverageComp && aba !== 'ideal' && activeInputs.fatorAlavancagemAtivo !== false) {
+                                        if (melhorLeverageComp && aba !== 'ideal') {
                                             const qP = activeResults.precoComCupom - melhorLeverageComp.precoComCupom;
                                             const qL = activeResults.lucroLiquido - melhorLeverageComp.lucroLiquido;
                                             const f = melhorLeverageComp.fator;
@@ -2290,7 +2345,7 @@ const ShopeePage: React.FC = () => {
             </div >
 
             <div className="table-section">
-                <h2 className="table-title">📊 Escopo de Taxas Shopee 2026 {s('PDS')}</h2>
+                <h2 className="table-title">Escopo de Taxas Shopee 2026 {s('PDS')}</h2>
                 <div className="table-responsive">
                     <table className="shopee-table">
                         <thead>
@@ -2359,6 +2414,43 @@ const ShopeePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Sistema de Notificações Toast */}
+            {notification?.show && (
+                <div className={`toast-notification ${notification.type} slide-up`}>
+                    {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+                    {notification.message}
+                </div>
+            )}
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                .toast-notification { 
+                    position: fixed; 
+                    bottom: 2rem; 
+                    right: 2rem; 
+                    padding: 1rem 1.5rem; 
+                    border-radius: 12px; 
+                    background: #1e293b; 
+                    color: white; 
+                    display: flex; 
+                    align-items: center; 
+                    gap: 0.75rem; 
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+                    z-index: 10002; 
+                    font-weight: 600; 
+                    font-size: 0.95rem; 
+                    border: 1px solid rgba(255,255,255,0.1); 
+                }
+                .toast-notification.error { background: #ef4444; border-color: #f87171; }
+                .toast-notification.success { background: #10b981; border-color: #34d399; }
+                .toast-notification.info { background: #3b82f6; border-color: #60a5fa; }
+                
+                @keyframes slideUp {
+                    from { transform: translateY(100%); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+                .slide-up { animation: slideUp 0.3s ease-out; }
+            `}} />
         </div >
     );
 };
