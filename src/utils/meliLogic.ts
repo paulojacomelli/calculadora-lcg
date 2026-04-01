@@ -22,6 +22,19 @@ export const TABELA_FRETE_MELI: Record<string, number> = {
     '29': 144.90
 };
 
+/**
+ * Retorna a chave da faixa de peso baseada no peso real em kg.
+ * Regra: Encontra a primeira chave na tabela que seja maior ou igual ao peso informado.
+ */
+export const getFaixaPesoAutomatico = (peso: number): string => {
+    if (!peso || peso <= 0) return '0.3';
+    const chaves = Object.keys(TABELA_FRETE_MELI).map(Number).sort((a, b) => a - b);
+    for (const threshold of chaves) {
+        if (peso <= threshold) return threshold.toString();
+    }
+    return chaves[chaves.length - 1].toString(); // Retorna o máximo se exceder
+};
+
 export interface MeliInput {
     custoProduto?: number;
     precoVenda?: number;
@@ -30,9 +43,8 @@ export interface MeliInput {
     comissaoPorcentagem?: number; // % da categoria
 
     freteGratis?: number; // Valor manual
-    pesoKg?: string; // Chave da tabela
-
-    custoEmbalagem?: number;
+    pesoKg?: string; // Chave da faixa de peso (legado/manual)
+    pesoRealKg?: number; // Peso físico para detecção automática
 
     despesaFixa?: number;
     despesaFixaTipo: UnidadeValor;
@@ -45,6 +57,13 @@ export interface MeliInput {
 
     adsValor?: number;
     adsTipo: TipoAds;
+
+    rebatePorcentagem?: number;
+    rebateTipo: UnidadeValor;
+
+    cupomDesconto?: number;
+    cupomTipo: UnidadeValor;
+
     fatorAlavancagem?: number;
     fatorAlavancagemAtivo?: boolean;
 }
@@ -55,7 +74,8 @@ export interface MeliOutput {
     freteGratisValor: number;
     impostoValor: number;
     custoAds: number;
-    custoEmbalagem: number;
+    rebateValor: number;
+    cupomValor: number;
     custoTotal: number;
     lucroLiquido: number;
     margemSobreVenda: number;
@@ -65,6 +85,7 @@ export interface MeliOutput {
     despesaAdicionalValor: number;
     margem: number;
     precoVenda: number;
+    precoAnunciado: number; // Preço visto pelo consumidor na vitrine (PDV + cupom)
     custoProdutoValor: number;
 }
 
@@ -89,6 +110,14 @@ export const arredondar = (num: number, casas: number = 2): number => {
     return new Decimal(num).toDecimalPlaces(casas, Decimal.ROUND_HALF_UP).toNumber();
 };
 
+// Normaliza a margem desejada para evitar NaN/infinito quebrando o cálculo.
+const normalizarMargemDesejada = (margem: number | undefined): number => {
+    if (margem === undefined || Number.isNaN(margem) || !Number.isFinite(margem)) {
+        return 0;
+    }
+    return margem;
+};
+
 /**
  * Calcula as taxas do Mercado Livre 2026
  */
@@ -105,18 +134,20 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
     const ADS: TaxaInput = { value: input.adsValor || 0, type: input.adsTipo === 'roas' ? 'fixed' : mapUnidade(input.adsTipo as UnidadeValor) };
 
     // 2. Comissão Mercado Livre
-    // Clássico costuma ser ~12-14% e Premium ~17-19% (depende da categoria)
     const comissaoPct = input.comissaoPorcentagem || (input.tipoAnuncio === 'premium' ? 17 : 12);
     const comissaoValor = arredondar(VAL({ value: comissaoPct, type: 'percent' }, PDV), 2);
 
     // 3. Taxa Fixa (Vendas abaixo de R$ 79,00)
-    // Valor padrão R$ 6,00 (ajustável para 6.50 se desejar ser mais conservador)
     const taxaFixa = (PDV < 79 && PDV > 0) ? 6.00 : 0;
 
-    // 4. Frete Grátis (Vendas a partir de R$ 79,00 costumam ser obrigatórias)
+    // 4. Frete Grátis (Vendas a partir de R$ 79,00)
     let freteGratisValor = input.freteGratis || 0;
-    if (PDV >= 79 && input.pesoKg && TABELA_FRETE_MELI[input.pesoKg]) {
-        freteGratisValor = TABELA_FRETE_MELI[input.pesoKg];
+    const faixaPeso = input.pesoRealKg !== undefined 
+        ? getFaixaPesoAutomatico(input.pesoRealKg) 
+        : input.pesoKg;
+
+    if (PDV >= 79 && faixaPeso && TABELA_FRETE_MELI[faixaPeso]) {
+        freteGratisValor = TABELA_FRETE_MELI[faixaPeso];
     }
 
     // 5. Demais Custos
@@ -124,7 +155,10 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
     const impostoValor = arredondar(VAL(IMP, PDV), 2);
     const despesaFixaValor = arredondar(VAL(DF, PDV), 2);
     const despesaAdicionalValor = arredondar(VAL(OD, PDV), 2);
-    const custoEmbalagem = input.custoEmbalagem || 0;
+
+    // Rebate e Cupom
+    const rebateValor = arredondar(VAL({ value: input.rebatePorcentagem || 0, type: mapUnidade(input.rebateTipo || 'porcentagem') }, PDV), 2);
+    const cupomValor = arredondar(VAL({ value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') }, PDV), 2);
 
     let custoAds = 0;
     if (input.adsTipo === 'roas' && input.adsValor && input.adsValor > 0) {
@@ -133,7 +167,7 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         custoAds = arredondar(VAL(ADS, PDV), 2);
     }
 
-    const dCustos = new Decimal(comissaoValor)
+    const dCustosTotal = new Decimal(comissaoValor)
         .plus(taxaFixa)
         .plus(freteGratisValor)
         .plus(custoProdutoValor)
@@ -141,28 +175,12 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         .plus(despesaFixaValor)
         .plus(despesaAdicionalValor)
         .plus(custoAds)
-        .plus(custoEmbalagem);
+        .plus(cupomValor)
+        .minus(rebateValor);
 
-    const custos = dCustos.toNumber();
-
-    // 6. Lucro Líquido
-    const LLV = new Decimal(PDV).minus(dCustos).toNumber();
-
-    const msv = PDV > 0 ? new Decimal(LLV).dividedBy(PDV).times(100).toNumber() : 0;
-    const nominalSobreCusto = new Decimal(PDV).minus(custoProdutoValor).toNumber();
-    const msc = custoProdutoValor > 0 ? (nominalSobreCusto / custoProdutoValor) * 100 : 0;
-
-    const margem = new Decimal(PDV)
-        .minus(custoProdutoValor)
-        .minus(impostoValor)
-        .minus(custoAds)
-        .minus(despesaFixaValor)
-        .minus(despesaAdicionalValor)
-        .minus(comissaoValor)
-        .minus(taxaFixa)
-        .minus(freteGratisValor)
-        .minus(custoEmbalagem)
-        .toNumber();
+    const LLV = new Decimal(PDV).minus(dCustosTotal).toNumber();
+    const msv = PDV > 0 ? (LLV / PDV) * 100 : 0;
+    const msc = custoProdutoValor > 0 ? (LLV / custoProdutoValor) * 100 : 0;
 
     return {
         comissaoValor,
@@ -170,48 +188,79 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         freteGratisValor,
         impostoValor,
         custoAds,
-        custoEmbalagem,
-        custoTotal: arredondar(custos, 2),
+        rebateValor,
+        cupomValor,
+        custoTotal: arredondar(dCustosTotal.toNumber(), 2),
         lucroLiquido: arredondar(LLV, 2),
         margemSobreVenda: arredondar(msv, 2),
         margemSobreCusto: arredondar(msc, 2),
         despesaFixaValor,
         despesaAdicionalValor,
-        margem: arredondar(margem, 2),
+        margem: arredondar(LLV, 2), // Mantendo retrocompatibilidade se 'margem' for usado como lucro
         precoVenda: arredondar(PDV, 2),
-        nominalSobreCusto: arredondar(nominalSobreCusto, 2),
+        precoAnunciado: arredondar(PDV + cupomValor, 2),
+        nominalSobreCusto: arredondar(PDV - custoProdutoValor, 2),
         custoProdutoValor
     };
 };
 
 /**
- * Solver (Busca Binária) para Preço Ideal Meli
+ * Cálculo Algébrico Direto para Preço Ideal Meli (PIA)
+ * Substitui a busca binária para garantir precisão e performance absoluta.
  */
 export const calcularPrecoIdealMeli = (
     input: MeliInput,
     margemDesejada: number | undefined,
     tipoBase: 'custo' | 'venda' = 'venda'
 ): number => {
-    const margem = margemDesejada ?? 0;
-    let min = input.custoProduto ?? 0;
-    let max = (input.custoProduto ?? 10) * 20;
-    let chute = (min + max) / 2;
+    const m = normalizarMargemDesejada(margemDesejada) / 100;
+    const custo = input.custoProduto || 0;
 
-    for (let i = 0; i < 50; i++) {
-        const resultado = calcularTaxasMeli({ ...input, precoVenda: chute });
-        const margemAtual = tipoBase === 'custo' ? resultado.margemSobreCusto : resultado.margemSobreVenda;
-
-        if (Math.abs(margemAtual - margem) < 0.001) break;
-
-        if (margemAtual < margem) {
-            min = chute;
+    const resolverCenario = (taxasFixas: number, taxasVariaveis: number): number => {
+        if (tipoBase === 'venda') {
+            const divisor = 1 - taxasVariaveis - m;
+            if (divisor <= 0) return custo * 10; 
+            return (taxasFixas + custo) / divisor;
         } else {
-            max = chute;
+            const divisor = 1 - taxasVariaveis;
+            if (divisor <= 0) return custo * 10;
+            return (taxasFixas + custo * (1 + m)) / divisor;
         }
-        chute = (min + max) / 2;
+    };
+
+    // Taxas Variáveis (%)
+    const comissaoP = (input.comissaoPorcentagem || (input.tipoAnuncio === 'premium' ? 17 : 12)) / 100;
+    const impostoP = (input.impostoPorcentagem || 0) / 100;
+    const adsP = (input.adsTipo === 'porcentagem' ? (input.adsValor || 0) / 100 : 0);
+    const cupomP = (input.cupomTipo === 'porcentagem' ? (input.cupomDesconto || 0) / 100 : 0);
+    const rebateP = (input.rebateTipo === 'porcentagem' ? (input.rebatePorcentagem || 0) / 100 : 0);
+    const despFixaP = (input.despesaFixaTipo === 'porcentagem' ? (input.despesaFixa || 0) / 100 : 0);
+    const despAdicP = (input.despesaAdicionalTipo === 'porcentagem' ? (input.despesaAdicional || 0) / 100 : 0);
+
+    const taxasVariaveis = comissaoP + impostoP + adsP + cupomP + despFixaP + despAdicP - rebateP;
+
+    // Taxas Fixas ($)
+    const despFixaV = (input.despesaFixaTipo === 'fixo' ? (input.despesaFixa || 0) : 0);
+    const despAdicV = (input.despesaAdicionalTipo === 'fixo' ? (input.despesaAdicional || 0) : 0);
+    const cupomV = (input.cupomTipo === 'fixo' ? (input.cupomDesconto || 0) : 0);
+    const rebateV = (input.rebateTipo === 'fixo' ? (input.rebatePorcentagem || 0) : 0);
+    const adsV = (input.adsTipo === 'fixo' ? (input.adsValor || 0) : 0);
+
+    const baseTaxasFixas = despFixaV + despAdicV + cupomV + adsV - rebateV;
+
+    // Cenário A: Abaixo de 79 (Com Taxa Fixa ML R$ 6.00)
+    const pdvA = resolverCenario(baseTaxasFixas + 6.00, taxasVariaveis);
+    if (pdvA < 79) return arredondar(pdvA, 2);
+
+    // Cenário B: Acima de 79 (Com Frete Grátis)
+    let freteMeli = input.freteGratis || 0;
+    const faixaPeso = input.pesoRealKg !== undefined ? getFaixaPesoAutomatico(input.pesoRealKg) : input.pesoKg;
+    if (faixaPeso && TABELA_FRETE_MELI[faixaPeso]) {
+        freteMeli = TABELA_FRETE_MELI[faixaPeso];
     }
 
-    return chute;
+    const pdvB = resolverCenario(baseTaxasFixas + freteMeli, taxasVariaveis);
+    return arredondar(pdvB, 2);
 };
 
 export interface OtimizacaoPrecoResult {
@@ -232,35 +281,14 @@ export interface OtimizacaoPrecoResult {
 }
 
 /**
- * Calcula o preço de venda ideal para atingir uma margem específica detalhadamente,
- * incluindo logs de varredura se um preço menor foi encontrado de forma otimizada.
- * Usamos busca binária para encontrar o preço exato.
+ * Calcula o preço de venda ideal com otimização Sweet Spot.
  */
 export const calcularPrecoIdealMeliDetalhado = (
     input: MeliInput,
     margemDesejada: number | undefined,
     tipoBase: 'custo' | 'venda' = 'venda'
 ): OtimizacaoPrecoResult => {
-    const margem = margemDesejada ?? 0;
-    let min = input.custoProduto ?? 0;
-    let max = (input.custoProduto ?? 10) * 50;
-    let chute = (min + max) / 2;
-
-    for (let i = 0; i < 50; i++) {
-        const resultado = calcularTaxasMeli({ ...input, precoVenda: chute });
-        const margemAtual = tipoBase === 'custo' ? resultado.margemSobreCusto : resultado.margemSobreVenda;
-
-        if (Math.abs(margemAtual - margem) < 0.0001) break;
-
-        if (margemAtual < margem) {
-            min = chute;
-        } else {
-            max = chute;
-        }
-        chute = (min + max) / 2;
-    }
-
-    const paMatematico = arredondar(chute, 2);
+    const paMatematico = calcularPrecoIdealMeli(input, margemDesejada, tipoBase);
     const resultadoReferencia = calcularTaxasMeli({ ...input, precoVenda: paMatematico });
 
     let melhorPa = paMatematico;
@@ -272,59 +300,43 @@ export const calcularPrecoIdealMeliDetalhado = (
     let quedaLucro = 0;
     let esforcoPercentual = 0;
 
-    // Otimização "Sweet Spot" e Alavancagem de Giro
     if (input.fatorAlavancagemAtivo !== false) {
-        // Camada 1: Otimização "Sweet Spot" - varredura descendente para aproveitar janelas de taxa reduzida (perto de R$ 79)
+        // Otimização "Sweet Spot" (perto de R$ 79)
         for (let i = 1; i <= 5000; i++) {
             const paTeste = arredondar(paMatematico - (i / 100), 2);
             if (paTeste <= (input.custoProduto || 0.01)) break;
 
             const resTeste = calcularTaxasMeli({ ...input, precoVenda: paTeste });
-
-            // Regra de Parada: Só otimiza se o lucro SUBIR ou se o lucro for igual mas a TAXA FIXA cair (R$ 79 threshold)
             const isLucroMaior = resTeste.lucroLiquido > melhorLucro + 0.001;
             const isFaixaMelhor = (resTeste.taxaFixa + resTeste.freteGratisValor) < (resultadoReferencia.taxaFixa + resultadoReferencia.freteGratisValor);
 
             if (isLucroMaior || (resTeste.lucroLiquido >= melhorLucro && isFaixaMelhor)) {
                 melhorPa = paTeste;
                 melhorLucro = resTeste.lucroLiquido;
-            } else if (paTeste < paMatematico - 50) {
-                // Se já baixamos R$ 50 e o lucro só cai, paramos a varredura primária
-                break;
-            }
+            } else if (paTeste < paMatematico - 50) break;
         }
 
-        // Camada 2: Alavancagem de Giro (Leverage)
-        // Reduz preço agressivamente se o sacrifício de margem for mínimo (alavancagem > fator)
+        // Alavancagem de Giro
         const fatorAlvo = input.fatorAlavancagem || 5.0;
-        
         for (let i = 1; i <= 1000; i++) {
             const paAlavanca = arredondar(melhorPa - (i / 100), 2);
             if (paAlavanca <= (input.custoProduto || 0.01)) break;
 
             const resAlavanca = calcularTaxasMeli({ ...input, precoVenda: paAlavanca });
-            
             const deltaPreco = melhorPa - paAlavanca;
             const deltaMargem = melhorLucro - resAlavanca.lucroLiquido;
 
-            if (deltaMargem <= 0) continue; // Se o lucro aumentou, a Camada 1 já pegaria ou pegará
+            if (deltaMargem <= 0) continue;
 
             const alavancagemAtual = deltaPreco / deltaMargem;
-
             if (alavancagemAtual >= fatorAlvo) {
                 isAlavancagem = true;
                 fatorAlavancagem = alavancagemAtual;
                 quedaPreco = deltaPreco;
                 quedaLucro = deltaMargem;
                 esforcoPercentual = (quedaLucro / melhorLucro) * 100;
-                
-                // Atualizamos o "melhor" para o alavancado
                 melhorPa = paAlavanca;
-                // Nota: não atualizamos melhorLucro aqui para não quebrar a referência do delta
-            } else if (i > 200 && deltaPreco > 20) {
-                // Limite de busca para performance
-                break;
-            }
+            } else if (i > 200 && deltaPreco > 20) break;
         }
     }
 
@@ -357,7 +369,6 @@ export interface ResultadoSimulacaoMeli {
     cenarios: CenarioPrecoMeli[];
     pontoIdeal: CenarioPrecoMeli;
     pAlvo?: CenarioPrecoMeli;
-    pIdeal15?: CenarioPrecoMeli;
 }
 
 /**
@@ -384,17 +395,10 @@ export const simularCenariosPrecoMeli = (
 
         const totalTaxas = res.comissaoValor + res.taxaFixa + res.freteGratisValor + res.impostoValor + res.custoAds;
         const pesoTaxas = res.precoVenda > 0 ? (totalTaxas / res.precoVenda) * 100 : 0;
-
         const metricValue = tipoBase === 'custo' ? res.margemSobreCusto : res.margemSobreVenda;
-        const eficiencia = res.lucroLiquido > 0
-            ? Math.min(100, (metricValue / (pesoTaxas || 1)) * 10)
-            : 0;
+        const eficiencia = res.lucroLiquido > 0 ? Math.min(100, (metricValue / (pesoTaxas || 1)) * 10) : 0;
 
-        cenarios.push({
-            ...res,
-            pesoTaxas,
-            eficiencia
-        });
+        cenarios.push({ ...res, pesoTaxas, eficiencia });
     }
 
     let pontoIdeal = cenarios[0];
@@ -409,5 +413,8 @@ export const simularCenariosPrecoMeli = (
         }
     });
 
-    return { cenarios, pontoIdeal };
+    const pAlvoRes = calcularPrecoIdealMeli(input, margem, tipoBase);
+    const pAlvo = { ...calcularTaxasMeli({ ...input, precoVenda: pAlvoRes }), pesoTaxas: 0, eficiencia: 0 };
+
+    return { cenarios, pontoIdeal, pAlvo };
 };
