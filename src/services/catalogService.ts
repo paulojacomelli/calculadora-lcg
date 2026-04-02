@@ -1,6 +1,6 @@
-import { 
-  doc, 
-  getDoc, 
+import {
+  doc,
+  getDoc,
   setDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -15,6 +15,7 @@ export interface Product {
   outrasDespesasOD: number;
   adsADS: number;
   rebateCR: number;
+  cupomCP?: number; // Adicionado para cálculo em massa
 }
 
 /**
@@ -24,10 +25,10 @@ export const saveUserCatalog = async (_userId: string, warehouse: 'SP' | 'SC', p
   try {
     // Caminho global na raiz do banco: catalog/{warehouse}
     const catalogRef = doc(db, 'catalog', warehouse);
-    await setDoc(catalogRef, { 
+    await setDoc(catalogRef, {
       products,
       updatedAt: new Date().toISOString(),
-      warehouse 
+      warehouse
     });
     console.log(`Sucesso: Catálogo ${warehouse} salvo em /catalog/${warehouse}`);
     return { success: true };
@@ -45,11 +46,11 @@ export const getUserCatalog = async (_userId: string, warehouse: 'SP' | 'SC'): P
     // Caminho global na raiz do banco: catalog/{warehouse}
     const catalogRef = doc(db, 'catalog', warehouse);
     const docSnap = await getDoc(catalogRef);
-    
+
     if (docSnap.exists()) {
       return docSnap.data().products as Product[];
     }
-    
+
     return [];
   } catch (error) {
     console.error(`Erro ao carregar catálogo ${warehouse}:`, error);

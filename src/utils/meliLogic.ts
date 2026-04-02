@@ -53,7 +53,7 @@ export const buscarTabelaFreteFirestore = async (
     try {
         const docRef = doc(db, 'tabelas_frete_meli', tipoReputacao);
         const snapshot = await getDoc(docRef);
-        
+
         if (snapshot.exists()) {
             const dados = snapshot.data();
             if (dados.faixas && Array.isArray(dados.faixas)) {
@@ -81,22 +81,22 @@ export const getTabelaFreteMeli = async (
     tipoReputacao: TipoReputacao = 'verde_sem_reputacao'
 ): Promise<Record<string, number>> => {
     const agora = Date.now();
-    
+
     // Verifica se o cache ainda é válido
     if (tabelaFreteCache && (agora - ultimaAtualizacaoCache) < TEMPO_CACHE_MS) {
         return tabelaFreteCache;
     }
-    
+
     // Tenta buscar do Firestore
     const tabelaFirestore = await buscarTabelaFreteFirestore(tipoReputacao);
-    
+
     if (tabelaFirestore && Object.keys(tabelaFirestore).length > 0) {
         tabelaFreteCache = tabelaFirestore;
         ultimaAtualizacaoCache = agora;
         console.log('[MeliLogic] Tabela de frete carregada do Firestore');
         return tabelaFirestore;
     }
-    
+
     // Fallback para tabela hardcoded
     console.log('[MeliLogic] Usando tabela de frete hardcoded (fallback)');
     return TABELA_FRETE_MELI_PADRAO;
@@ -249,21 +249,21 @@ const normalizarMargemDesejada = (margem: number | undefined): number => {
 export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
     // NOVA LÓGICA: O input.precoVenda agora representa o PA (Preço Anunciado)
     const PA = input.precoVenda || 0;
-    
+
     const mapUnidade = (tipo: UnidadeValor): TaxaType => tipo === 'porcentagem' ? 'percent' : 'fixed';
 
     // 1. Calcular o cupom sobre o PA (Preço Anunciado)
     const cupomValor = arredondar(VAL({ value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') }, PA), 2);
-    
+
     // 1.1 Calcular o desconto no cadastro - cálculo reverso
     // Se PA é o valor final "Por", então valor "De" = PA / (1 - desconto%)
     const dcPercent = input.descontoCadastro || 0;
     const dcTipo = input.descontoCadastroTipo || 'porcentagem';
-    
+
     let descontoCadastroValorDe: number; // Valor original (De: R$ X)
     let descontoCadastroValorPor: number; // Valor final informado (Por: R$ Y) = PA
     let descontoCadastroValor: number; // Valor do desconto em si
-    
+
     if (dcTipo === 'porcentagem' && dcPercent > 0) {
         // Cálculo reverso: PA é o valor após desconto
         // PA = ValorDe * (1 - desconto%) => ValorDe = PA / (1 - desconto%)
@@ -280,7 +280,7 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         descontoCadastroValorPor = PA;
         descontoCadastroValor = 0;
     }
-    
+
     // 2. Calcular o PDV (Preço de Venda) = PA - cupom (o DC já está "embutido" no PA)
     const PDV = arredondar(PA - cupomValor, 2);
 
@@ -300,8 +300,8 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
 
     // 6. Frete Grátis (sobre PA - política do ML)
     let freteGratisValor = input.freteGratis || 0;
-    const faixaPeso = input.pesoRealKg !== undefined 
-        ? getFaixaPesoAutomatico(input.pesoRealKg) 
+    const faixaPeso = input.pesoRealKg !== undefined
+        ? getFaixaPesoAutomatico(input.pesoRealKg)
         : input.pesoKg;
 
     const tabelaFreteAtual = getTabelaFreteMeliSync();
@@ -382,7 +382,7 @@ export const calcularPrecoIdealMeli = (
     const resolverCenario = (taxasFixas: number, taxasVariaveis: number): number => {
         if (tipoBase === 'venda') {
             const divisor = 1 - taxasVariaveis - m;
-            if (divisor <= 0) return custo * 10; 
+            if (divisor <= 0) return custo * 10;
             return (taxasFixas + custo) / divisor;
         } else {
             const divisor = 1 - taxasVariaveis;

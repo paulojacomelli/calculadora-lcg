@@ -30,18 +30,8 @@ import {
     ComposedChart, Area, Line, ReferenceLine
 } from 'recharts';
 import type { ShopeeInput, ShopeeOutput, CenarioPreco, OtimizacaoPrecoResult /* , ResultadoSweetSpot */ } from '../utils/shopeeLogic';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import {
-    calcularTaxasShopee,
-    calcularPrecoIdeal,
-    calcularPrecoIdealDetalhado,
-    simularCenariosPreco,
-    // calcularCenariosDePreco,
-    arredondar
-} from '../utils/shopeeLogic';
 import { getUserCatalog } from '../services/catalogService';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Componente de Insight de Preço (Sweet Spot)
@@ -51,8 +41,145 @@ const CardInsightPreco = ({ input }: { input: ShopeeInput }) => {
     ...
 };
 */
-import { logCalculo } from '../firebase';
-// ShopeeCsvModal removido para usar ShopeeLotePage via rota
+import { logCalculo, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { calcularTaxasShopee, calcularPrecoIdeal, calcularPrecoIdealDetalhado, simularCenariosPreco, arredondar } from '../utils/shopeeLogic';
+
+const moeda = (val: number | undefined | null) => arredondar(val || 0, 2).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Formata número como porcentagem com 2 casas decimais
+const porc = (val: number | undefined | null) => arredondar(val || 0, 2).toFixed(2).replace('.', ',');
+
+// =============================================================
+// COMPONENTES DE GRÁFICO — definidos FORA do ShopeePage para
+// evitar re-criação de referência a cada render do pai.
+// =============================================================
+
+const ComposicaoPrecoChart = React.memo(({ res, isFullscreen, onToggleFullscreen }: {
+    res: ShopeeOutput,
+    isFullscreen: boolean,
+    onToggleFullscreen: () => void
+}) => {
+    if (!res) return null;
+    const data = [
+        { name: 'PA', Lucro: res.lucroLiquido, Custo: res.custoProdutoValor, Ads: res.custoAds, Operacao: res.despesaFixaValor + res.despesaAdicionalValor, Taxas: res.comissaoValor + res.tarifaFixa + res.impostoValor, fullPreco: `R$ ${(res.precoComCupom || res.precoVenda || 0).toFixed(2)}` }
+    ];
+    return (
+        <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ background: '#fff' }}>
+            <div className="chart-header-actions">
+                <h4 className="chart-title">Composição do Preço</h4>
+                <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}>
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+            </div>
+            <ResponsiveContainer width="100%" height={isFullscreen ? '80%' : 280}>
+                <BarChart data={data} layout="vertical" margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" hide />
+                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: any, name: any) => [`R$ ${Number(value).toFixed(2)}`, name]} />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
+                    <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
+                    <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
+                    <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Op." />
+                    <Bar dataKey="Taxas" stackId="a" fill="#f97316" name="Taxas" radius={[0, 4, 4, 0]} />
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    );
+});
+
+const EstrategiaPrecoChart = React.memo(({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
+    dados: CenarioPreco[],
+    precoAtual: number,
+    pontoIdeal: CenarioPreco,
+    pontoAlvo: CenarioPreco,
+    onPriceSelect: (price: number) => void,
+    isFullscreen: boolean,
+    onToggleFullscreen: () => void
+}) => {
+    if (!dados || dados.length === 0 || !pontoIdeal) return null;
+    const isAlvoDifferentFromIdeal = pontoAlvo && Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
+    const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo?.precoVenda].filter((p): p is number => p !== undefined && !isNaN(p as number));
+    const minP = Math.min(...precosRelevantes, dados[0]?.precoVenda || 0);
+    const maxP = Math.max(...precosRelevantes, dados[dados.length - 1]?.precoVenda || 0);
+    const diff = maxP - minP;
+    const marginX = Math.max(diff * 0.15, 20);
+    const domainX = [Math.max(0, minP - marginX), maxP + marginX];
+    return (
+        <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
+            <div className="chart-header-actions">
+                <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
+                <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}>
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+            </div>
+            <ResponsiveContainer width="100%" height={isFullscreen ? '80%' : 280}>
+                <ComposedChart data={dados} margin={{ top: 40, right: 30, left: 0, bottom: 0 }} onClick={(state: any) => { if (state && state.activePayload && state.activePayload.length > 0) { onPriceSelect(state.activePayload[0].payload.precoVenda); } }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="precoVenda" type="number" domain={domainX} tickFormatter={(val) => `R$${Math.round(val)}`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7280' }} />
+                    <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#10B981' }} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(val) => `${val.toFixed(0)}%`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#f97316' }} />
+                    <Tooltip shared={true} cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: any, name: any) => [String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`, name]} />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+                    <Area yAxisId="left" type="monotone" dataKey="lucroLiquido" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
+                    <Line yAxisId="right" type="monotone" dataKey="pesoTaxas" name="Peso das Taxas (%)" stroke="#f97316" strokeWidth={2} dot={false} />
+                    <ReferenceLine yAxisId="left" y={0} stroke="#64748b" strokeWidth={1} />
+                    <ReferenceLine x={pontoIdeal.precoVenda} yAxisId="left" stroke="#10B981" strokeDasharray="3 3" label={{ position: 'top', value: 'IDEAL', fontSize: 10, fill: '#065f46', dy: -20 }} />
+                    {isAlvoDifferentFromIdeal && (<ReferenceLine x={pontoAlvo.precoVenda} yAxisId="left" stroke="#f59e0b" strokeDasharray="5 5" label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', dy: -10 }} />)}
+                    <ReferenceLine x={precoAtual} yAxisId="left" stroke="#3b82f6" strokeWidth={3} label={{ position: 'top', value: 'VOCÊ', fontSize: 11, fill: '#1e40af', fontWeight: 800, dy: -5 }} />
+                </ComposedChart>
+            </ResponsiveContainer>
+        </div>
+    );
+});
+
+const TaxasPrecoChart = React.memo(({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
+    inputs: ShopeeInput,
+    precoAtual: number,
+    isFullscreen: boolean,
+    onToggleFullscreen: () => void
+}) => {
+    // Gera array de pontos apenas quando props mudam (React.memo)
+    const points = React.useMemo(() => {
+        const pts: { x: number; lucro: number; taxas: number }[] = [];
+        const minX = Math.max(20, (inputs.custoProduto || 0) * 0.5);
+        const maxX = Math.max((precoAtual || 50) * 1.5, 300);
+        const step = (maxX - minX) / 60;
+        for (let x = minX; x <= maxX; x += step) {
+            const res = calcularTaxasShopee({ ...inputs, precoVenda: x });
+            pts.push({ x, lucro: res.lucroLiquido, taxas: res.comissaoValor + res.tarifaFixa + res.impostoValor + res.custoAds });
+        }
+        const critical = precoAtual || 0;
+        const resCrit = calcularTaxasShopee({ ...inputs, precoVenda: critical });
+        pts.push({ x: critical, lucro: resCrit.lucroLiquido, taxas: resCrit.comissaoValor + resCrit.tarifaFixa + resCrit.impostoValor + resCrit.custoAds });
+        pts.sort((a, b) => a.x - b.x);
+        return pts;
+    }, [inputs, precoAtual]);
+
+    return (
+        <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
+            <div className="chart-header-actions">
+                <h4 className="chart-title">Visualização do Escopo Shopee 2026</h4>
+                <button className="fullscreen-toggle" onClick={onToggleFullscreen}>
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+            </div>
+            <ResponsiveContainer width="100%" height={isFullscreen ? '85%' : 320}>
+                <ComposedChart data={points} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="x" type="number" domain={['auto', 'auto']} tickFormatter={(val) => `R$${val.toFixed(0)}`} />
+                    <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} />
+                    <Tooltip formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`} />
+                    <Legend verticalAlign="top" align="right" />
+                    <Area yAxisId="left" type="monotone" dataKey="lucro" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
+                    <Line yAxisId="left" type="monotone" dataKey="taxas" name="Taxas Totais (R$)" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="3 3" />
+                    <ReferenceLine x={precoAtual} yAxisId="left" stroke="#3b82f6" strokeWidth={3} label={{ value: 'SEU PREÇO', position: 'top', fill: '#1d4ed8', fontSize: 11, fontWeight: 900 }} />
+                </ComposedChart>
+            </ResponsiveContainer>
+        </div>
+    );
+});
 
 const defaultInputs: ShopeeInput = {
     custoProduto: undefined,
@@ -74,7 +201,7 @@ const defaultInputs: ShopeeInput = {
 
 const ShopeePage: React.FC = () => {
     const [aba, setAba] = useState<'margem' | 'ideal'>('ideal');
-    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo' | 'reais'>('venda');
+    const [tipoMargemIdeal, setTipoMargemIdeal] = useState<'venda' | 'custo' | 'reais'>('custo');
     const [inputs, setInputs] = useState<ShopeeInput>(defaultInputs);
     const [margemDesejada, setMargemDesejada] = useState<number | undefined>(undefined);
     const [results, setResults] = useState<ShopeeOutput | null>(null);
@@ -83,8 +210,22 @@ const ShopeePage: React.FC = () => {
     const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
     // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
     const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
+
+    // Callbacks estáveis para toggles de fullscreen — dependência zero, usa setState funcional
+    // Isso garante que React.memo nos componentes de gráfico não re-renderize por mudança de referência
+    const toggleTaxasFullscreen = React.useCallback(
+        () => setFullscreenChart(prev => prev === 'taxas' ? null : 'taxas'), []
+    );
+    const toggleEstrategiaFullscreen = React.useCallback(
+        () => setFullscreenChart(prev => prev === 'estrategia' ? null : 'estrategia'), []
+    );
+    const toggleComposicaoFullscreen = React.useCallback(
+        () => setFullscreenChart(prev => prev === 'composicao' ? null : 'composicao'), []
+    );
+
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
+    const [qtdMultiplier, setQtdMultiplier] = useState<number>(1);
 
     // Sistema de Notificações Toast
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info'; show: boolean } | null>(null);
@@ -109,92 +250,58 @@ const ShopeePage: React.FC = () => {
     const [focusedValue, setFocusedValue] = useState<string>('');
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
-    // Monitorar estado de autenticação
-    const [user, setUser] = useState<User | null>(null);
+    // Sistema de Autenticação Centralizado
+    const { user, userLevel, loading } = useAuth();
+    const isLevel3 = !loading && userLevel === 3;
+
+    // Estados auxiliares de senha
     const [isPasswordAuthorized, setIsPasswordAuthorized] = useState<boolean>(false);
-    const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-    const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
-    const [passwordError, setPasswordError] = useState(false);
-    const [passwordInput, setPasswordInput] = useState('');
+    const [showPasswordPrompt, setShowPasswordPrompt] = useState<boolean>(false);
+    const [passwordInput, setPasswordInput] = useState<string>('');
+    const [isVerifyingPassword, setIsVerifyingPassword] = useState<boolean>(false);
+    const [passwordError, setPasswordError] = useState<boolean>(false);
     const [passwordErrorMessage, setPasswordErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            
-            // Se o usuário logar, tentamos carregar as configurações dele do Firestore
-            if (currentUser) {
+        if (user) {
+            const loadUserData = async () => {
                 try {
-                    console.log("Carregando configurações do usuário do Firestore...");
-                    const userSettingsRef = doc(db, 'users', currentUser.uid, 'settings', 'shopee');
+                    const userSettingsRef = doc(db, 'users', user.uid, 'settings', 'shopee');
                     const userSettingsSnap = await getDoc(userSettingsRef);
-                    
+
                     if (userSettingsSnap.exists()) {
                         const data = userSettingsSnap.data();
-                        console.log("Configurações recuperadas com sucesso.");
-                        
-                        // Apenas configurações gerais, não inputs (persistência apenas por sessão)
                         if (data.aba) setAba(data.aba);
                         if (data.tipoMargemIdeal) setTipoMargemIdeal(data.tipoMargemIdeal);
                         if (data.isAdvancedOpen !== undefined) setIsAdvancedOpen(data.isAdvancedOpen);
-                        
-                        // Marca que o carregamento inicial foi feito
                         isInitialLoadDone.current = true;
                     }
 
-                    // Carrega o catálogo do Firestore
-                    console.log("Sincronizando catálogo com Firestore...");
                     const [cloudSP, cloudSC] = await Promise.all([
-                        getUserCatalog(currentUser.uid, 'SP'),
-                        getUserCatalog(currentUser.uid, 'SC')
+                        getUserCatalog(user.uid, 'SP'),
+                        getUserCatalog(user.uid, 'SC')
                     ]);
 
-                    let finalSP = cloudSP;
-                    let finalSC = cloudSC;
-
-                    // Se a nuvem estiver vazia, tenta o localStorage (migração legacy ou offline inicial)
-                    if (finalSP.length === 0 && finalSC.length === 0) {
-                        console.log("Nuvem vazia, tentando localStorage...");
-                        const localSP = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
-                        const localSC = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
-                        finalSP = localSP;
-                        finalSC = localSC;
-                    }
-
                     const combined = [
-                        ...finalSP.map((p: any) => ({ ...p, _wh: 'SP' })), 
-                        ...finalSC.map((p: any) => ({ ...p, _wh: 'SC' }))
+                        ...cloudSP.map((p: any) => ({ ...p, _wh: 'SP' })),
+                        ...cloudSC.map((p: any) => ({ ...p, _wh: 'SC' }))
                     ];
                     setCatalogProducts(combined);
-
                 } catch (error) {
                     console.error("Erro ao carregar dados do usuário:", error);
-                    // Fallback para localStorage em caso de erro de rede
-                    const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
-                    const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
-                    const combined = [
-                        ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
-                        ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
-                    ];
-                    setCatalogProducts(combined);
                 }
-            } else {
-                // Usuário não logado - carrega do localStorage
-                const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
-                const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
-                const combined = [
-                    ...sp.map((p: any) => ({ ...p, _wh: 'SP' })), 
-                    ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
-                ];
-                setCatalogProducts(combined);
-            }
-        });
-
-        // Sync entre múltiplas abas - REMOVIDO para persistência apenas por sessão
-        // Os inputs não devem sincronizar entre abas
-        
-        return () => unsubscribe();
-    }, []);
+            };
+            loadUserData();
+        } else {
+            const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+            const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+            const combined = [
+                ...sp.map((p: any) => ({ ...p, _wh: 'SP' })),
+                ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+            ];
+            setCatalogProducts(combined);
+        }
+    }, [user]);
 
     const handlePasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -202,13 +309,13 @@ const ShopeePage: React.FC = () => {
 
         setIsVerifyingPassword(true);
         setPasswordErrorMessage(null);
-        
+
         try {
             console.log("Iniciando verificação de senha no Firestore...");
             // Consulta a senha no Firestore (caminho: config/access)
             const docRef = doc(db, 'config', 'access');
             const docSnap = await getDoc(docRef);
-            
+
             if (!docSnap.exists()) {
                 console.warn("Documento 'config/access' não encontrado no Firestore.");
                 setPasswordErrorMessage("Configuração não encontrada no servidor.");
@@ -230,7 +337,7 @@ const ShopeePage: React.FC = () => {
             }
         } catch (error: any) {
             console.error("Erro ao verificar senha no Firestore:", error);
-            
+
             // Tratamento específico para o erro de banco não encontrado (comum se não foi ativado no console)
             if (error.message?.includes('Database') && error.message?.includes('not found')) {
                 setPasswordErrorMessage("O banco de dados Firestore não foi ativado no seu projeto Firebase Console. É necessário criar o banco '(default)' lá.");
@@ -286,7 +393,7 @@ const ShopeePage: React.FC = () => {
     // Efeito para salvar configurações no Firestore com Debounce - APENAS CONFIGURAÇÕES (não inputs)
     useEffect(() => {
         if (!user || !isInitialLoadDone.current) return;
-        
+
         // Debounce para não sobrecarregar o Firestore
         const timer = setTimeout(async () => {
             try {
@@ -304,7 +411,7 @@ const ShopeePage: React.FC = () => {
             } catch (error) {
                 console.error("Erro ao salvar configurações no Firestore:", error);
             }
-        }, 5000); 
+        }, 5000);
 
         return () => clearTimeout(timer);
     }, [aba, tipoMargemIdeal, isAdvancedOpen, user]);
@@ -398,7 +505,7 @@ const ShopeePage: React.FC = () => {
 
     const handleCalcular = () => {
         setIsCalculating(true);
-        
+
         // Simulação de processamento para feedback visual (800ms conforme solicitado)
         setTimeout(() => {
             executarCalculo();
@@ -410,22 +517,27 @@ const ShopeePage: React.FC = () => {
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
 
+        const inputsCalc = {
+            ...inputs,
+            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * qtdMultiplier : undefined
+        };
+
         // 1. Determina o resultado principal (DRE) - Sempre baseado no PA manual do usuário
         if (aba === 'margem') {
-            if (inputs.precoVenda === undefined) {
+            if (inputsCalc.precoVenda === undefined) {
                 setResults(null);
                 return;
             }
-            resultado = calcularTaxasShopee(inputs);
+            resultado = calcularTaxasShopee(inputsCalc);
             precoFinalStr = resultado.precoComCupom.toFixed(2);
         } else {
-            if (inputs.custoProduto === undefined) {
+            if (inputsCalc.custoProduto === undefined) {
                 setResults(null);
                 return;
             }
             // No modo Ideal, primeiro pegamos o preço alvo detalhado
-            const detalhesIdeal = calcularPrecoIdealDetalhado(inputs, margemDesejada, tipoMargemIdeal);
-            
+            const detalhesIdeal = calcularPrecoIdealDetalhado(inputsCalc, margemDesejada, tipoMargemIdeal);
+
             // Se encontrou uma redução esperta que aumenta lucro, armazena no state pra exibir
             if (detalhesIdeal.isOtimizado) {
                 setOtimizacaoIdeal(detalhesIdeal);
@@ -435,14 +547,14 @@ const ShopeePage: React.FC = () => {
 
             // Arredondar para 2 casas para bater com a entrada manual e evitar dízimas periódicas no cálculo
             const pIdeal = arredondar(detalhesIdeal.precoOtimizado, 2);
-            
-            resultado = calcularTaxasShopee({ ...inputs, precoVenda: pIdeal });
+
+            resultado = calcularTaxasShopee({ ...inputsCalc, precoVenda: pIdeal });
             precoFinalStr = pIdeal.toFixed(2);
-            
+
             // Notificar se houve otimização
             if (detalhesIdeal.isOtimizado) {
-                const msg = detalhesIdeal.isAlavancagem 
-                    ? "Sensor de Otimização: Estratégia de Giro (Alavancagem) aplicada!" 
+                const msg = detalhesIdeal.isAlavancagem
+                    ? "Sensor de Otimização: Estratégia de Giro (Alavancagem) aplicada!"
                     : "Sensor de Otimização: Sweet Spot encontrado para aumentar seu lucro!";
                 notify(msg, "success");
             }
@@ -450,15 +562,15 @@ const ShopeePage: React.FC = () => {
 
         // 2. Com o resultado em mãos, gera a simulação analítica para os gráficos
         // IDEAL: Agora fixo em 15% conforme solicitado pelo usuário
-        const pIdeal15 = calcularPrecoIdeal(inputs, 15, tipoMargemIdeal);
-        const resIdeal15 = calcularTaxasShopee({ ...inputs, precoVenda: pIdeal15 });
+        const pIdeal15 = calcularPrecoIdeal(inputsCalc, 15, tipoMargemIdeal);
+        const resIdeal15 = calcularTaxasShopee({ ...inputsCalc, precoVenda: pIdeal15 });
 
         const margemReferencia = margemDesejada ?? 0;
-        const sim = simularCenariosPreco({ ...inputs, precoVenda: parseFloat(precoFinalStr) }, margemReferencia, tipoMargemIdeal);
+        const sim = simularCenariosPreco({ ...inputsCalc, precoVenda: parseFloat(precoFinalStr) }, margemReferencia, tipoMargemIdeal);
 
         // 3. Injeção de Pontos Críticos para Interatividade no Gráfico
         const pAtualVal = parseFloat(precoFinalStr) || 0;
-        const resAtual = calcularTaxasShopee({ ...inputs, precoVenda: pAtualVal });
+        const resAtual = calcularTaxasShopee({ ...inputsCalc, precoVenda: pAtualVal });
 
         const pontosExtras: CenarioPreco[] = [
             { ...resAtual, pesoTaxas: (resAtual.comissaoValor + resAtual.tarifaFixa + resAtual.impostoValor + resAtual.custoAds) / (resAtual.precoVenda || 1) * 100, eficiencia: 100 },
@@ -481,547 +593,10 @@ const ShopeePage: React.FC = () => {
         setSimulacao(simComIdeal as any);
 
         setResults(resultado);
-        setLastCalculatedInputs(inputs);
+        setLastCalculatedInputs(inputsCalc);
 
         logCalculo(parseFloat(precoFinalStr), resultado.margemSobreVenda, "CNPJ");
     };
-
-    // --- Sub-componentes de Gráfico ---
-    const ComposicaoPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, isFullscreen, onToggleFullscreen }: {
-        dados: CenarioPreco[],
-        precoAtual: number,
-        pontoIdeal: CenarioPreco,
-        pontoAlvo?: CenarioPreco,
-        isFullscreen: boolean,
-        onToggleFullscreen: () => void
-    }) => {
-        const pontoVoce = dados.reduce((prev, curr) =>
-            Math.abs(curr.precoVenda - precoAtual) < Math.abs(prev.precoVenda - precoAtual) ? curr : prev
-        );
-
-        const pontosBase = dados.filter((_, idx) => idx % 6 === 0);
-
-        const pontosGrafico = [...pontosBase, pontoVoce, pontoIdeal, ...(pontoAlvo ? [pontoAlvo] : [])]
-            .sort((a, b) => a.precoVenda - b.precoVenda)
-            .filter((v, i, a) => {
-                if (v === pontoVoce || v === pontoIdeal || v === pontoAlvo) return true;
-                const especialPerto = a.some(esp =>
-                    (esp === pontoVoce || esp === pontoIdeal || esp === pontoAlvo) &&
-                    esp !== v &&
-                    Math.abs(v.precoVenda - esp.precoVenda) < 25
-                );
-                if (especialPerto) return false;
-                return i === 0 || Math.abs(v.precoVenda - a[i - 1].precoVenda) > 30;
-            })
-            .map(c => {
-                const isVoce = c === pontoVoce;
-                const isIdeal = c === pontoIdeal;
-                const isAlvo = c === pontoAlvo && c !== pontoIdeal;
-
-                let label = `R$ ${c.precoVenda.toFixed(0)}`;
-                if (isVoce) label = 'VOCÊ';
-                if (isIdeal) label = 'IDEAL';
-                if (isAlvo) label = 'ALVO';
-
-                return {
-                    name: label,
-                    fullPreco: `R$ ${c.precoVenda.toFixed(2)}`,
-                    Custo: c.custoProdutoValor || 0,
-                    Taxas: c.comissaoValor + c.tarifaFixa,
-                    Operacao: c.impostoValor + c.despesaFixaValor + c.despesaAdicionalValor,
-                    Ads: c.custoAds,
-                    Lucro: Math.max(0, c.lucroLiquido),
-                    type: isVoce ? 'voce' : (isIdeal ? 'ideal' : (isAlvo ? 'alvo' : 'normal'))
-                };
-            });
-
-        return (
-            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`}>
-                <div className="chart-header-actions">
-                    <h4 className="chart-title">Distribuição do Preço de Venda</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                    </button>
-                </div>
-                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 300}>
-                    <BarChart data={pontosGrafico} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={({ x, y, payload }: any) => {
-                                const item = pontosGrafico.find(p => p.name === payload.value);
-                                const color = item?.type === 'voce' ? '#3b82f6' : (item?.type === 'ideal' ? '#10B981' : (item?.type === 'alvo' ? '#f59e0b' : '#6b7280'));
-                                const isSpecial = item?.type !== 'normal';
-
-                                return (
-                                    <text
-                                        x={x} y={y + 12}
-                                        textAnchor="middle"
-                                        fill={color}
-                                        fontWeight={isSpecial ? 800 : 400}
-                                        fontSize={isSpecial ? 12 : 10}
-                                    >
-                                        {payload.value}
-                                    </text>
-                                );
-                            }}
-                        />
-                        <YAxis hide />
-                        <Tooltip
-                            cursor={{ fill: '#f9f9f9' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: string | undefined) => [
-                                `R$ ${Number(value).toFixed(2)}`,
-                                name ?? ''
-                            ]}
-                            labelFormatter={(label, payload) => {
-                                const item = payload?.[0]?.payload;
-                                return item ? `Preço de venda: ${item.fullPreco}` : label;
-                            }}
-                        />
-                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
-                        <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" />
-                        <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
-                        <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
-                        <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Operação" />
-                        <Bar dataKey="Taxas" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]} name="Taxas Shopee" />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
-
-    const EstrategiaPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
-        dados: CenarioPreco[],
-        precoAtual: number,
-        pontoIdeal: CenarioPreco,
-        pontoAlvo: CenarioPreco,
-        onPriceSelect: (price: number) => void,
-        isFullscreen: boolean,
-        onToggleFullscreen: () => void
-    }) => {
-        const isAlvoDifferentFromIdeal = Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
-        const isSamePriceYouAlvo = Math.abs(precoAtual - pontoAlvo.precoVenda) < 0.01;
-
-        // Encontrar picos de lucro ANTES para garantir visibilidade no domínio
-        const picos = [];
-        for (let i = 1; i < dados.length - 1; i++) {
-            if (dados[i].lucroLiquido > dados[i - 1].lucroLiquido && dados[i].lucroLiquido >= dados[i + 1].lucroLiquido) {
-                picos.push(dados[i]);
-            }
-        }
-        if (picos.length === 0 && dados.length > 0) {
-            const top = [...dados].sort((a, b) => b.lucroLiquido - a.lucroLiquido)[0];
-            if (top) picos.push(top);
-        }
-        const picoMaisProximo = picos.length > 0 ? picos.reduce((prev, curr) => 
-            Math.abs(curr.precoVenda - precoAtual) < Math.abs(prev.precoVenda - precoAtual) ? curr : prev
-        ) : null;
-
-        const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda];
-        if (picoMaisProximo) precosRelevantes.push(picoMaisProximo.precoVenda);
-
-        const minP = Math.min(...precosRelevantes);
-        const maxP = Math.max(...precosRelevantes);
-        const diff = maxP - minP;
-        
-        // Domínio com 15% de margem para respiro
-        const marginX = Math.max(diff * 0.15, 20);
-        const domainX = [Math.max(0, minP - marginX), maxP + marginX];
-
-        return (
-            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
-                <div className="chart-header-actions">
-                    <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"} style={{ appearance: 'none' }}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                    </button>
-                </div>
-                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 300}>
-                    <ComposedChart
-                        data={dados}
-                        margin={{ top: 60, right: 30, left: 0, bottom: 0 }}
-                        onClick={(state: any) => {
-                            if (state && state.activePayload && state.activePayload.length > 0) {
-                                // Pega o PA para preencher de volta no campo da calculadora
-                                const clickedPrice = state.activePayload[0].payload.precoComCupom;
-                                onPriceSelect(clickedPrice);
-                            }
-                        }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis
-                            dataKey="precoVenda"
-                            type="number"
-                            domain={domainX}
-                            tickFormatter={(val) => `R$${Math.round(val)}`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#6b7280' }}
-                        />
-                        <YAxis
-                            yAxisId="left"
-                            tickFormatter={(val) => `R$${val}`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#10B981' }}
-                        />
-                        <YAxis
-                            yAxisId="right"
-                            orientation="right"
-                            tickFormatter={(val) => `${val}%`}
-                            domain={[0, 'auto']}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#f97316' }}
-                        />
-
-                        <Tooltip
-                            shared={true}
-                            cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: string | undefined) => [
-                                String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`,
-                                name ?? ''
-                            ]}
-                            labelFormatter={(label) => `Preço: R$ ${Number(label).toFixed(2)}`}
-                        />
-                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
-
-                        <Area
-                            yAxisId="left"
-                            type="monotone"
-                            dataKey="lucroLiquido"
-                            name="Lucro Líquido (R$)"
-                            stroke="#10B981"
-                            fill="#10B981"
-                            fillOpacity={0.1}
-                        />
-                        <Line
-                            yAxisId="right"
-                            type="monotone"
-                            dataKey="pesoTaxas"
-                            name="Peso das Taxas (%)"
-                            stroke="#f97316"
-                            strokeWidth={2}
-                            dot={false}
-                        />
-
-                        <ReferenceLine
-                            yAxisId="left"
-                            y={0}
-                            stroke="#64748b"
-                            strokeWidth={1}
-                        />
-
-                        <ReferenceLine
-                            x={pontoIdeal.precoVenda}
-                            stroke="#10B981"
-                            strokeDasharray="3 3"
-                            label={{ position: 'top', value: 'IDEAL (15%)', fontSize: 10, fill: '#065f46', fontWeight: 'bold', dy: -35 }}
-                        />
-
-                        {isAlvoDifferentFromIdeal && (
-                            <ReferenceLine
-                                x={pontoAlvo.precoVenda}
-                                stroke="#f59e0b"
-                                strokeDasharray="5 5"
-                                label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', fontWeight: 'bold', dy: -18 }}
-                            />
-                        )}
-
-                        <ReferenceLine
-                            key="ref-line-preco-atual"
-                            x={precoAtual}
-                            stroke="#3b82f6"
-                            strokeWidth={4}
-                            label={{ 
-                                position: 'top', 
-                                value: isSamePriceYouAlvo ? 'VOCÊ (ALVO)' : 'VOCÊ', 
-                                fontSize: 13, 
-                                fill: '#1e40af', 
-                                fontWeight: 900, 
-                                dy: -15
-                            }}
-                        />
-
-                        {picoMaisProximo && (
-                            <ReferenceLine
-                                key="ref-line-pico-lucro"
-                                x={picoMaisProximo.precoVenda}
-                                stroke="#10B981"
-                                strokeWidth={3}
-                                strokeDasharray="5 5"
-                                label={{ 
-                                    position: 'top', 
-                                    value: 'PICO DE LUCRO', 
-                                    fontSize: 11, 
-                                    fill: '#064e3b', 
-                                    fontWeight: 900, 
-                                    dy: -40 
-                                }}
-                            />
-                        )}
-
-                        {/* Indicadores de Mudança de Política (Degraus) */}
-                        {[80, 100, 200, 500].map(threshold => (
-                            <ReferenceLine
-                                key={`threshold-${threshold}`}
-                                x={threshold}
-                                stroke="#fca5a5"
-                                strokeWidth={1}
-                                strokeDasharray="4 4"
-                                label={{ 
-                                    position: 'insideBottomRight', 
-                                    value: `R$ ${threshold}`, 
-                                    fill: '#7f1d1d', 
-                                    fontSize: 9, 
-                                    fontWeight: 700,
-                                    dy: -10
-                                }}
-                            />
-                        ))}
-                    </ComposedChart>
-                </ResponsiveContainer>
-                <div className="chart-footer">
-                    Dica: <strong>Clique em qualquer ponto</strong> do gráfico para aplicar esse preço na calculadora.
-                </div>
-            </div>
-        );
-    };
-
-    const TaxasPrecoChart = ({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
-        inputs: ShopeeInput,
-        precoAtual: number,
-        isFullscreen: boolean,
-        onToggleFullscreen: () => void
-    }) => {
-        const getPaFromPdv = (pdv: number) => {
-            let pa = pdv;
-            if ((inputs.cupomDesconto || 0) > 0) {
-                if (inputs.cupomTipo === 'porcentagem') {
-                    pa = pdv / (1 - (inputs.cupomDesconto! / 100));
-                } else {
-                    pa = pdv + inputs.cupomDesconto!;
-                }
-            }
-            return Math.max(0.01, pa);
-        };
-
-        const degrausPdv = [79.99, 99.99, 199.99, 499.99];
-        const degrausPa = degrausPdv.flatMap(pdv => [
-            getPaFromPdv(pdv), 
-            getPaFromPdv(pdv + 0.01)
-        ]);
-
-        const minX = Math.max(20, (inputs.custoProduto || 0) * 0.4);
-        const maxX = Math.max(precoAtual * 1.5, (inputs.custoProduto || 0) * 2.5, 250);
-        const step = (maxX - minX) / 80;
-        const simData: any[] = [];
-        const pontosX = [];
-        for (let x = minX; x <= maxX; x += step) {
-            pontosX.push(x);
-        }
-        
-        // Injetar pontos críticos (Degraus calculados + Preco Atual)
-        pontosX.push(precoAtual, ...degrausPa);
-        pontosX.sort((a, b) => a - b);
-        const pontosUnicos = pontosX.filter((v, i, a) => i === 0 || Math.abs(v - a[i - 1]) > 0.01);
-
-        // Garantir que o domínio do eixo X englobe o preço atual e os degraus visíveis
-        const precosVisiveis = [precoAtual, ...degrausPa.filter(t => t < maxX)];
-        const finalMinX = Math.min(minX, ...precosVisiveis) * 0.9;
-        const finalMaxX = Math.max(maxX, ...precosVisiveis) * 1.1;
-
-        pontosUnicos.forEach(paSim => {
-            const res = calcularTaxasShopee({ ...inputs, precoVenda: paSim });
-            const taxaShopeeRS = res.comissaoValor + res.tarifaFixa;
-            const taxaShopeeTotalPct = res.precoVenda > 0 ? (taxaShopeeRS / res.precoVenda) * 100 : 0;
-            const custoPDL_RS = (res as any).custoProdutoValor + res.impostoValor + res.despesaFixaValor + res.despesaAdicionalValor + res.custoAds;
-            const lucroLiquidoRS = res.lucroLiquido;
-            const llv = res.margemSobreVenda;
-
-            simData.push({
-                ...res,
-                paEixoX: paSim,
-                taxaTotalPct: taxaShopeeTotalPct,
-                llv: llv,
-                llvVisual: Math.max(llv, -150), // Cap visual para não quebrar a escala
-                lucroRS: lucroLiquidoRS, // Usaremos o lucro nominal para a linha verde ser mais intuitiva
-                custoLcg: custoPDL_RS,
-                taxaShopeeRS: taxaShopeeRS,
-                isLoss: llv < 0
-            });
-        });
-
-        return (
-            <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
-                <div className="chart-header-actions">
-                    <h4 className="chart-title">Visualização do Escopo Shopee 2026</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                    </button>
-                </div>
-                <ResponsiveContainer width="100%" height={isFullscreen ? "85%" : 320}>
-                    <ComposedChart data={simData} margin={{ top: 30, right: 30, left: 10, bottom: 20 }}>
-                        <defs>
-                            <linearGradient id="lossGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis
-                            dataKey="paEixoX"
-                            type="number"
-                            domain={[finalMinX, finalMaxX]}
-                            tickFormatter={(val) => `R$${val.toFixed(0)}`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#6b7280' }}
-                            label={{ value: 'Preço Anunciado Simulado (PA) (R$)', position: 'bottom', offset: 0, fontSize: 10 }}
-                        />
-                        <YAxis
-                            yAxisId="left"
-                            tickFormatter={(val) => `R$ ${val}`}
-                            domain={['auto', 'auto']}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#64748b' }}
-                        />
-                        <Tooltip
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', padding: '12px' }}
-                            formatter={(value: any, name: any) => [
-                                String(name).includes('%') ? `${Number(value).toFixed(2)}%` : `R$ ${Number(value).toFixed(2)}`,
-                                name ?? ''
-                            ]}
-                            content={({ active, payload, label }) => {
-                                if (active && payload && payload.length) {
-                                    const d = payload[0].payload;
-                                    return (
-                                        <div className="custom-tooltip shadow-lg" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', minWidth: '200px' }}>
-                                            <p className="font-extrabold text-gray-800 border-bottom mb-3 pb-2 text-sm" style={{ borderBottom: '2px solid #f1f5f9' }}>
-                                                PA Simulado: <span style={{ color: '#2563eb' }}>R$ {Number(label).toFixed(2)}</span>
-                                            </p>
-                                            <div className="space-y-2 text-xs" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span className="text-gray-500">Preço Anunciado [PA]:</span>
-                                                    <span className="font-bold text-gray-900">R$ {d.precoComCupom.toFixed(2)}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span className="text-gray-500">Preço de Venda [PDV]:</span>
-                                                    <span className="font-bold text-gray-900">R$ {d.precoVenda.toFixed(2)}</span>
-                                                </div>
-                                                <div className="pt-1 mt-1" style={{ borderTop: '1px dashed #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span className="text-gray-500">Política da Shopee [PDS]:</span>
-                                                    <span className="font-bold" style={{ color: '#f97316' }}>- R$ {(d.taxaShopeeRS).toFixed(2)}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span className="text-gray-500">Política da LCG [PDL]:</span>
-                                                    <span className="font-bold" style={{ color: '#ef4444' }}>- R$ {(d.custoLcg).toFixed(2)}</span>
-                                                </div>
-                                                <div className="pt-2 mt-1" style={{ borderTop: '2px solid #f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span className="font-bold text-gray-700">Lucro Líquido Final [LLV]:</span>
-                                                    <span className="font-black" style={{ color: d.llv < 0 ? '#dc2626' : '#16a34a', fontSize: '1.2em' }}>
-                                                        R$ {d.lucroRS.toFixed(2)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            }}
-                        />
-                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px' }} />
-                        <Area
-                            yAxisId="left"
-                            type="monotone"
-                            dataKey="lucroRS"
-                            name="Lucro Líquido Real (R$)"
-                            stroke="#10B981"
-                            strokeWidth={3}
-                            fill={inputs.custoProduto ? "url(#lossGradient)" : "transparent"}
-                            baseValue={0}
-                            connectNulls
-                        />
-                        <Line
-                            yAxisId="left"
-                            type="monotone"
-                            dataKey="taxaShopeeRS"
-                            name="Taxas Shopee (R$)"
-                            stroke="#f97316"
-                            strokeWidth={2}
-                            dot={false}
-                            strokeDasharray="3 3"
-                        />
-                        <ReferenceLine
-                            key="tax-ref-preco-atual"
-                            x={precoAtual}
-                            stroke="#3b82f6"
-                            strokeWidth={4}
-                            label={{ 
-                                position: 'top', 
-                                value: 'SEU PREÇO', 
-                                fill: '#1d4ed8', 
-                                fontSize: 12, 
-                                fontWeight: 900, 
-                                dy: -15 
-                            }}
-                        />
-                        
-                        {/* Indicadores de Mudança de Política (Degraus) */}
-                        {degrausPdv.map(pdv => {
-                            const paThreshold = getPaFromPdv(pdv + 0.01); // Renderiza a linha na fronteira de aumento da taxa (ex: > 79.99)
-                            return (
-                                <ReferenceLine
-                                    key={`tax-threshold-${pdv}`}
-                                    x={paThreshold}
-                                    stroke="#ef4444"
-                                    strokeWidth={2}
-                                    strokeDasharray="3 3"
-                                    label={{ 
-                                        position: 'insideBottomLeft', 
-                                        value: `Regra \n(PDV > ${pdv})`, 
-                                        fill: '#b91c1c', 
-                                        fontSize: 10, 
-                                        fontWeight: 800,
-                                        angle: 0
-                                    }}
-                                />
-                            );
-                        })}
-
-                        <ReferenceLine 
-                            yAxisId="left" 
-                            y={0} 
-                            stroke="#64748b" 
-                            strokeWidth={1} 
-                            label={{ 
-                                value: 'Ponto de Equilíbrio (R$ 0,00)', 
-                                position: 'insideBottomRight', 
-                                offset: 10,
-                                fill: '#64748b', 
-                                fontSize: 10, 
-                                fontWeight: 700 
-                            }} 
-                        />
-                    </ComposedChart>
-                </ResponsiveContainer>
-                <div className="chart-footer" style={{ textAlign: 'center', marginTop: '10px', fontSize: '11px', color: '#64748b' }}>
-                    Este gráfico compara diretamente em <strong>Reais (R$)</strong> o seu lucro real (verde) com as taxas totais da Shopee (laranja).
-                </div>
-            </div>
-        );
-    };
-
-    // --- Novas Ferramentas de Otimização ---
-
-
-
-
 
     const handleLimpar = () => {
         setIsResetModalOpen(true);
@@ -1038,20 +613,13 @@ const ShopeePage: React.FC = () => {
         setIsResetModalOpen(false);
     };
 
-    const moeda = (val: number | undefined) =>
-        arredondar(val || 0, 2).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-    const porc = (v: number) => {
-        // Formata com no máximo 2 casas decimais usando o arredondamento financeiro
-        const num = arredondar(v, 2);
-        return num.toString().replace(".", ",");
-    };
+    // --- ESTADO DERIVADO PARA RENDERIZAÇÃO ---
 
     // --- ESTADO DERIVADO PARA RENDERIZAÇÃO ---
     // resultsRef mantém o último cálculo realizado para evitar "flashing" ou retorno ao tempo real indesejado
     const resultsRef = useRef<ShopeeOutput | null>(null);
     if (results) resultsRef.current = results;
-    
+
 
 
     // activeResults usa apenas o último resultado calculado pelo botão.
@@ -1060,7 +628,7 @@ const ShopeePage: React.FC = () => {
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
-    
+
     let statusClass = 'status-orange';
     let statusIcon = <AlertCircle size={20} />;
     let statusText = 'Margem apertada';
@@ -1127,14 +695,14 @@ const ShopeePage: React.FC = () => {
                     <div className="result-value" style={{
                         color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
                     }}>
-                        R$ {moeda(res.precoVenda)}
+                        R$ {moeda(res.precoComCupom)}
                     </div>
                     <div className="result-sub" style={{
                         color: res.margemSobreVenda <= 0 ? '#b91c1c' : (res.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
                         opacity: 1,
                         fontWeight: 600
                     }}>
-                        {isIdealFull ? "Melhor preço identificado" : "Valor sem cupom"}
+                        {isIdealFull ? "Valor efetivo da venda" : "Valor efetivo da venda"}
                     </div>
                     <ShoppingCart size={24} className="card-icon" style={{
                         opacity: 0.1,
@@ -1149,11 +717,19 @@ const ShopeePage: React.FC = () => {
                     <div className="result-label" style={{ color: '#1e3a8a' }}>
                         {isIdealFull ? <>PREÇO IDEAL ANUNCIADO {s('PIA')}</> : <>PREÇO ANUNCIADO {s('PA')}</>}
                     </div>
-                    <div className="result-value" style={{ color: '#1e40af' }}>
-                        R$ {moeda(res.precoComCupom)}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem', zIndex: 2, position: 'relative' }}>
+                        <span style={{
+                            fontSize: '2.1rem',
+                            fontWeight: 900,
+                            color: '#1e40af'
+                        }}>
+                            R$ {moeda(res.precoVenda)}
+                        </span>
                     </div>
-                    <div className="result-sub" style={{ color: '#1e40af', opacity: 1 }}>
-                        Valor exibido na vitrine
+
+                    <div className="result-sub" style={{ color: '#1e40af', opacity: 1, marginTop: '0.5rem' }}>
+                        {isIdealFull ? "Valor a ser configurado no painel" : "Valor configurado no painel"}
                     </div>
                     <TrendingUp size={24} className="card-icon" style={{
                         opacity: 0.1,
@@ -1169,10 +745,10 @@ const ShopeePage: React.FC = () => {
     // Sugestões do Sensor - Refeito com base na lógica exata do calcularPrecoIdealDetalhado
     const sensorData = React.useMemo(() => {
         if (aba === 'ideal') return { melhorAnteriorComp: null, melhorLeverageComp: null };
-        
+
         let melhorAnteriorComp: any = null;
         let melhorLeverageComp: any = null;
-        
+
         const lucroAtualComp = activeResults?.lucroLiquido || 0;
         const precoAtualSimComp = activeResults?.precoComCupom || 0; // Usando o PA como base para descida
 
@@ -1193,15 +769,15 @@ const ShopeePage: React.FC = () => {
                 // 1. O lucro aumentou de verdade (> 0,5 centavo)
                 // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
                 const diffLucro = resTeste.lucroLiquido - lucroRefArredondado;
-                const isLucroMaiorOuIgual = diffLucro >= 0; 
+                const isLucroMaiorOuIgual = diffLucro >= 0;
                 const isPrecoMenor = paTeste < precoAtualSimComp - 0.01;
 
                 if (isLucroMaiorOuIgual && isPrecoMenor) {
                     melhorAnteriorComp = resTeste;
-                    break; 
+                    break;
                 }
             }
-            
+
             // 2. Só busca Estratégia de Giro (ROXA) se Sweet Spot NÃO encontrou nada
             if (!melhorAnteriorComp) {
                 const MAX_LUCRO_PERDIDO_PCT = 0.15;
@@ -1212,7 +788,7 @@ const ShopeePage: React.FC = () => {
                     if (paTeste <= (activeInputs.custoProduto || 0.01)) break;
 
                     const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
-                    
+
                     const qPreco = precoAtualSimComp - paTeste;
                     const qLucro = lucroAtualComp - resTeste.lucroLiquido;
 
@@ -1223,10 +799,10 @@ const ShopeePage: React.FC = () => {
                         if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
                             const finalGiro = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
                             melhorLeverageComp = {
-                               ...finalGiro,
-                               fator: fator
+                                ...finalGiro,
+                                fator: fator
                             };
-                            break; 
+                            break;
                         }
                     }
                 }
@@ -1243,7 +819,7 @@ const ShopeePage: React.FC = () => {
     useEffect(() => {
         // Se estivermos no modo Ideal ou sem resultados, não dispara o observer genérico
         if (!results || aba === 'ideal') return;
-        
+
         if (melhorAnteriorComp) {
             notify("Oportunidade Detectada: Sweet Spot encontrado para aumentar seu lucro!", "success");
         } else if (melhorLeverageComp) {
@@ -1294,11 +870,11 @@ const ShopeePage: React.FC = () => {
                         <div className="parameters-grid">
                             <div className="input-section-title">Valores Base</div>
 
-                            {/* Busca no Catálogo — visível apenas para usuários autenticados */}
-                            {user && (
+                            {/* Busca no Catálogo — visível apenas para usuários autenticados (oculto no nível 3) */}
+                            {user && !isLevel3 && (
                                 <div className="input-group" style={{ position: 'relative', marginBottom: '1rem', zIndex: showSearchDropdown ? 100 : 1 }}>
                                     <label style={{ color: '#4b5563', fontWeight: 700 }}><Search size={16} /> Buscar no Catálogo</label>
-                                    
+
                                     {!selectedCatalogProduct ? (
                                         <>
                                             <input
@@ -1364,7 +940,7 @@ const ShopeePage: React.FC = () => {
                                                             })
                                                             .filter(p => p._score > 0)
                                                             .sort((a, b) => b._score - a._score);
-                                                            
+
                                                         const ITEMS_PER_PAGE = 10;
                                                         const totalPages = Math.ceil(catalogResults.length / ITEMS_PER_PAGE);
                                                         const currentResults = catalogResults.slice((catalogPage - 1) * ITEMS_PER_PAGE, catalogPage * ITEMS_PER_PAGE);
@@ -1373,7 +949,7 @@ const ShopeePage: React.FC = () => {
                                                             <>
                                                                 <div style={{ flex: 1, overflowY: 'auto' }}>
                                                                     {currentResults.map((p, idx) => (
-                                                                        <div 
+                                                                        <div
                                                                             key={idx}
                                                                             style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                                                                             onClick={() => {
@@ -1419,7 +995,7 @@ const ShopeePage: React.FC = () => {
                                                                         borderBottomRightRadius: '8px',
                                                                         boxShadow: '0 -2px 10px rgba(0,0,0,0.02)'
                                                                     }}
-                                                                    onMouseDown={(e) => e.preventDefault()} // Evitar blur
+                                                                        onMouseDown={(e) => e.preventDefault()} // Evitar blur
                                                                     >
                                                                         <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>
                                                                             Página {catalogPage} de {totalPages}
@@ -1508,42 +1084,42 @@ const ShopeePage: React.FC = () => {
                                         </>
                                     ) : (
                                         /* Exibição do produto dentro da "barra" */
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            gap: '8px', 
-                                            background: '#f9fafb', 
-                                            border: '1px solid #e5e7eb', 
-                                            borderRadius: '8px', 
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            background: '#f9fafb',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '8px',
                                             padding: '0.65rem 0.75rem',
                                             width: '100%',
                                             minHeight: '45.6px'
                                         }}>
                                             <Search size={16} style={{ color: '#6b7280', flexShrink: 0 }} />
-                                                <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ 
-                                                        background: selectedCatalogProduct._wh === 'SP' ? '#e0f2fe' : '#fef08a', 
-                                                        color: selectedCatalogProduct._wh === 'SP' ? '#0284c7' : '#854d0e', 
-                                                        fontWeight: 800, 
-                                                        fontSize: '0.7rem', 
-                                                        padding: '2px 8px', 
-                                                        borderRadius: '4px',
-                                                        flexShrink: 0
-                                                    }}>
-                                                        {selectedCatalogProduct._wh}
-                                                    </span>
-                                                    <span style={{ 
-                                                        color: '#1f2937', 
-                                                        fontWeight: 700, 
-                                                        fontSize: '0.85rem',
-                                                        whiteSpace: 'nowrap', 
-                                                        overflow: 'hidden', 
-                                                        textOverflow: 'ellipsis' 
-                                                    }}>
-                                                        {selectedCatalogProduct.sku} — <span style={{ fontWeight: 500, opacity: 0.8 }}>{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
-                                                    </span>
-                                                </div>
-                                            <button 
+                                            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{
+                                                    background: selectedCatalogProduct._wh === 'SP' ? '#e0f2fe' : '#fef08a',
+                                                    color: selectedCatalogProduct._wh === 'SP' ? '#0284c7' : '#854d0e',
+                                                    fontWeight: 800,
+                                                    fontSize: '0.7rem',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '4px',
+                                                    flexShrink: 0
+                                                }}>
+                                                    {selectedCatalogProduct._wh}
+                                                </span>
+                                                <span style={{
+                                                    color: '#1f2937',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}>
+                                                    {selectedCatalogProduct.sku} — <span style={{ fontWeight: 500, opacity: 0.8 }}>{selectedCatalogProduct.descricao || 'Sem descrição'}</span>
+                                                </span>
+                                            </div>
+                                            <button
                                                 onClick={() => {
                                                     setSelectedCatalogProduct(null);
                                                     setInputs(prev => ({
@@ -1556,17 +1132,17 @@ const ShopeePage: React.FC = () => {
                                                         rebatePorcentagem: undefined
                                                     }));
                                                 }}
-                                                style={{ 
-                                                    background: '#f3f4f6', 
-                                                    border: 'none', 
-                                                    borderRadius: '50%', 
-                                                    width: '24px', 
-                                                    height: '24px', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
+                                                style={{
+                                                    background: '#f3f4f6',
+                                                    border: 'none',
+                                                    borderRadius: '50%',
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    cursor: 'pointer', 
-                                                    color: '#ef4444', 
+                                                    cursor: 'pointer',
+                                                    color: '#ef4444',
                                                     fontSize: '1.2rem',
                                                     lineHeight: 0,
                                                     transition: 'all 0.2s'
@@ -1584,24 +1160,38 @@ const ShopeePage: React.FC = () => {
 
                             <div className="input-group">
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    name="custoProduto"
-                                    placeholder="0,00"
-                                    value={getInputValue('custoProduto', inputs.custoProduto)}
-                                    onFocus={() => {
-                                        setFocusedInput('custoProduto');
-                                        setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toFixed(2).replace('.', ',') : '');
-                                    }}
-                                    onBlur={() => {
-                                        setFocusedInput(null);
-                                        setFocusedValue('');
-                                    }}
-                                    onChange={handleChange}
-                                    onWheel={handleWheel}
-                                    onKeyDown={handleKeyDown}
-                                />
+                                <div className="input-composite">
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        name="custoProduto"
+                                        className="input-main"
+                                        placeholder="0,00"
+                                        value={getInputValue('custoProduto', inputs.custoProduto)}
+                                        onFocus={() => {
+                                            setFocusedInput('custoProduto');
+                                            setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toFixed(2).replace('.', ',') : '');
+                                        }}
+                                        onBlur={() => {
+                                            setFocusedInput(null);
+                                            setFocusedValue('');
+                                        }}
+                                        onChange={handleChange}
+                                        onWheel={handleWheel}
+                                        onKeyDown={handleKeyDown}
+                                    />
+                                    <div className="input-unit" style={{ padding: 0, display: 'flex', alignItems: 'center', background: '#f8fafc', cursor: 'default' }}>
+                                        <span style={{ paddingLeft: '12px', paddingRight: '4px', color: '#64748b', fontWeight: 600 }}>x</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={qtdMultiplier}
+                                            onChange={(e) => setQtdMultiplier(Math.max(1, parseInt(e.target.value) || 1))}
+                                            style={{ width: '48px', border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', padding: '0.75rem 0', fontWeight: 600, color: 'inherit' }}
+                                            title="Multiplicador de quantidade (Ex: Kit com 2)"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="input-group">
@@ -1759,30 +1349,20 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Valor do cupom da loja</span>
                             </div>
 
-                            {/* Seção de Configurações Avançadas Colapsável */}
-                            <div
-                                className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!user && !isPasswordAuthorized ? 'locked' : ''}`}
-                                onClick={() => {
-                                    if (user || isPasswordAuthorized) {
-                                        setIsAdvancedOpen(!isAdvancedOpen);
-                                    } else {
-                                        setShowPasswordPrompt(!showPasswordPrompt);
-                                    }
-                                }}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <div className="header-title">
-                                    {(user || isPasswordAuthorized) ? (
+                            {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
+                            {!isLevel3 && (
+                                <div
+                                    className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''}`}
+                                    onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <div className="header-title">
                                         <ChevronDown size={20} className="chevron-icon" />
-                                    ) : (
-                                        <Lock size={18} className="lock-icon" />
-                                    )}
-                                    <span>Configurações Avançadas</span>
-                                    {(!user && !isPasswordAuthorized) && <span className="locked-tag">Restrito</span>}
-                                    {isPasswordAuthorized && !user && <span className="unlocked-tag">Desbloqueado</span>}
+                                        <span>Configurações Avançadas</span>
+                                    </div>
+                                    <div className="header-line"></div>
                                 </div>
-                                <div className="header-line"></div>
-                            </div>
+                            )}
 
                             {/* Prompt de Senha */}
                             {showPasswordPrompt && !user && !isPasswordAuthorized && (
@@ -1994,12 +1574,12 @@ const ShopeePage: React.FC = () => {
 
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
-                            <button 
-                                className="btn-primary" 
-                                style={{ 
-                                    width: '100%', 
-                                    background: '#ee4d2d', 
-                                    borderColor: '#ee4d2d', 
+                            <button
+                                className="btn-primary"
+                                style={{
+                                    width: '100%',
+                                    background: '#ee4d2d',
+                                    borderColor: '#ee4d2d',
                                     marginBottom: '0.5rem',
                                     fontWeight: 'bold',
                                     fontSize: '1.1rem',
@@ -2010,7 +1590,7 @@ const ShopeePage: React.FC = () => {
                                     gap: '8px',
                                     transition: 'all 0.3s ease',
                                     opacity: isCalculating ? 0.8 : 1
-                                }} 
+                                }}
                                 onClick={handleCalcular}
                                 disabled={isCalculating}
                             >
@@ -2024,9 +1604,11 @@ const ShopeePage: React.FC = () => {
                             <button className="btn-outline" style={{ width: '100%' }} onClick={handleLimpar}>
                                 <RotateCcw size={18} /> Reiniciar Calculadora
                             </button>
-                            <Link to="/shopee/lote" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#3b82f6', borderColor: '#3b82f6', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                <Table size={18} /> Processar Lote (CSV)
-                            </Link>
+                            {!isLevel3 && (
+                                <Link to="/shopee/lote" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#3b82f6', borderColor: '#3b82f6', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Table size={18} /> Processar Lote
+                                </Link>
+                            )}
 
                         </div>
                     </div>
@@ -2057,68 +1639,55 @@ const ShopeePage: React.FC = () => {
 
                                             if (otimizacaoIdeal.isAlavancagem) {
                                                 return (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
                                                             {statusIcon} <span>{statusText}</span>
                                                         </div>
-                                                        <div className="alert-sensor-animated purple">
-                                                            <div className="alert-sensor-animated-content">
-                                                                <div className="sensor-inner-alert">
-                                                                    <RefreshCcw size={20} /> 
-                                                                    <span>
-                                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>. 
-                                                                        Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente, 
-                                                                        sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{(otimizacaoIdeal.fatorAlavancagem || 0).toFixed(1)}x</strong>).
-                                                                    </span>
-                                                                </div>
-                                                                {mainResultsContent}
-                                                            </div>
+                                                        <div className="sensor-inner-alert purple">
+                                                            <RefreshCcw size={20} />
+                                                            <span>
+                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>.
+                                                                Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente,
+                                                                sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{(otimizacaoIdeal.fatorAlavancagem || 0).toFixed(1)}x</strong>).
+                                                            </span>
                                                         </div>
+                                                        {mainResultsContent}
                                                     </div>
                                                 );
                                             }
 
                                             return (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                    <div className={`alert-box-result ${statusClass}`}>
-                                                        {statusIcon} <span>{statusText}</span>
-                                                    </div>
-                                                    <div className="alert-sensor-animated">
-                                                        <div className="alert-sensor-animated-content">
-                                                            <div className="sensor-inner-alert">
-                                                                <TrendingUp size={20} /> 
-                                                                <span>
-                                                                    <strong>Sensor de Otimização Automática Ativado:</strong> Anunciando por <strong>R$ {moeda(paOri)}</strong> voce obtem o lucro de <strong>R$ {moeda(otimizacaoIdeal.lucroOriginal)}</strong>,
-                                                                    entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <strong>R$ {moeda(paOpt)}</strong> você muda a faixa de impostos e seu lucro líquido final <strong>subirá em R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</strong>
-                                                                </span>
-                                                            </div>
-                                                            {mainResultsContent}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
                                                         </div>
+                                                        <div className="sensor-inner-alert">
+                                                            <TrendingUp size={20} />
+                                                            <span>
+                                                                <strong className="block mb-1">Sensor de Otimização Automática Ativado:</strong>
+                                                                Anunciando por <span className="font-bold underline text-green-600">R$ {moeda(paOri)}</span> voce obtem o lucro de <span className="font-bold">R$ {moeda(otimizacaoIdeal.lucroOriginal)}</span>, entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <span className="font-bold text-green-900 underline"> R$ {moeda(paOpt)}</span> você muda a faixa de impostos e seu lucro líquido final subirá em <span style={{ fontWeight: 'bold', color: '#064e3b' }}> R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</span>
+                                                            </span>
+                                                        </div>
+                                                        {mainResultsContent}
                                                     </div>
-                                                </div>
                                             );
                                         }
 
                                         // 2. Otimização da Aba Margem (Detecção via Simulação)
                                         if (melhorAnteriorComp && aba !== 'ideal') {
                                             return (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                    <div className={`alert-box-result ${statusClass}`}>
-                                                        {statusIcon} <span>{statusText}</span>
-                                                    </div>
-                                                    <div className="alert-sensor-animated">
-                                                        <div className="alert-sensor-animated-content">
-                                                            <div className="sensor-inner-alert">
-                                                                 <TrendingUp size={20} /> 
-                                                                 <span>
-                                                                     <strong>Sensor de Otimização Automática Ativado:</strong> Anunciando por <strong>R$ {moeda(activeResults.precoComCupom)}</strong> voce obtem o lucro de <strong>R$ {moeda(activeResults.lucroLiquido)}</strong>,
-                                                                     entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <strong>R$ {moeda(melhorAnteriorComp.precoComCupom)}</strong> você muda a faixa de impostos e seu lucro líquido final <strong>subirá em R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong>
-                                                                 </span>
-                                                             </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
                                                         </div>
+                                                        <div className="sensor-inner-alert">
+                                                            <TrendingUp size={20} />
+                                                            <span>
+                                                                <strong>Sensor de Otimização Ativado:</strong> Ao mudar o Preço Anunciado {s('PA')} para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong>
+                                                            </span>
+                                                        </div>
+                                                        {mainResultsContent}
                                                     </div>
-                                                    {mainResultsContent}
-                                                </div>
                                             );
                                         }
 
@@ -2128,24 +1697,20 @@ const ShopeePage: React.FC = () => {
                                             const f = melhorLeverageComp.fator;
 
                                             return (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                    <div className={`alert-box-result ${statusClass}`}>
-                                                        {statusIcon} <span>{statusText}</span>
-                                                    </div>
-                                                    <div className="alert-sensor-animated purple">
-                                                        <div className="alert-sensor-animated-content">
-                                                            <div className="sensor-inner-alert">
-                                                                 <RefreshCcw size={20} /> 
-                                                                 <span>
-                                                                     <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(activeResults.precoComCupom)}</strong>. 
-                                                                     Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoComCupom)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente, 
-                                                                     sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
-                                                                 </span>
-                                                             </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        <div className={`alert-box-result ${statusClass}`}>
+                                                            {statusIcon} <span>{statusText}</span>
                                                         </div>
+                                                        <div className="sensor-inner-alert purple">
+                                                            <RefreshCcw size={20} />
+                                                            <span>
+                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(activeResults.precoComCupom)}</strong>.
+                                                                Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoComCupom)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
+                                                                sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
+                                                            </span>
+                                                        </div>
+                                                        {mainResultsContent}
                                                     </div>
-                                                    {mainResultsContent}
-                                                </div>
                                             );
                                         }
 
@@ -2177,12 +1742,12 @@ const ShopeePage: React.FC = () => {
                                         }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>Lucro líquido venda:</span>
-                                                    <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>({porc(activeResults.margemSobreVenda)}%)</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>Lucro líquido custo:</span>
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>({porc(activeResults.margemLiquidaSobreCusto)}%)</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>Lucro líquido venda:</span>
+                                                    <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>({porc(activeResults.margemSobreVenda)}%)</span>
                                                 </div>
                                             </div>
                                             <div style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.5rem' }}>
@@ -2195,12 +1760,12 @@ const ShopeePage: React.FC = () => {
                                             <>
                                                 <div className="detail-row">
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
-                                                    <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoComCupom)}</span>
+                                                    <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
                                                 </div>
                                                 <div className="detail-row" style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
                                                     <span>Desconto aplicado {s('CD')}:</span>
                                                     <div className="detail-values">
-                                                        <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoComCupom || 1) * 100)}%)</span>
+                                                        <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
                                                         <span className="val text-red">- R$ {moeda(activeResults.cupomValor)}</span>
                                                     </div>
                                                 </div>
@@ -2208,7 +1773,7 @@ const ShopeePage: React.FC = () => {
                                         )}
                                         <div className="detail-row">
                                             <span style={{ fontWeight: 700 }}>Preço de Venda {s('PDV')}:</span>
-                                            <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
+                                            <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoComCupom)}</span>
                                         </div>
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
@@ -2307,14 +1872,14 @@ const ShopeePage: React.FC = () => {
 
                                 {/* Coluna 3: Gráficos Analíticos */}
                                 {simulacao && (
-                                    <div className="analytical-charts-section" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2.5rem' }}>
+                                    <div className="analytical-charts-section">
                                         <TaxasPrecoChart
                                             inputs={activeInputs}
                                             precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
                                             isFullscreen={fullscreenChart === 'taxas'}
-                                            onToggleFullscreen={() => setFullscreenChart(fullscreenChart === 'taxas' ? null : 'taxas')}
+                                            onToggleFullscreen={toggleTaxasFullscreen}
                                         />
-                                        <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+                                        <div className="charts-grid">
                                             <EstrategiaPrecoChart
                                                 dados={simulacao.cenarios}
                                                 precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
@@ -2325,15 +1890,12 @@ const ShopeePage: React.FC = () => {
                                                     setTimeout(handleCalcular, 0);
                                                 }}
                                                 isFullscreen={fullscreenChart === 'estrategia'}
-                                                onToggleFullscreen={() => setFullscreenChart(fullscreenChart === 'estrategia' ? null : 'estrategia')}
+                                                onToggleFullscreen={toggleEstrategiaFullscreen}
                                             />
                                             <ComposicaoPrecoChart
-                                                dados={simulacao.cenarios}
-                                                precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
-                                                pontoIdeal={simulacao.pIdeal15}
-                                                pontoAlvo={(simulacao as any).pAlvo}
+                                                res={activeResults || results!}
                                                 isFullscreen={fullscreenChart === 'composicao'}
-                                                onToggleFullscreen={() => setFullscreenChart(fullscreenChart === 'composicao' ? null : 'composicao')}
+                                                onToggleFullscreen={toggleComposicaoFullscreen}
                                             />
                                         </div>
                                     </div>
@@ -2396,7 +1958,7 @@ const ShopeePage: React.FC = () => {
                     </div>
                 )
             }
-            
+
             <div className="bottom-shopee-info">
                 <div className="info-card-premium">
                     <div className="info-card-icon">
@@ -2423,7 +1985,8 @@ const ShopeePage: React.FC = () => {
                 </div>
             )}
 
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .toast-notification { 
                     position: fixed; 
                     bottom: 2rem; 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  Save, 
-  Search, 
+import {
+  Plus,
+  Trash2,
+  Save,
+  Search,
   Database,
   LayoutGrid,
   CheckCircle2,
@@ -25,6 +25,9 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '../contexts/AuthContext';
+import { getUserCatalog, saveUserCatalog } from '../services/catalogService';
+
 
 /**
  * CatalogPage - Gestão Central de Produtos
@@ -63,6 +66,10 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const CatalogPage: React.FC = () => {
+  // Estado para o nível de acesso
+  const { userLevel } = useAuth();
+  const isAdmin = userLevel === 1;
+
   // Estado para o usuário autenticado
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -70,13 +77,13 @@ const CatalogPage: React.FC = () => {
   const [activeWarehouse, setActiveWarehouse] = useState<'SP' | 'SC'>('SP');
   const [productsSP, setProductsSP] = useState<Product[]>([]);
   const [productsSC, setProductsSC] = useState<Product[]>([]);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
   // Sistema de Notificações Internas
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const notify = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
@@ -88,14 +95,14 @@ const CatalogPage: React.FC = () => {
     title: string;
     message: string;
     onConfirm: () => void;
-  }>({ show: false, title: '', message: '', onConfirm: () => {} });
-  
+  }>({ show: false, title: '', message: '', onConfirm: () => { } });
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'pending'>('idle');
   const [loading, setLoading] = useState(true);
-  
+
   // Seleção em massa
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
+
   // Estados para Importação Inteligente
   const [importRawData, setImportRawData] = useState<any[]>([]);
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
@@ -104,7 +111,7 @@ const CatalogPage: React.FC = () => {
   const [importPreview, setImportPreview] = useState<Product[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [replaceOnImport, setReplaceOnImport] = useState(false);
-  
+
   // Modal de Edição em Massa
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkEditField, setBulkEditField] = useState<keyof Product | ''>('');
@@ -117,20 +124,20 @@ const CatalogPage: React.FC = () => {
     // Primeiro carrega do localStorage (sempre, independente de login)
     const savedSP = localStorage.getItem('@shopperPCC:catalog_SP');
     const savedSC = localStorage.getItem('@shopperPCC:catalog_SC');
-    
+
     if (savedSP) {
-      try { 
+      try {
         const parsed = JSON.parse(savedSP);
-        setProductsSP(parsed); 
+        setProductsSP(parsed);
         console.log('[load] Carregado SP do localStorage:', parsed.length, 'produtos');
-      } catch(e){}
+      } catch (e) { }
     }
     if (savedSC) {
-      try { 
+      try {
         const parsed = JSON.parse(savedSC);
-        setProductsSC(parsed); 
+        setProductsSC(parsed);
         console.log('[load] Carregado SC do localStorage:', parsed.length, 'produtos');
-      } catch(e){}
+      } catch (e) { }
     }
 
     // Se não houver dados locais, cria exemplo
@@ -156,7 +163,6 @@ const CatalogPage: React.FC = () => {
         // Carregar do Firestore
         setLoading(true);
         try {
-          const { getUserCatalog } = await import('../services/catalogService');
           const [cloudSP, cloudSC] = await Promise.all([
             getUserCatalog(user.uid, 'SP'),
             getUserCatalog(user.uid, 'SC')
@@ -197,7 +203,7 @@ const CatalogPage: React.FC = () => {
     // Marca que há alterações pendentes de sincronização
     // setPendingSync(true); // Removido - funcionalidade não utilizada
   };
-  
+
   // Função auxiliar para garantir salvamento no localStorage
   const saveToLocalStorage = (warehouse: 'SP' | 'SC', products: Product[]) => {
     const key = `@shopperPCC:catalog_${warehouse}`;
@@ -210,10 +216,10 @@ const CatalogPage: React.FC = () => {
       return false;
     }
   };
-  
+
   // Lógica de Paginação e Filtragem (Consolidada)
-  const filteredProducts = activeProducts.filter(p => 
-    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredProducts = activeProducts.filter(p =>
+    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.descricao.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -225,7 +231,7 @@ const CatalogPage: React.FC = () => {
 
   const handleSave = async (targetWarehouse?: 'SP' | 'SC') => {
     console.log("Salvando...", targetWarehouse || 'ambos');
-    
+
     // Sempre salvar no localStorage
     if (targetWarehouse === 'SP' || !targetWarehouse) {
       saveToLocalStorage('SP', productsSP);
@@ -233,21 +239,19 @@ const CatalogPage: React.FC = () => {
     if (targetWarehouse === 'SC' || !targetWarehouse) {
       saveToLocalStorage('SC', productsSC);
     }
-    
+
     // Salvar no Firebase se usuário estiver logado
     if (userId) {
       try {
         setSaveStatus('saving');
-        const { saveUserCatalog } = await import('../services/catalogService');
         const warehousesToSave = targetWarehouse ? [targetWarehouse] : ['SP', 'SC'] as ('SP' | 'SC')[];
-        
-        const savePromises = warehousesToSave.map(wh => 
+
+        const savePromises = warehousesToSave.map(wh =>
           saveUserCatalog(userId, wh, wh === 'SP' ? productsSP : productsSC)
         );
-        
+
         await Promise.all(savePromises);
         console.log("Sincronização com Firebase concluída!");
-        // setPendingSync(false); // Removido - funcionalidade não utilizada
         setSaveStatus('saved');
         notify("Catálogo salvo e sincronizado com a nuvem!", "success");
         setTimeout(() => setSaveStatus('idle'), 3000);
@@ -263,6 +267,7 @@ const CatalogPage: React.FC = () => {
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
   };
+
 
   const addProduct = () => {
     const newProduct: Product = {
@@ -296,7 +301,7 @@ const CatalogPage: React.FC = () => {
   };
 
   const [focusedCusto, setFocusedCusto] = useState<string | null>(null);
-  const [focusedPercent, setFocusedPercent] = useState<{id: string, field: string} | null>(null);
+  const [focusedPercent, setFocusedPercent] = useState<{ id: string, field: string } | null>(null);
 
   const formatCustoDisplay = (valor: number | undefined): string => {
     if (valor === undefined || valor === null || valor === 0) return '';
@@ -371,7 +376,7 @@ const CatalogPage: React.FC = () => {
 
   const applyBulkEdit = () => {
     if (!bulkEditField) return;
-    
+
     const numVal = bulkEditValue === '' ? 0 : parseFloat(bulkEditValue.replace(',', '.'));
     const finalVal = isNaN(numVal) ? 0 : numVal;
 
@@ -419,14 +424,14 @@ const CatalogPage: React.FC = () => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
     const cleaned = String(val).replace(/R\$/g, '').replace(/[^\d.,]/g, '').replace(/\s/g, '').trim();
-    
+
     if (cleaned.includes(',') && cleaned.includes('.')) {
       const parts = cleaned.split(',');
       const withDot = parts[0].replace(/\./g, '') + '.' + parts[1];
       const num = parseFloat(withDot);
       return isNaN(num) ? 0 : num;
     }
-    
+
     if (cleaned.includes(',')) {
       const num = parseFloat(cleaned.replace(',', '.'));
       return isNaN(num) ? 0 : num;
@@ -492,8 +497,8 @@ const CatalogPage: React.FC = () => {
     const onDataRead = (data: any[]) => {
       if (data.length === 0) return;
       const filtered = data.filter((row: any) => {
-          const values = Object.values(row).join('').toLowerCase();
-          return values.length > 0 && !values.includes('#valor!');
+        const values = Object.values(row).join('').toLowerCase();
+        return values.length > 0 && !values.includes('#valor!');
       });
 
       const cols = Object.keys(filtered[0] || {});
@@ -532,7 +537,7 @@ const CatalogPage: React.FC = () => {
       .map(row => {
         const sku = String(row[columnMapping['sku']] || '').trim();
         const desc = String(row[columnMapping['descricao']] || '').trim();
-        
+
         if ((!sku || sku === 'undefined') && (!desc || desc === 'undefined')) return null;
 
         return {
@@ -563,7 +568,7 @@ const CatalogPage: React.FC = () => {
       const remainingProducts = activeProducts.filter(p => !importedSkus.has(p.sku.trim().toLowerCase()));
       newList = [...importPreview, ...remainingProducts];
     }
-    
+
     setActiveProducts(newList);
     // Salvar também no localStorage do outro estoque para manter sincronizado
     saveToLocalStorage(activeWarehouse, newList);
@@ -597,7 +602,7 @@ const CatalogPage: React.FC = () => {
 
   return (
     <div className="container fade-in">
-      
+
       {/* 1. Modal de Mapeamento */}
       {showMappingModal && (
         <div className="modal-overlay">
@@ -613,7 +618,7 @@ const CatalogPage: React.FC = () => {
                 {Object.entries(FIELD_LABELS).map(([field, label]) => (
                   <div key={field} className="mapping-row">
                     <div className="field-info"><span className="field-label">{label}</span></div>
-                    <select className="mapping-select" value={columnMapping[field] || ''} onChange={(e) => setColumnMapping({...columnMapping, [field]: e.target.value})}>
+                    <select className="mapping-select" value={columnMapping[field] || ''} onChange={(e) => setColumnMapping({ ...columnMapping, [field]: e.target.value })}>
                       <option value="">-- Ignorar --</option>
                       {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                     </select>
@@ -669,7 +674,7 @@ const CatalogPage: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal-content card slide-up" style={{ maxWidth: '450px' }}>
             <div className="modal-header">
-               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div className="icon-circle bg-blue"><Edit3 size={24} color="#1d4ed8" /></div>
                 <div><h2 style={{ margin: 0 }}>Edição em Massa</h2></div>
               </div>
@@ -686,11 +691,11 @@ const CatalogPage: React.FC = () => {
                   <option value="rebateCR">Rebate (%)</option>
                   <option value="custoCDP">Custo CDP (R$)</option>
                 </select>
-                <input 
-                   className="input-field" 
-                   placeholder="Novo valor (ex: 6,5)" 
-                   value={bulkEditValue} 
-                   onChange={(e) => setBulkEditValue(e.target.value)}
+                <input
+                  className="input-field"
+                  placeholder="Novo valor (ex: 6,5)"
+                  value={bulkEditValue}
+                  onChange={(e) => setBulkEditValue(e.target.value)}
                 />
               </div>
             </div>
@@ -724,31 +729,36 @@ const CatalogPage: React.FC = () => {
             <p className="header-subtitle">Gerencie parâmetros fixos do estoque {activeWarehouse}</p>
           </div>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn-secondary" onClick={triggerImport}><FileUp size={20} /> Importar</button>
-          <button className="btn-secondary" onClick={exportToExcel}><FileDown size={20} /> Exportar</button>
-          <div className="v-divider"></div>
-          <button className="btn-primary" onClick={() => handleSave(activeWarehouse)} disabled={saveStatus === 'saving'} 
-            style={{ minWidth: '200px', 
-              background: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)', 
-              borderColor: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)' 
-            }}>
-            {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? <><CheckCircle2 size={20} /> Salvo!</> : <><Save size={20} /> Salvar</>}
-          </button>
+          {isAdmin && (
+            <>
+              <button className="btn-secondary" onClick={triggerImport}><FileUp size={20} /> Importar</button>
+              <button className="btn-secondary" onClick={exportToExcel}><FileDown size={20} /> Exportar</button>
+              <div className="v-divider"></div>
+              <button className="btn-primary" onClick={() => handleSave(activeWarehouse)} disabled={saveStatus === 'saving'}
+                style={{
+                  minWidth: '200px',
+                  background: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)',
+                  borderColor: saveStatus === 'saved' ? '#10b981' : 'var(--primary-main)'
+                }}>
+                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? <><CheckCircle2 size={20} /> Salvo!</> : <><Save size={20} /> Salvar</>}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Barra de Ações em Massa */}
-      {selectedIds.size > 0 && (
+      {isAdmin && selectedIds.size > 0 && (
         <div className="bulk-actions-bar fade-in">
           <div className="bulk-info">
             <CheckSquare size={20} />
             <span><strong>{selectedIds.size}</strong> itens selecionados</span>
           </div>
           <div className="bulk-buttons">
-            <button className="btn-bulk-edit" onClick={() => setShowBulkEditModal(true)}><Edit3 size={18} /> Editar em Massa</button>
-            <button className="btn-bulk-delete" onClick={bulkDelete}><Trash2 size={18} /> Excluir Selecionados</button>
+            <button className="btn-bulk-edit" onClick={() => setShowBulkEditModal(true)} disabled={!isAdmin}><Edit3 size={18} /> Editar em Massa</button>
+            <button className="btn-bulk-delete" onClick={bulkDelete} disabled={!isAdmin}><Trash2 size={18} /> Excluir Selecionados</button>
             <div className="v-divider" style={{ background: 'rgba(255,255,255,0.2)' }}></div>
             <button className="bulk-close" onClick={() => setSelectedIds(new Set())}><X size={18} /></button>
           </div>
@@ -760,7 +770,9 @@ const CatalogPage: React.FC = () => {
           <Search size={22} className="search-icon" />
           <input type="text" placeholder={`Buscar no estoque ${activeWarehouse}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="input-field search-input" />
         </div>
-        <button className="btn-success add-btn" onClick={addProduct}><Plus size={24} /> Novo no {activeWarehouse}</button>
+        {isAdmin && (
+          <button className="btn-success add-btn" onClick={addProduct}><Plus size={24} /> Novo no {activeWarehouse}</button>
+        )}
       </div>
 
       <div className="card catalog-card">
@@ -769,9 +781,11 @@ const CatalogPage: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: '40px' }}>
-                   <button className="select-all-btn" onClick={toggleSelectAll}>
+                  {isAdmin && (
+                    <button className="select-all-btn" onClick={toggleSelectAll}>
                       {selectedIds.size === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare size={20} color="var(--primary-main)" /> : <Square size={20} />}
-                   </button>
+                    </button>
+                  )}
                 </th>
                 <th>SKU</th><th>Descrição</th><th>Custo Produto (R$)</th><th>Imposto (%)</th><th>Despesa Fixa (%)</th><th>Outras Despesas (%)</th><th>Ads (%)</th><th>Rebate (%)</th><th></th>
               </tr>
@@ -780,19 +794,25 @@ const CatalogPage: React.FC = () => {
               {paginatedProducts.map((p: Product) => (
                 <tr key={p.id} className={`catalog-row ${selectedIds.has(p.id) ? 'row-selected' : ''}`}>
                   <td className="text-center">
-                    <button className="row-select-btn" onClick={() => toggleSelect(p.id)}>
-                       {selectedIds.has(p.id) ? <CheckSquare size={20} color="var(--primary-main)" /> : <Square size={20} color="#cbd5e1" />}
-                    </button>
+                    {isAdmin && (
+                      <button className="row-select-btn" onClick={() => toggleSelect(p.id)}>
+                        {selectedIds.has(p.id) ? <CheckSquare size={20} color="var(--primary-main)" /> : <Square size={20} color="#cbd5e1" />}
+                      </button>
+                    )}
                   </td>
-                  <td><input className="cell-input" value={p.sku} onChange={(e) => updateProduct(p.id, 'sku', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input" value={p.descricao} onChange={(e) => updateProduct(p.id, 'descricao', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center text-green custo-input" value={focusedCusto === p.id ? (p.custoCDP ? p.custoCDP.toString().replace('.', ',') : '') : formatCustoDisplay(p.custoCDP)} onFocus={() => setFocusedCusto(p.id)} onBlur={() => setFocusedCusto(null)} onChange={(e) => updateProduct(p.id, 'custoCDP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'impostosIMP' ? getPercentEditValue(p.impostosIMP) : formatPercentDisplay(p.impostosIMP)} onFocus={() => setFocusedPercent({id: p.id, field: 'impostosIMP'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'impostosIMP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'despesaFixaDF' ? getPercentEditValue(p.despesaFixaDF) : formatPercentDisplay(p.despesaFixaDF)} onFocus={() => setFocusedPercent({id: p.id, field: 'despesaFixaDF'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'despesaFixaDF', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'outrasDespesasOD' ? getPercentEditValue(p.outrasDespesasOD) : formatPercentDisplay(p.outrasDespesasOD)} onFocus={() => setFocusedPercent({id: p.id, field: 'outrasDespesasOD'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'adsADS' ? getPercentEditValue(p.adsADS) : formatPercentDisplay(p.adsADS)} onFocus={() => setFocusedPercent({id: p.id, field: 'adsADS'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'adsADS', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'rebateCR' ? getPercentEditValue(p.rebateCR) : formatPercentDisplay(p.rebateCR)} onFocus={() => setFocusedPercent({id: p.id, field: 'rebateCR'})} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'rebateCR', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td className="text-center"><button onClick={() => removeProduct(p.id)} className="delete-btn"><Trash2 size={20} /></button></td>
+                  <td><input className="cell-input" value={p.sku} readOnly={!isAdmin} onChange={(e) => updateProduct(p.id, 'sku', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input" value={p.descricao} readOnly={!isAdmin} onChange={(e) => updateProduct(p.id, 'descricao', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center text-green custo-input" value={focusedCusto === p.id ? (p.custoCDP ? p.custoCDP.toString().replace('.', ',') : '') : formatCustoDisplay(p.custoCDP)} readOnly={!isAdmin} onFocus={() => setFocusedCusto(p.id)} onBlur={() => setFocusedCusto(null)} onChange={(e) => updateProduct(p.id, 'custoCDP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'impostosIMP' ? getPercentEditValue(p.impostosIMP) : formatPercentDisplay(p.impostosIMP)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'impostosIMP' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'impostosIMP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'despesaFixaDF' ? getPercentEditValue(p.despesaFixaDF) : formatPercentDisplay(p.despesaFixaDF)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'despesaFixaDF' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'despesaFixaDF', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'outrasDespesasOD' ? getPercentEditValue(p.outrasDespesasOD) : formatPercentDisplay(p.outrasDespesasOD)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'outrasDespesasOD' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'adsADS' ? getPercentEditValue(p.adsADS) : formatPercentDisplay(p.adsADS)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'adsADS' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'adsADS', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'rebateCR' ? getPercentEditValue(p.rebateCR) : formatPercentDisplay(p.rebateCR)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'rebateCR' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'rebateCR', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td className="text-center">
+                    {isAdmin && (
+                      <button onClick={() => removeProduct(p.id)} className="delete-btn"><Trash2 size={20} /></button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {filteredProducts.length === 0 && (
@@ -814,15 +834,15 @@ const CatalogPage: React.FC = () => {
       {/* Controles de Paginação */}
       {totalPages > 1 && (
         <div className="pagination-container fade-in">
-          <button 
-            className="pagination-arr-btn" 
+          <button
+            className="pagination-arr-btn"
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
             title="Página Anterior"
           >
             <ChevronLeft size={20} />
           </button>
-          
+
           <div className="pagination-numbers">
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(page => {
@@ -838,8 +858,8 @@ const CatalogPage: React.FC = () => {
                   elements.push(<span key={`dots-${page}`} className="pagination-dots">...</span>);
                 }
                 elements.push(
-                  <button 
-                    key={page} 
+                  <button
+                    key={page}
                     className={`pagination-num-btn ${currentPage === page ? 'active' : ''}`}
                     onClick={() => setCurrentPage(page)}
                   >
@@ -850,22 +870,23 @@ const CatalogPage: React.FC = () => {
               })}
           </div>
 
-          <button 
-            className="pagination-arr-btn" 
+          <button
+            className="pagination-arr-btn"
             disabled={currentPage === totalPages}
             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
             title="Próxima Página"
           >
             <ChevronRight size={20} />
           </button>
-          
+
           <div className="pagination-info">
             Mostrando <strong>{paginatedProducts.length}</strong> de <strong>{filteredProducts.length}</strong> produtos
           </div>
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding: 1.5rem; background: white; border-radius: 20px; border: 1px solid #e5e7eb; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
         .header-icon { background: var(--primary-main); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 16px rgba(223, 26, 34, 0.2); }
         .header-title { font-size: 1.5rem; font-weight: 900; color: #111827; margin: 0; letter-spacing: -0.02em; }
@@ -985,7 +1006,7 @@ const CatalogPage: React.FC = () => {
               <p style={{ color: '#64748b', lineHeight: 1.5 }}>{confirmModal.message}</p>
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setConfirmModal(prev => ({...prev, show: false}))}>Cancelar</button>
+              <button className="btn-secondary" onClick={() => setConfirmModal(prev => ({ ...prev, show: false }))}>Cancelar</button>
               <button className="btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={confirmModal.onConfirm}>Confirmar</button>
             </div>
           </div>

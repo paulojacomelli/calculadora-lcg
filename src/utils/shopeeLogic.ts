@@ -29,9 +29,11 @@ export interface ShopeeInput {
   cupomDesconto?: number;
   cupomTipo: UnidadeValor;
 
+
   // Parâmetros de Simulação Sweet Spot
   fatorElasticidade?: number;
   fatorAlavancagem?: number;
+  fatorAlavancagemAtivo?: boolean;
 }
 
 export interface ShopeeOutput {
@@ -51,6 +53,7 @@ export interface ShopeeOutput {
   despesaAdicionalValor: number;
   margem: number;             // Subtotal conforme fórmula do usuário
   cupomValor: number;
+
   precoComCupom: number;
   precoVenda: number;
   custoProdutoValor: number;
@@ -148,6 +151,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const CS: TaxaInput = { value: csPorcentagem, type: 'percent' };
   const TFS: TaxaInput = { value: tfsValor, type: 'fixed' };
 
+  // 5. Cálculo dos Custos
   // As taxas da Shopee incidem sobre o Preço de Venda (PDV)
   const comissaoValor = roundResult ? arredondar(VAL(CS, PDV), 2) : VAL(CS, PDV);
   const tarifaFixaValor = roundResult ? arredondar(VAL(TFS, PDV), 2) : VAL(TFS, PDV);
@@ -201,8 +205,8 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     despesaAdicionalValor: roundResult ? arredondar(despesaAdicionalValor, 2) : despesaAdicionalValor,
     margem: roundResult ? arredondar(margem, 2) : margem,
     cupomValor: roundResult ? arredondar(cupomValorCalculado, 2) : cupomValorCalculado,
-    precoComCupom: roundResult ? arredondar(PCC, 2) : PCC,
-    precoVenda: roundResult ? arredondar(PDV, 2) : PDV,
+    precoComCupom: roundResult ? arredondar(PDV, 2) : PDV,
+    precoVenda: roundResult ? arredondar(PA, 2) : PA,
     nominalSobreCusto: roundResult ? arredondar(nominalSobreCusto, 2) : nominalSobreCusto,
     custoProdutoValor: roundResult ? arredondar(custoProdutoValor, 2) : custoProdutoValor
   };
@@ -296,12 +300,12 @@ export const calcularPrecoIdealDetalhado = (
       // 1. O lucro aumentou de verdade (> 0,5 centavo)
       // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
       const diffLucro = resTeste.lucroLiquido - resultadoReferencia.lucroLiquido;
-      const isLucroMaiorOuIgual = diffLucro >= 0; 
+      const isLucroMaiorOuIgual = diffLucro >= 0;
       const isPrecoMenor = paTeste < paMatematico - 0.01;
 
       if (isLucroMaiorOuIgual && isPrecoMenor) {
         melhorPa = paTeste;
-        break; 
+        break;
       }
     }
 
@@ -316,7 +320,7 @@ export const calcularPrecoIdealDetalhado = (
         if (paTeste <= (input.custoProduto || 0.01)) break;
 
         const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
-        
+
         const qPreco = paMatematico - paTeste;
         const qLucro = resultadoReferencia.lucroLiquido - resTeste.lucroLiquido;
 
@@ -333,7 +337,7 @@ export const calcularPrecoIdealDetalhado = (
             quedaLucro = qLucro;
             const volNecessario = 100 * (resultadoReferencia.lucroLiquido / resTeste.lucroLiquido);
             esforcoPercentual = volNecessario - 100;
-            break; 
+            break;
           }
         }
       }
@@ -385,7 +389,7 @@ export const simularCenariosPreco = (
   // Definir faixa de simulação centrada no preço atual para capturar degraus próximos
   const PA = input.precoVenda || 0;
   const precoBase = PA || breakeven;
-  
+
   // Criamos uma lista de preços para testar
   const precosX: number[] = [];
 
@@ -393,15 +397,15 @@ export const simularCenariosPreco = (
   // Isso garante capturar mudanças por apenas 1 centavo de diferença.
   if (PA > 0) {
     for (let i = 0; i <= 500; i++) {
-        const p = PA - (i / 100);
-        if (p > 0) precosX.push(arredondar(p, 2));
+      const p = PA - (i / 100);
+      if (p > 0) precosX.push(arredondar(p, 2));
     }
   }
 
   // 2. Mantemos a faixa de breakeven e preços baixos para o gráfico
   const precoMin = Math.max(breakeven * 0.8, 5);
   const precoMax = Math.max(precoBase * 1.5, 600);
-  const passos = 50; 
+  const passos = 50;
   const step = (precoMax - precoMin) / passos;
   for (let i = 0; i <= passos; i++) {
     precosX.push(arredondar(precoMin + (step * i), 2));
@@ -411,7 +415,7 @@ export const simularCenariosPreco = (
   // IMPORTANTE: Os pontos críticos (degraus) são baseados no PDV (Preço Final), 
   // então precisamos converter para o PA (Preço Anunciado) correspondente para injetar na simulação.
   const degrausPDV = [79.99, 80.00, 99.99, 100.00, 199.99, 200.00, 499.99, 500.00];
-  
+
   degrausPDV.forEach(pPDV => {
     let paNecessario = pPDV;
     if (input.cupomDesconto && input.cupomDesconto > 0) {
@@ -423,7 +427,7 @@ export const simularCenariosPreco = (
         paNecessario = pPDV + input.cupomDesconto;
       }
     }
-    
+
     // Injetamos o Preço Anunciado (PA) que levaria a esse degrau no PDV
     const pPA = arredondar(paNecessario, 2);
     if (pPA >= precoMin && pPA <= precoMax) precosX.push(pPA);
@@ -439,7 +443,7 @@ export const simularCenariosPreco = (
 
     const totalTaxas = res.comissaoValor + res.tarifaFixa + res.impostoValor + res.custoAds;
     const pesoTaxas = res.precoVenda > 0 ? (totalTaxas / res.precoVenda) * 100 : 0;
-    
+
     // Na ShopeePage, o 'precoVenda' do objeto de simulação é usado como o gráficoX, 
     // mas o usuário quer o PA. Vamos garantir que as propriedades estejam claras.
     cenarios.push({
@@ -543,12 +547,12 @@ export interface ResultadoSweetSpot {
 
 export const calcularCenariosDePreco = (input: ShopeeInput): ResultadoSweetSpot => {
   const PA = input.precoVenda || 0;
-  
+
   // O fator de elasticidade padrão agora é 3.5 (Alta Concorrência/Guerra de Preços)
   const elasticidade = input.fatorElasticidade || 3.5;
 
   const cenarios: CenarioSweetSpot[] = [];
-  
+
   // Analisamos uma faixa de -15% a +15% do preço atual
   const minPreco = Math.floor(PA * 0.85);
   const maxPreco = Math.ceil(PA * 1.15);
@@ -561,8 +565,8 @@ export const calcularCenariosDePreco = (input: ShopeeInput): ResultadoSweetSpot 
      * O volumeBase inicial é sempre 1 (100% no preço atual).
      * Se baixar o preço, o volume escala exponencialmente. Se aumentar, o volume é esmagado.
      */
-    const volumeRelativo = pSim > 0 
-      ? Math.pow((PA / pSim), elasticidade) 
+    const volumeRelativo = pSim > 0
+      ? Math.pow((PA / pSim), elasticidade)
       : 0;
 
     const cenario: CenarioSweetSpot = {

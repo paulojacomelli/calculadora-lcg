@@ -1,33 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-    Calculator, 
-    CircleDollarSign, 
-    AlertCircle, 
-    AlertTriangle, 
-    RotateCcw, 
-    Sparkles, 
-    TrendingUp, 
-    ArrowUpRight, 
-    ArrowDownRight, 
-    CheckCircle2, 
-    Truck, 
-    Search, 
-    ShoppingCart, 
-    Plus, 
-    RefreshCcw, 
-    Info, 
-    MousePointer2, 
-    Zap, 
-    Award, 
-    Tag, 
-    Minimize2, 
-    Maximize2, 
-    HelpCircle, 
-    ChevronDown, 
-    ChevronLeft, 
-    ChevronRight, 
-    ShieldCheck, 
+import {
+    Calculator,
+    CircleDollarSign,
+    AlertCircle,
+    AlertTriangle,
+    RotateCcw,
+    Sparkles,
+    TrendingUp,
+    ArrowUpRight,
+    ArrowDownRight,
+    CheckCircle2,
+    Truck,
+    Search,
+    ShoppingCart,
+    Plus,
+    RefreshCcw,
+    Info,
+    MousePointer2,
+    Zap,
+    Award,
+    Tag,
+    Minimize2,
+    Maximize2,
+    HelpCircle,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ShieldCheck,
     Table
 } from 'lucide-react';
 
@@ -49,9 +49,9 @@ import {
 import type { MeliInput, MeliOutput, ResultadoSimulacaoMeli, CenarioPrecoMeli } from '../utils/meliLogic';
 import { calcularTaxasMeli, calcularPrecoIdealMeli, simularCenariosPrecoMeli, arredondar, getFaixaPesoAutomatico } from '../utils/meliLogic';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { logCalculo, auth, db } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { logCalculo, db } from '../firebase';
 import { getUserCatalog } from '../services/catalogService';
+import { useAuth } from '../contexts/AuthContext';
 
 const defaultInputs: MeliInput = {
     custoProduto: undefined,
@@ -98,6 +98,8 @@ const MeliPage: React.FC = () => {
     });
 
     const [inputs, setInputs] = useState<MeliInput>(defaultInputs);
+    const { user, userLevel, loading } = useAuth();
+    const isLevel3 = !loading && userLevel === 3;
 
     useEffect(() => {
         document.title = 'Calculadora Mercado Livre 2026';
@@ -116,6 +118,7 @@ const MeliPage: React.FC = () => {
     const [simulacao, setSimulacao] = useState<ResultadoSimulacaoMeli | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
+    const [qtdMultiplier, setQtdMultiplier] = useState<number>(1);
 
     // Estados para gráficos e tela cheia (paridade Shopee)
     const [isFullscreenStrategy, setIsFullscreenStrategy] = useState(false);
@@ -138,7 +141,6 @@ const MeliPage: React.FC = () => {
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
     const [focusedValue, setFocusedValue] = useState<string>('');
-    const [user, setUser] = useState<any>(null);
 
     // Gestão do Menu Avançado (Paridade Shopee)
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -151,19 +153,17 @@ const MeliPage: React.FC = () => {
 
     // Carregar dados do Firestore quando usuário logar
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            
-            if (currentUser) {
+        if (!loading && user) {
+            (async () => {
                 try {
                     console.log("Meli: Carregando configurações do Firestore...");
-                    const userSettingsRef = doc(db, 'users', currentUser.uid, 'settings', 'meli');
+                    const userSettingsRef = doc(db, 'users', user.uid, 'settings', 'meli');
                     const userSettingsSnap = await getDoc(userSettingsRef);
-                    
+
                     if (userSettingsSnap.exists()) {
                         const data = userSettingsSnap.data();
                         console.log("Meli: Configurações recuperadas com sucesso.");
-                        
+
                         // Apenas configurações gerais, não inputs (persistência apenas por sessão)
                         if (data.aba) setAba(data.aba);
                         if (data.compararTipos !== undefined) setCompararTipos(data.compararTipos);
@@ -171,17 +171,17 @@ const MeliPage: React.FC = () => {
                         if (data.tipoMargemIdeal) setTipoMargemIdeal(data.tipoMargemIdeal);
                         if (data.reputacao) setInputs(prev => ({ ...prev, reputacao: data.reputacao }));
                     }
-                    
+
                     // Carregar catálogo do Firestore
                     console.log("Meli: Sincronizando catálogo com Firestore...");
                     const [cloudSP, cloudSC] = await Promise.all([
-                        getUserCatalog(currentUser.uid, 'SP'),
-                        getUserCatalog(currentUser.uid, 'SC')
+                        getUserCatalog(user.uid, 'SP'),
+                        getUserCatalog(user.uid, 'SC')
                     ]);
-                    
+
                     let finalSP = cloudSP;
                     let finalSC = cloudSC;
-                    
+
                     // Se a nuvem estiver vazia, tenta o localStorage
                     if (finalSP.length === 0 && finalSC.length === 0) {
                         console.log("Meli: Nuvem vazia, tentando localStorage...");
@@ -190,13 +190,12 @@ const MeliPage: React.FC = () => {
                         finalSP = localSP;
                         finalSC = localSC;
                     }
-                    
+
                     const combined = [
                         ...finalSP.map((p: any) => ({ ...p, _wh: 'SP' })),
                         ...finalSC.map((p: any) => ({ ...p, _wh: 'SC' }))
                     ];
                     setCatalogProducts(combined);
-                    
                     isInitialLoadDone.current = true;
                 } catch (error) {
                     console.error("Meli: Erro ao carregar dados do Firestore:", error);
@@ -209,30 +208,28 @@ const MeliPage: React.FC = () => {
                     ];
                     setCatalogProducts(combined);
                 }
-            } else {
-                // Usuário não logado - carrega do localStorage
-                const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
-                const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
-                const combined = [
-                    ...sp.map((p: any) => ({ ...p, _wh: 'SP' })),
-                    ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
-                ];
-                setCatalogProducts(combined);
-            }
-        });
-
-        return () => unsubscribe();
-    }, []);
+            })();
+        } else if (!loading && !user) {
+            // Usuário não logado - carrega do localStorage
+            const sp = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SP') || '[]');
+            const sc = JSON.parse(localStorage.getItem('@shopperPCC:catalog_SC') || '[]');
+            const combined = [
+                ...sp.map((p: any) => ({ ...p, _wh: 'SP' })),
+                ...sc.map((p: any) => ({ ...p, _wh: 'SC' }))
+            ];
+            setCatalogProducts(combined);
+        }
+    }, [user, loading]);
 
     // Efeito para salvar dados no Firestore com Debounce - APENAS CONFIGURAÇÕES (não inputs)
     useEffect(() => {
         if (!user || !isInitialLoadDone.current) return;
-        
+
         const timer = setTimeout(async () => {
             try {
                 console.log("Meli: Salvando configurações no Firestore...");
                 const userSettingsRef = doc(db, 'users', user.uid, 'settings', 'meli');
-                
+
                 // Preparar dados para salvar, removendo valores undefined
                 const dadosParaSalvar: Record<string, any> = {
                     aba,
@@ -242,18 +239,18 @@ const MeliPage: React.FC = () => {
                     reputacao: inputs.reputacao || 'cinza',
                     updatedAt: new Date().toISOString()
                 };
-                
+
                 // Só adiciona margemDesejada se estiver definida
                 if (margemDesejada !== undefined && margemDesejada !== null) {
                     dadosParaSalvar.margemDesejada = margemDesejada;
                 }
-                
+
                 await setDoc(userSettingsRef, dadosParaSalvar, { merge: true });
                 console.log("Meli: Salvo com sucesso!");
             } catch (error) {
                 console.error("Meli: Erro ao salvar configurações no Firestore:", error);
             }
-        }, 5000); 
+        }, 5000);
 
         return () => clearTimeout(timer);
     }, [aba, margemDesejada, compararTipos, isAutoCalcMode, tipoMargemIdeal, user, inputs.reputacao]);
@@ -301,8 +298,7 @@ const MeliPage: React.FC = () => {
         const { name, type, value } = target;
 
         if (type === 'checkbox') {
-            // @ts-ignore
-            setInputs(prev => ({ ...prev, [name]: target.checked }));
+            setInputs(prev => ({ ...prev, [name as keyof MeliInput]: target.checked }));
             return;
         }
 
@@ -348,35 +344,37 @@ const MeliPage: React.FC = () => {
             notify('Preencha o peso do produto para calcular', 'error');
             return;
         }
-        
+
         // Validação: custo do produto é obrigatório
         if (!inputs.custoProduto || inputs.custoProduto <= 0) {
             notify('Preencha o custo do produto para calcular', 'error');
             return;
         }
-        
-        // Validação: preço anunciado é obrigatório conforme modo de cálculo
-        if (modoCalculo === 'classico') {
-            if (!inputs.precoVenda || inputs.precoVenda <= 0) {
-                notify('Preencha o preço anunciado para calcular', 'error');
-                return;
-            }
-        } else if (modoCalculo === 'premium') {
-            if (!inputs.precoVenda || inputs.precoVenda <= 0) {
-                notify('Preencha o preço anunciado para calcular', 'error');
-                return;
-            }
-        } else if (modoCalculo === 'ambos') {
-            if (!inputs.precoAnunciadoClassico || inputs.precoAnunciadoClassico <= 0) {
-                notify('Preencha o preço anunciado clássico para calcular', 'error');
-                return;
-            }
-            if (!inputs.precoAnunciadoPremium || inputs.precoAnunciadoPremium <= 0) {
-                notify('Preencha o preço anunciado premium para calcular', 'error');
-                return;
+
+        // Validação: preço anunciado é obrigatório apenas na aba margem
+        if (aba === 'margem') {
+            if (modoCalculo === 'classico') {
+                if (!inputs.precoVenda || inputs.precoVenda <= 0) {
+                    notify('Preencha o preço anunciado para calcular', 'error');
+                    return;
+                }
+            } else if (modoCalculo === 'premium') {
+                if (!inputs.precoVenda || inputs.precoVenda <= 0) {
+                    notify('Preencha o preço anunciado para calcular', 'error');
+                    return;
+                }
+            } else if (modoCalculo === 'ambos') {
+                if (!inputs.precoAnunciadoClassico || inputs.precoAnunciadoClassico <= 0) {
+                    notify('Preencha o preço anunciado clássico para calcular', 'error');
+                    return;
+                }
+                if (!inputs.precoAnunciadoPremium || inputs.precoAnunciadoPremium <= 0) {
+                    notify('Preencha o preço anunciado premium para calcular', 'error');
+                    return;
+                }
             }
         }
-        
+
         setIsCalculating(true);
         setTimeout(() => {
             executarCalculo();
@@ -386,64 +384,67 @@ const MeliPage: React.FC = () => {
 
 
     const executarCalculo = () => {
-        // console.log('[executarCalculo] Iniciando cálculo:', { aba, custoProduto: inputs.custoProduto, margemDesejada, tipoMargemIdeal });
         let resultado: MeliOutput;
         let resultadoClassico: MeliOutput | null = null;
         let resultadoPremium: MeliOutput | null = null;
 
+        const inputsCalc = {
+            ...inputs,
+            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * qtdMultiplier : undefined
+        };
+
         if (aba === 'margem') {
             // Calcular conforme o modo selecionado
             if (modoCalculo === 'classico' || modoCalculo === 'ambos') {
-                const paClassico = modoCalculo === 'ambos' 
-                    ? inputs.precoAnunciadoClassico 
-                    : inputs.precoVenda;
+                const paClassico = modoCalculo === 'ambos'
+                    ? inputsCalc.precoAnunciadoClassico
+                    : inputsCalc.precoVenda;
                 if (paClassico === undefined) {
-                    notify('Preencha o preço anunciado clássico', 'error');
+                    setResults(null);
+                    setSimulacao(null);
                     return;
                 }
-                resultadoClassico = calcularTaxasMeli({ ...inputs, precoVenda: paClassico, tipoAnuncio: 'classico' });
+                resultadoClassico = calcularTaxasMeli({ ...inputsCalc, precoVenda: paClassico, tipoAnuncio: 'classico' });
             }
             if (modoCalculo === 'premium' || modoCalculo === 'ambos') {
-                const paPremium = modoCalculo === 'ambos' 
-                    ? inputs.precoAnunciadoPremium 
-                    : inputs.precoVenda;
+                const paPremium = modoCalculo === 'ambos'
+                    ? inputsCalc.precoAnunciadoPremium
+                    : inputsCalc.precoVenda;
                 if (paPremium === undefined) {
-                    notify('Preencha o preço anunciado premium', 'error');
+                    setResults(null);
+                    setSimulacao(null);
                     return;
                 }
-                resultadoPremium = calcularTaxasMeli({ ...inputs, precoVenda: paPremium, tipoAnuncio: 'premium' });
+                resultadoPremium = calcularTaxasMeli({ ...inputsCalc, precoVenda: paPremium, tipoAnuncio: 'premium' });
             }
-            
-            // Resultado principal para compatibilidade
+            // Resultado principal
             resultado = modoCalculo === 'premium' ? resultadoPremium! : resultadoClassico!;
-            
+
             // Guardar tipo de anúncio usado no cálculo para exibir na DRE
             setTipoAnuncioCalculado(modoCalculo === 'premium' ? 'premium' : 'classico');
-            
         } else {
-            if (inputs.custoProduto === undefined) {
+            if (inputsCalc.custoProduto === undefined) {
                 setResults(null);
                 setResultsClassico(null);
                 setResultsPremium(null);
                 setSimulacao(null);
                 return;
             }
-            const pIdeal = calcularPrecoIdealMeli(inputs, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal);
-            // console.log('[executarCalculo] Preço ideal calculado:', pIdeal);
-            resultado = calcularTaxasMeli({ ...inputs, precoVenda: pIdeal });
+            const pIdealVal = calcularPrecoIdealMeli(inputsCalc, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal);
+            const pIdeal = arredondar(pIdealVal, 2);
+            resultado = calcularTaxasMeli({ ...inputsCalc, precoVenda: pIdeal });
             resultadoClassico = null;
             resultadoPremium = null;
         }
 
-        // Salvar resultados dos dois tipos
         setResultsClassico(resultadoClassico);
         setResultsPremium(resultadoPremium);
         setResults(resultado);
 
         const tipoBaseEfetivo: 'custo' | 'venda' = tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal;
-        const sim = simularCenariosPrecoMeli(inputs, isAutoCalcMode ? resultado.margemSobreVenda : margemDesejada, tipoBaseEfetivo);
-        const pIdeal15 = calcularPrecoIdealMeli(inputs, 15, tipoBaseEfetivo);
-        const resIdeal15 = calcularTaxasMeli({ ...inputs, precoVenda: pIdeal15 });
+        const sim = simularCenariosPrecoMeli(inputsCalc, isAutoCalcMode ? resultado.margemSobreVenda : margemDesejada, tipoBaseEfetivo);
+        const pIdeal15Str = calcularPrecoIdealMeli(inputsCalc, 15, tipoBaseEfetivo).toFixed(2);
+        const resIdeal15 = calcularTaxasMeli({ ...inputsCalc, precoVenda: parseFloat(pIdeal15Str) });
 
         const simComIdeal = {
             ...sim,
@@ -969,24 +970,42 @@ const MeliPage: React.FC = () => {
 
                             <div className="input-group">
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    name="custoProduto"
-                                    placeholder="0,00"
-                                    value={getInputValue('custoProduto', inputs.custoProduto)}
-                                    onFocus={() => handleFocus('custoProduto', inputs.custoProduto)}
-                                    onBlur={() => { setFocusedInput(null); setFocusedValue(''); }}
-                                    onChange={handleChange}
-                                    onKeyDown={handleKeyDown}
-                                />
+                                <div style={{ display: 'flex', width: '100%' }}>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        name="custoProduto"
+                                        placeholder="0,00"
+                                        value={getInputValue('custoProduto', inputs.custoProduto)}
+                                        onFocus={() => {
+                                            setFocusedInput('custoProduto');
+                                            setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toFixed(2).replace('.', ',') : '');
+                                        }}
+                                        onBlur={() => {
+                                            setFocusedInput(null);
+                                            setFocusedValue('');
+                                        }}
+                                        onChange={handleChange}
+                                        onKeyDown={handleKeyDown}
+                                        style={{ borderTopRightRadius: '0', borderBottomRightRadius: '0', flex: 1 }}
+                                    />
+                                    <div className="input-addon addon-prefix" style={{ padding: '0 8px', borderLeft: 'none', background: '#f8fafc', color: '#64748b' }}>x</div>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={qtdMultiplier}
+                                        onChange={(e) => setQtdMultiplier(Math.max(1, parseInt(e.target.value) || 1))}
+                                        style={{ width: '60px', borderTopLeftRadius: '0', borderBottomLeftRadius: '0', textAlign: 'center' }}
+                                        title="Multiplicador de quantidade (Ex: Kit com 2)"
+                                    />
+                                </div>
                             </div>
 
                             {/* Campos de Preço Anunciado - PAC, PAP e Ambos */}
                             {aba === 'margem' && (
                                 <>
                                     <div className="input-section-title">Preço Anunciado</div>
-                                    
+
                                     {/* Alternador de tipo de anúncio - 3 opções: Clássico, Premium, Ambos */}
                                     <div className="input-group">
                                         <div className="margin-type-tabs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginBottom: '0.75rem' }}>
@@ -1012,12 +1031,12 @@ const MeliPage: React.FC = () => {
                                                 Ambos
                                             </button>
                                         </div>
-                                        
+
                                         <label>
                                             <span> Preço Anunciado (R$) </span>
                                             {modoCalculo === 'classico' ? s('PAC') : modoCalculo === 'premium' ? s('PAP') : s('PA')}
                                         </label>
-                                        
+
                                         {/* Input único para Clássico ou Premium */}
                                         {modoCalculo !== 'ambos' && (
                                             <input
@@ -1031,7 +1050,7 @@ const MeliPage: React.FC = () => {
                                                 onKeyDown={handleKeyDown}
                                             />
                                         )}
-                                        
+
                                         {/* Dois inputs separados quando modo for Ambos */}
                                         {modoCalculo === 'ambos' && (
                                             <>
@@ -1068,8 +1087,8 @@ const MeliPage: React.FC = () => {
                                             </>
                                         )}
                                         <span className="input-hint">
-                                            {modoCalculo === 'classico' 
-                                                ? 'Comissão 12% + taxa fixa abaixo de R$79' 
+                                            {modoCalculo === 'classico'
+                                                ? 'Comissão 12% + taxa fixa abaixo de R$79'
                                                 : modoCalculo === 'premium'
                                                     ? 'Comissão 17% + taxa fixa abaixo de R$79'
                                                     : 'Mesmo preço para ambos os tipos de anúncio'}
@@ -1215,7 +1234,7 @@ const MeliPage: React.FC = () => {
                             </div>
 
                             <div className="input-group">
-                                <label><CircleDollarSign size={16} /> Desconto no cadastro {s('DC')}</label>
+                                <label><CircleDollarSign size={16} /> Desconto no Cadastro {s('DC')}</label>
                                 <div className="input-composite">
                                     <input
                                         type="text"
@@ -1239,42 +1258,41 @@ const MeliPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Seção de Configurações Avançadas Colapsável (Paridade Shopee) */}
-                            <div
-                                className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsAdvancedOpen(!isAdvancedOpen);
-                                }}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <div className="header-title">
-                                    <ChevronDown size={20} className="chevron-icon" />
-                                    <span>Configurações Avançadas</span>
+                            {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
+                            {!isLevel3 && (
+                                <div
+                                    className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''}`}
+                                    onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <div className="header-title">
+                                        <ChevronDown size={20} className="chevron-icon" />
+                                        <span>Configurações Avançadas</span>
+                                    </div>
+                                    <div className="header-line"></div>
                                 </div>
-                                <div className="header-line"></div>
-                            </div>
+                            )}
 
-                            {isAdvancedOpen && (
+                            {!isLevel3 && isAdvancedOpen && (
                                 <div className={`advanced-settings-content ${isAdvancedOpen ? 'open' : ''}`}>
                                     {/* Alternador de Reputação - Minimalista */}
                                     <div className="input-group" style={{ marginBottom: '1rem' }}>
-                                        <label style={{ 
-                                            color: '#374151', 
-                                            fontWeight: 600, 
-                                            marginBottom: '0.5rem', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
+                                        <label style={{
+                                            color: '#374151',
+                                            fontWeight: 600,
+                                            marginBottom: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
                                             gap: '6px',
                                             fontSize: '0.9rem'
                                         }}>
-                                            <Award size={18} style={{ color: '#f59e0b' }} /> 
+                                            <Award size={18} style={{ color: '#f59e0b' }} />
                                             Reputação do Vendedor
                                         </label>
-                                        
+
                                         {/* Seletor de barras */}
-                                        <div style={{ 
-                                            display: 'flex', 
+                                        <div style={{
+                                            display: 'flex',
                                             gap: '2px',
                                             marginBottom: '0.5rem'
                                         }}>
@@ -1310,9 +1328,9 @@ const MeliPage: React.FC = () => {
                                                 />
                                             ))}
                                         </div>
-                                        
+
                                         {/* Status atual - sem fundo */}
-                                        <div style={{ 
+                                        <div style={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '6px'
@@ -1521,9 +1539,11 @@ const MeliPage: React.FC = () => {
                                     <RotateCcw size={18} /> Reiniciar Calculadora
                                 </button>
 
-                                <Link to="/meli/lote" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#3b82f6', borderColor: '#3b82f6', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                    <Table size={18} /> Processar Lote (CSV)
-                                </Link>
+                                {!isLevel3 && (
+                                    <Link to="/meli/lote" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: '#eab308', borderColor: '#eab308', color: '#1f2937', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                        <Table size={18} /> Processar Lote
+                                    </Link>
+                                )}
                             </div>
                         </div> {/* Fim parameters-grid */}
                     </div> {/* Fim card */}
@@ -1543,11 +1563,11 @@ const MeliPage: React.FC = () => {
                                 const isActive = inputs.tipoAnuncio === tipo;
                                 const isClassico = tipo === 'classico';
                                 // Calcula valores para cada tipo - usa preço específico quando modo é 'ambos'
-                                const paEspecifico = isClassico 
-                                    ? inputs.precoAnunciadoClassico 
+                                const paEspecifico = isClassico
+                                    ? inputs.precoAnunciadoClassico
                                     : inputs.precoAnunciadoPremium;
-                                const inputsCalc = { 
-                                    ...inputs, 
+                                const inputsCalc = {
+                                    ...inputs,
                                     tipoAnuncio: tipo,
                                     precoVenda: paEspecifico || inputs.precoVenda // Usa preço específico se disponível
                                 };
@@ -1556,7 +1576,6 @@ const MeliPage: React.FC = () => {
                                     : calcularTaxasMeli({ ...inputsCalc, precoVenda: calcularPrecoIdealMeli(inputsCalc, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal) });
                                 const lucroTipo = resultadoTipo.lucroLiquido;
                                 const margemTipo = resultadoTipo.margemSobreVenda;
-                                const paTipo = resultadoTipo.precoAnunciado;
                                 const dcDeTipo = resultadoTipo.descontoCadastroValorDe;
                                 const dcPorTipo = resultadoTipo.descontoCadastroValorPor;
                                 const dcValorTipo = resultadoTipo.descontoCadastroValor;
@@ -1737,7 +1756,7 @@ const MeliPage: React.FC = () => {
                                 {statusIcon} <span>{statusText}</span>
                             </div>
 
-                            <div className="premium-results-grid" style={{ 
+                            <div className="premium-results-grid" style={{
                                 marginTop: '1rem',
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(3, 1fr)',
@@ -1815,7 +1834,7 @@ const MeliPage: React.FC = () => {
                                 )}
                             </div>
 
-                            
+
                             <div className="details">
                                 <div className="details-group-header" style={{ marginTop: '0', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', color: '#1e3a8a' }}>
                                     Demonstração do Resultado do Exercício (DRE)
@@ -1857,7 +1876,7 @@ const MeliPage: React.FC = () => {
 
                                 {results.descontoCadastroValor > 0 && (
                                     <div className="detail-row" style={{ marginBottom: '0.5rem' }}>
-                                        <span>Desconto no cadastro {s('DC')}:</span>
+                                        <span>Desconto no Cadastro {s('DC')}:</span>
                                         <div className="detail-values">
                                             <span className="perc">({porc((results.descontoCadastroValor || 0) / (results.descontoCadastroValorDe || 1) * 100)}%)</span>
                                             <span className="val text-red">- R$ {moeda(results.descontoCadastroValor)}</span>

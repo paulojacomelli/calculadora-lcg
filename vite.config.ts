@@ -8,14 +8,22 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      // Habilita o Service Worker também em modo de desenvolvimento
+      devOptions: {
+        enabled: true,
+        type: 'module'
+      },
+      includeAssets: ['calc-icon.svg', 'lcg-logo.svg'],
       manifest: {
-        name: 'Calculadora Shopee LCG',
-        short_name: 'Shopee Calc',
-        description: 'Calculadora de Margem de Contribuição Shopee 2026',
+        name: 'Calculadora LCG Eletro 2026',
+        short_name: 'LCG Calc',
+        description: 'Calculadora de Margem de Contribuição — Shopee e Mercado Livre 2026',
         theme_color: '#ee4d2d',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        lang: 'pt-BR',
         icons: [
           {
             src: 'pwa-192.png',
@@ -37,4 +45,19 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Divide o bundle em chunks menores por lib, reduzindo o JS principal
+        manualChunks: {
+          'vendor-react':    ['react', 'react-dom', 'react-router-dom'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'vendor-recharts': ['recharts'],
+          'vendor-xlsx':     ['xlsx'],
+        }
+      }
+    }
+  }
 })
+
+
