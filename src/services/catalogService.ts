@@ -15,6 +15,8 @@ export interface Product {
   outrasDespesasOD: number;
   adsADS: number;
   rebateCR: number;
+  comissaoClassico: number;
+  comissaoPremium: number;
   cupomCP?: number; // Adicionado para cálculo em massa
 }
 

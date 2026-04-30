@@ -21,8 +21,6 @@ import {
     Zap,
     Award,
     Tag,
-    Minimize2,
-    Maximize2,
     HelpCircle,
     ChevronDown,
     ChevronLeft,
@@ -31,23 +29,10 @@ import {
     Table
 } from 'lucide-react';
 
-import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ComposedChart,
-    Area,
-    Line,
-    ReferenceLine
-} from 'recharts';
 
-import type { MeliInput, MeliOutput, ResultadoSimulacaoMeli, CenarioPrecoMeli } from '../utils/meliLogic';
-import { calcularTaxasMeli, calcularPrecoIdealMeli, simularCenariosPrecoMeli, arredondar, getFaixaPesoAutomatico } from '../utils/meliLogic';
+
+import type { MeliInput, MeliOutput } from '../utils/meliLogic';
+import { calcularTaxasMeli, calcularPrecoIdealMeli, arredondar, getFaixaPesoAutomatico } from '../utils/meliLogic';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { logCalculo, db } from '../firebase';
 import { getUserCatalog } from '../services/catalogService';
@@ -59,7 +44,8 @@ const defaultInputs: MeliInput = {
     precoAnunciadoClassico: undefined, // PAC
     precoAnunciadoPremium: undefined,  // PAP
     tipoAnuncio: 'classico',
-    // comissaoPorcentagem removido - usa automático: 12% Clássico / 17% Premium
+    comissaoClassico: 12,  // % padrão editável
+    comissaoPremium: 17,   // % padrão editável
     freteGratis: undefined,
     pesoRealKg: undefined,
     despesaFixa: undefined,
@@ -69,7 +55,6 @@ const defaultInputs: MeliInput = {
     impostoPorcentagem: undefined,
     impostoTipo: 'porcentagem',
     adsValor: undefined,
-    // Mantemos o Ads como porcentagem por padrão para evitar ROAS oculto distorcendo o cálculo.
     adsTipo: 'porcentagem',
     rebatePorcentagem: undefined,
     rebateTipo: 'porcentagem',
@@ -77,7 +62,7 @@ const defaultInputs: MeliInput = {
     cupomTipo: 'porcentagem',
     descontoCadastro: undefined,
     descontoCadastroTipo: 'porcentagem',
-    reputacao: 'cinza' // Padrão: cinza (sem reputação)
+    reputacao: 'cinza'
 };
 
 const porc = (valor: number) => {
@@ -115,14 +100,12 @@ const MeliPage: React.FC = () => {
     const [modoCalculo, setModoCalculo] = useState<'classico' | 'premium' | 'ambos'>('classico');
     const [tipoAnuncioCalculado, setTipoAnuncioCalculado] = useState<'classico' | 'premium'>('classico');
 
-    const [simulacao, setSimulacao] = useState<ResultadoSimulacaoMeli | null>(null);
+
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
     const [qtdMultiplier, setQtdMultiplier] = useState<number>(1);
 
-    // Estados para gráficos e tela cheia (paridade Shopee)
-    const [isFullscreenStrategy, setIsFullscreenStrategy] = useState(false);
-    const [isFullscreenScope, setIsFullscreenScope] = useState(false);
+
 
     const [statusClass, setStatusClass] = useState('');
     const [statusText, setStatusText] = useState('');
@@ -136,6 +119,15 @@ const MeliPage: React.FC = () => {
         setTimeout(() => {
             setNotification(prev => prev ? { ...prev, show: false } : null);
         }, 5000);
+    };
+
+    const resetCalculo = () => {
+        setResults(null);
+        setResultsClassico(null);
+        setResultsPremium(null);
+        setStatusClass('');
+        setStatusText('');
+        setStatusIcon(null);
     };
 
     const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -277,6 +269,7 @@ const MeliPage: React.FC = () => {
     // Os inputs são perdidos quando a página é recarregada
 
     const updateNumericValue = (name: string, val: number | undefined) => {
+        resetCalculo();
         if (name === 'margemDesejada') {
             setMargemDesejada(val);
         } else {
@@ -296,6 +289,8 @@ const MeliPage: React.FC = () => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const target = e.target as HTMLInputElement;
         const { name, type, value } = target;
+
+        resetCalculo();
 
         if (type === 'checkbox') {
             setInputs(prev => ({ ...prev, [name as keyof MeliInput]: target.checked }));
@@ -401,10 +396,17 @@ const MeliPage: React.FC = () => {
                     : inputsCalc.precoVenda;
                 if (paClassico === undefined) {
                     setResults(null);
-                    setSimulacao(null);
                     return;
                 }
-                resultadoClassico = calcularTaxasMeli({ ...inputsCalc, precoVenda: paClassico, tipoAnuncio: 'classico' });
+                resultadoClassico = calcularTaxasMeli({
+                    ...inputsCalc,
+                    precoVenda: paClassico,
+                    tipoAnuncio: 'classico',
+                    // Passa a comissão customizada do clássico, sem anular o premium
+                    comissaoClassico: inputsCalc.comissaoClassico,
+                    comissaoPremium: undefined,
+                    comissaoPorcentagem: undefined
+                });
             }
             if (modoCalculo === 'premium' || modoCalculo === 'ambos') {
                 const paPremium = modoCalculo === 'ambos'
@@ -412,27 +414,46 @@ const MeliPage: React.FC = () => {
                     : inputsCalc.precoVenda;
                 if (paPremium === undefined) {
                     setResults(null);
-                    setSimulacao(null);
                     return;
                 }
-                resultadoPremium = calcularTaxasMeli({ ...inputsCalc, precoVenda: paPremium, tipoAnuncio: 'premium' });
+                resultadoPremium = calcularTaxasMeli({
+                    ...inputsCalc,
+                    precoVenda: paPremium,
+                    tipoAnuncio: 'premium',
+                    // Passa a comissão customizada do premium, sem misturar com clássico
+                    comissaoPremium: inputsCalc.comissaoPremium,
+                    comissaoClassico: undefined,
+                    comissaoPorcentagem: undefined
+                });
             }
-            // Resultado principal
-            resultado = modoCalculo === 'premium' ? resultadoPremium! : resultadoClassico!;
+            // Resultado principal: prioriza Premium se modoCalculo for premium OU se for 'ambos' e o usuário selecionou o card premium
+            resultado = (modoCalculo === 'premium' || (modoCalculo === 'ambos' && inputs.tipoAnuncio === 'premium'))
+                ? resultadoPremium!
+                : resultadoClassico!;
 
             // Guardar tipo de anúncio usado no cálculo para exibir na DRE
-            setTipoAnuncioCalculado(modoCalculo === 'premium' ? 'premium' : 'classico');
+            setTipoAnuncioCalculado((modoCalculo === 'premium' || (modoCalculo === 'ambos' && inputs.tipoAnuncio === 'premium')) ? 'premium' : 'classico');
         } else {
             if (inputsCalc.custoProduto === undefined) {
                 setResults(null);
                 setResultsClassico(null);
                 setResultsPremium(null);
-                setSimulacao(null);
                 return;
             }
-            const pIdealVal = calcularPrecoIdealMeli(inputsCalc, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal);
+            // Deriva o tipo de anúncio do seletor visual (modoCalculo).
+            // No modo 'ambos', respeita a seleção atual do usuário (card ativo)
+            const tipoAnuncioIdeal: 'classico' | 'premium' = (modoCalculo === 'premium' || (modoCalculo === 'ambos' && inputs.tipoAnuncio === 'premium')) ? 'premium' : 'classico';
+            const inputsIdeal = {
+                ...inputsCalc,
+                tipoAnuncio: tipoAnuncioIdeal,
+                comissaoPremium:  tipoAnuncioIdeal === 'premium'  ? inputsCalc.comissaoPremium  : undefined,
+                comissaoClassico: tipoAnuncioIdeal === 'classico' ? inputsCalc.comissaoClassico : undefined,
+                comissaoPorcentagem: undefined
+            };
+            const pIdealVal = calcularPrecoIdealMeli(inputsIdeal, margemDesejada, tipoMargemIdeal);
             const pIdeal = arredondar(pIdealVal, 2);
-            resultado = calcularTaxasMeli({ ...inputsCalc, precoVenda: pIdeal });
+            resultado = calcularTaxasMeli({ ...inputsIdeal, precoVenda: pIdeal });
+            setTipoAnuncioCalculado(tipoAnuncioIdeal);
             resultadoClassico = null;
             resultadoPremium = null;
         }
@@ -441,26 +462,15 @@ const MeliPage: React.FC = () => {
         setResultsPremium(resultadoPremium);
         setResults(resultado);
 
-        const tipoBaseEfetivo: 'custo' | 'venda' = tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal;
-        const sim = simularCenariosPrecoMeli(inputsCalc, isAutoCalcMode ? resultado.margemSobreVenda : margemDesejada, tipoBaseEfetivo);
-        const pIdeal15Str = calcularPrecoIdealMeli(inputsCalc, 15, tipoBaseEfetivo).toFixed(2);
-        const resIdeal15 = calcularTaxasMeli({ ...inputsCalc, precoVenda: parseFloat(pIdeal15Str) });
 
-        const simComIdeal = {
-            ...sim,
-            pAlvo: sim.pontoIdeal,
-            pIdeal15: { ...resIdeal15, pesoTaxas: (resIdeal15.comissaoValor + resIdeal15.taxaFixa + resIdeal15.freteGratisValor) / (resIdeal15.precoVenda || 1) * 100 }
-        };
 
-        setSimulacao(simComIdeal as any);
-
-        // Status baseado no resultado principal
-        const msv = resultado.margemSobreVenda;
-        if (msv <= 0) {
+        // Status baseado no resultado principal (Referência: Margem sobre o Custo)
+        const msc = resultado.margemSobreCusto;
+        if (msc <= 0) {
             setStatusClass('status-red');
             setStatusText('Prejuízo!');
             setStatusIcon(<AlertCircle size={24} />);
-        } else if (msv < 15) {
+        } else if (msc < 15) {
             setStatusClass('status-orange');
             setStatusText('Atenção: Margem abaixo do ideal (15%)');
             setStatusIcon(<AlertTriangle size={24} />);
@@ -470,184 +480,12 @@ const MeliPage: React.FC = () => {
             setStatusIcon(<CheckCircle2 size={24} />);
         }
 
-        logCalculo(resultado.precoVenda, msv, " MELI");
-        notify(msv <= 0 ? "Atenção: Margem negativa detectada!" : "Cálculo realizado com sucesso!", msv <= 0 ? "error" : "success");
+        logCalculo(resultado.precoVenda, msc, " MELI");
+        notify(msc <= 0 ? "Atenção: Margem negativa detectada!" : "Cálculo realizado com sucesso!", msc <= 0 ? "error" : "success");
     };
 
 
-    // Componentes de Gráficos (Paridade Shopee)
-    const ComposicaoPrecoChart = ({ res }: { res: MeliOutput }) => {
-        const data = [
-            { name: 'PA', Lucro: res.lucroLiquido, Custo: res.custoProdutoValor, Ads: res.custoAds, Operacao: res.despesaFixaValor + res.despesaAdicionalValor, Taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor, fullPreco: `R$ ${res.precoAnunciado.toFixed(2)}` }
-        ];
 
-        return (
-            <div className="chart-container" style={{ background: '#fff', padding: '10px' }}>
-                <h4 className="chart-title">Composição do Preço Anunciado</h4>
-                <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                        <XAxis type="number" hide />
-                        <YAxis
-                            dataKey="name"
-                            type="category"
-                            hide
-                        />
-                        <Tooltip
-                            cursor={{ fill: 'transparent' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: any) => [`R$ ${Number(value).toFixed(2)}`, name]}
-                        />
-                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
-                        <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
-                        <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
-                        <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Op." />
-                        <Bar dataKey="Taxas" stackId="a" fill="#f97316" name="Taxas" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
-
-    const EstrategiaPrecoChart = ({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
-        dados: CenarioPrecoMeli[],
-        precoAtual: number,
-        pontoIdeal: CenarioPrecoMeli,
-        pontoAlvo: CenarioPrecoMeli,
-        onPriceSelect: (price: number) => void,
-        isFullscreen: boolean,
-        onToggleFullscreen: () => void
-    }) => {
-        const isAlvoDifferentFromIdeal = Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
-
-        const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo.precoVenda];
-        const minP = Math.min(...precosRelevantes);
-        const maxP = Math.max(...precosRelevantes);
-        const diff = maxP - minP;
-        const marginX = Math.max(diff * 0.15, 20);
-        const domainX = [Math.max(0, minP - marginX), maxP + marginX];
-
-        return (
-            <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
-                <div className="chart-header-actions">
-                    <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                    </button>
-                </div>
-                <ResponsiveContainer width="100%" height={isFullscreen ? "80%" : 280}>
-                    <ComposedChart
-                        data={dados}
-                        margin={{ top: 40, right: 30, left: 0, bottom: 0 }}
-                        onClick={(state: any) => {
-                            if (state && state.activePayload && state.activePayload.length > 0) {
-                                onPriceSelect(state.activePayload[0].payload.precoVenda);
-                            }
-                        }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis
-                            dataKey="precoVenda"
-                            type="number"
-                            domain={domainX}
-                            tickFormatter={(val) => `R$${Math.round(val)}`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#6b7280' }}
-                        />
-                        <YAxis
-                            yAxisId="left"
-                            tickFormatter={(val) => `R$${val}`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#10B981' }}
-                        />
-                        <YAxis
-                            yAxisId="right"
-                            orientation="right"
-                            tickFormatter={(val) => `${val.toFixed(0)}%`}
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#f97316' }}
-                        />
-
-                        <Tooltip
-                            shared={true}
-                            cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(value: any, name: any) => [
-                                String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`,
-                                name
-                            ]}
-                        />
-                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
-
-                        <Area yAxisId="left" type="monotone" dataKey="lucroLiquido" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
-                        <Line yAxisId="right" type="monotone" dataKey="pesoTaxas" name="Peso das Taxas (%)" stroke="#f97316" strokeWidth={2} dot={false} />
-
-                        <ReferenceLine yAxisId="left" y={0} stroke="#64748b" strokeWidth={1} />
-                        <ReferenceLine x={pontoIdeal.precoVenda} stroke="#10B981" strokeDasharray="3 3" label={{ position: 'top', value: 'IDEAL', fontSize: 10, fill: '#065f46', dy: -20 }} />
-                        {isAlvoDifferentFromIdeal && (
-                            <ReferenceLine x={pontoAlvo.precoVenda} stroke="#f59e0b" strokeDasharray="5 5" label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', dy: -10 }} />
-                        )}
-                        <ReferenceLine x={precoAtual} stroke="#3b82f6" strokeWidth={3} label={{ position: 'top', value: 'VOCÊ', fontSize: 11, fill: '#1e40af', fontWeight: 800, dy: -5 }} />
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
-
-    const TaxasPrecoChart = ({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
-        inputs: MeliInput,
-        precoAtual: number,
-        isFullscreen: boolean,
-        onToggleFullscreen: () => void
-    }) => {
-        const points = [];
-        const minX = Math.max(20, (inputs.custoProduto || 0) * 0.5);
-        const maxX = Math.max(precoAtual * 1.5, 300);
-        const step = (maxX - minX) / 60;
-
-        for (let x = minX; x <= maxX; x += step) {
-            const res = calcularTaxasMeli({ ...inputs, precoVenda: x });
-            points.push({
-                x,
-                lucro: res.lucroLiquido,
-                taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor
-            });
-        }
-        // Injetar pontos críticos
-        [78.90, 79.00, 79.10, precoAtual].forEach(critical => {
-            const res = calcularTaxasMeli({ ...inputs, precoVenda: critical });
-            points.push({ x: critical, lucro: res.lucroLiquido, taxas: res.comissaoValor + res.taxaFixa + res.freteGratisValor });
-        });
-        points.sort((a, b) => a.x - b.x);
-
-        return (
-            <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
-                <div className="chart-header-actions">
-                    <h4 className="chart-title">Visualização do Escopo Meli 2026</h4>
-                    <button className="fullscreen-toggle" onClick={onToggleFullscreen}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                    </button>
-                </div>
-                <ResponsiveContainer width="100%" height={isFullscreen ? "85%" : 320}>
-                    <ComposedChart data={points} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="x" type="number" domain={['auto', 'auto']} tickFormatter={(val) => `R$${val.toFixed(0)}`} />
-                        <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} />
-                        <Tooltip formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`} />
-                        <Legend verticalAlign="top" align="right" />
-                        <Area yAxisId="left" type="monotone" dataKey="lucro" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
-                        <Line yAxisId="left" type="monotone" dataKey="taxas" name="Taxas Totais (R$)" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="3 3" />
-                        <ReferenceLine x={79} stroke="#ef4444" strokeWidth={2} strokeDasharray="3 3" label={{ value: 'Regra Frete R$ 79', position: 'top', fill: '#ef4444', fontSize: 10 }} />
-                        <ReferenceLine x={precoAtual} stroke="#3b82f6" strokeWidth={3} label={{ value: 'SEU PREÇO', position: 'top', fill: '#1d4ed8', fontSize: 11, fontWeight: 900 }} />
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
 
     const handleLimpar = () => setIsResetModalOpen(true);
     const confirmReset = () => {
@@ -660,7 +498,7 @@ const MeliPage: React.FC = () => {
         setIsAutoCalcMode(false);
         setCompararTipos(false);
         setResults(null);
-        setSimulacao(null);
+
         setSelectedCatalogProduct(null);
         setSearchQuery('');
         setShowSearchDropdown(false);
@@ -687,16 +525,16 @@ const MeliPage: React.FC = () => {
 
             <div className="calculator-main">
                 <div className="calculator-left">
-                    <div className="tabs" style={{ marginBottom: '1.5rem' }}>
+                    <div className="tabs">
                         <button
                             className={`tab ${aba === 'margem' ? 'active' : ''}`}
-                            onClick={() => setAba('margem')}
+                            onClick={() => { resetCalculo(); setAba('margem'); }}
                         >
                             <Calculator size={18} /> Calcular margem
                         </button>
                         <button
                             className={`tab ${aba === 'ideal' ? 'active' : ''}`}
-                            onClick={() => setAba('ideal')}
+                            onClick={() => { resetCalculo(); setAba('ideal'); }}
                         >
                             <CircleDollarSign size={18} /> Preço Ideal
                         </button>
@@ -707,11 +545,11 @@ const MeliPage: React.FC = () => {
                             <span className="number-badge">1</span> Parâmetros de Cálculo {s('PDL')}
                         </div>
 
-                        <div className="parameters-grid" style={{ padding: '0.5rem 0' }}>
+                        <div className="parameters-grid">
                             <div className="input-section-title">Valores Base</div>
 
                             {/* Barra de Busca de Catálogo - Integrada no Card como na Shopee */}
-                            <div className="input-group" style={{ position: 'relative', marginBottom: '1rem', zIndex: showSearchDropdown ? 100 : 1 }}>
+                            <div className="input-group" style={{ position: 'relative', zIndex: showSearchDropdown ? 100 : 1 }}>
                                 <label style={{ color: '#4b5563', fontWeight: 700 }}><Search size={16} /> Buscar no Catálogo</label>
 
                                 {!selectedCatalogProduct ? (
@@ -970,11 +808,12 @@ const MeliPage: React.FC = () => {
 
                             <div className="input-group">
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
-                                <div style={{ display: 'flex', width: '100%' }}>
+                                <div className="input-composite">
                                     <input
                                         type="text"
                                         inputMode="decimal"
                                         name="custoProduto"
+                                        className="input-main"
                                         placeholder="0,00"
                                         value={getInputValue('custoProduto', inputs.custoProduto)}
                                         onFocus={() => {
@@ -987,51 +826,150 @@ const MeliPage: React.FC = () => {
                                         }}
                                         onChange={handleChange}
                                         onKeyDown={handleKeyDown}
-                                        style={{ borderTopRightRadius: '0', borderBottomRightRadius: '0', flex: 1 }}
                                     />
-                                    <div className="input-addon addon-prefix" style={{ padding: '0 8px', borderLeft: 'none', background: '#f8fafc', color: '#64748b' }}>x</div>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={qtdMultiplier}
-                                        onChange={(e) => setQtdMultiplier(Math.max(1, parseInt(e.target.value) || 1))}
-                                        style={{ width: '60px', borderTopLeftRadius: '0', borderBottomLeftRadius: '0', textAlign: 'center' }}
-                                        title="Multiplicador de quantidade (Ex: Kit com 2)"
-                                    />
+                                    <div className="input-unit" style={{ padding: 0, display: 'flex', alignItems: 'center', background: '#f8fafc', cursor: 'default' }}>
+                                        <span style={{ paddingLeft: '12px', paddingRight: '4px', color: '#64748b', fontWeight: 600 }}>x</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={qtdMultiplier}
+                                            onChange={(e) => {
+                                                resetCalculo();
+                                                setQtdMultiplier(Math.max(1, parseInt(e.target.value) || 1));
+                                            }}
+                                            style={{ width: '48px', border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', padding: '0.75rem 0', fontWeight: 600, color: 'inherit' }}
+                                            title="Multiplicador de quantidade (Ex: Kit com 2)"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Campos de Preço Anunciado - PAC, PAP e Ambos */}
-                            {aba === 'margem' && (
-                                <>
-                                    <div className="input-section-title">Preço Anunciado</div>
+                            <div className="input-section-title">Anúncio</div>
+                            
+                            {/* Alternador de tipo de anúncio - 3 opções: Clássico, Premium, Ambos (Sempre Visível) */}
+                            <div className="input-group">
+                                <div className="margin-type-tabs" style={{ marginBottom: aba === 'ideal' ? '0' : '0.75rem' }}>
+                                    <button
+                                        className={`margin-tab ${modoCalculo === 'classico' ? 'active' : ''}`}
+                                        onClick={() => { 
+                                            resetCalculo(); 
+                                            setModoCalculo('classico');
+                                            setInputs(prev => ({ ...prev, tipoAnuncio: 'classico' }));
+                                        }}
+                                        style={{ fontSize: '0.8rem', padding: '0.5rem' }}
+                                    >
+                                        Clássico
+                                    </button>
+                                    <button
+                                        className={`margin-tab ${modoCalculo === 'premium' ? 'active' : ''}`}
+                                        onClick={() => { 
+                                            resetCalculo(); 
+                                            setModoCalculo('premium');
+                                            setInputs(prev => ({ ...prev, tipoAnuncio: 'premium' }));
+                                        }}
+                                        style={{ fontSize: '0.8rem', padding: '0.5rem' }}
+                                    >
+                                        Premium
+                                    </button>
+                                    <button
+                                        className={`margin-tab ${modoCalculo === 'ambos' ? 'active' : ''}`}
+                                        onClick={() => { 
+                                            resetCalculo(); 
+                                            setModoCalculo('ambos');
+                                            // No modo ambos, o padrão inicial de exibição costuma ser clássico
+                                            setInputs(prev => ({ ...prev, tipoAnuncio: 'classico' }));
+                                        }}
+                                        style={{ fontSize: '0.8rem', padding: '0.5rem' }}
+                                    >
+                                        Ambos
+                                    </button>
+                                </div>
 
-                                    {/* Alternador de tipo de anúncio - 3 opções: Clássico, Premium, Ambos */}
-                                    <div className="input-group">
-                                        <div className="margin-type-tabs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginBottom: '0.75rem' }}>
-                                            <button
-                                                className={`margin-tab ${modoCalculo === 'classico' ? 'active' : ''}`}
-                                                onClick={() => setModoCalculo('classico')}
-                                                style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-                                            >
-                                                Clássico (12%)
-                                            </button>
-                                            <button
-                                                className={`margin-tab ${modoCalculo === 'premium' ? 'active' : ''}`}
-                                                onClick={() => setModoCalculo('premium')}
-                                                style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-                                            >
-                                                Premium (17%)
-                                            </button>
-                                            <button
-                                                className={`margin-tab ${modoCalculo === 'ambos' ? 'active' : ''}`}
-                                                onClick={() => setModoCalculo('ambos')}
-                                                style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-                                            >
-                                                Ambos
-                                            </button>
+                                {/* Input de comissão editável — aparece conforme o tipo selecionado */}
+                                {modoCalculo === 'classico' && (
+                                    <div className="input-group" style={{ marginTop: '1rem' }}>
+                                        <label>
+                                            <Tag size={16} /> Comissão Clássico (%) {s('CML')}
+                                        </label>
+                                        <div className="input-composite">
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                name="comissaoClassico"
+                                                className="input-main"
+                                                placeholder="12"
+                                                value={getInputValue('comissaoClassico', inputs.comissaoClassico)}
+                                                onFocus={() => handleFocus('comissaoClassico', inputs.comissaoClassico)}
+                                                onChange={handleChange}
+                                            />
+                                            <span className="input-unit">%</span>
                                         </div>
+                                    </div>
+                                )}
+                                {modoCalculo === 'premium' && (
+                                    <div className="input-group" style={{ marginTop: '1rem' }}>
+                                        <label>
+                                            <Award size={16} /> Comissão Premium (%) {s('CML')}
+                                        </label>
+                                        <div className="input-composite">
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                name="comissaoPremium"
+                                                className="input-main"
+                                                placeholder="17"
+                                                value={getInputValue('comissaoPremium', inputs.comissaoPremium)}
+                                                onFocus={() => handleFocus('comissaoPremium', inputs.comissaoPremium)}
+                                                onChange={handleChange}
+                                            />
+                                            <span className="input-unit">%</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {modoCalculo === 'ambos' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                                        <div className="input-group">
+                                            <label>
+                                                <Tag size={16} /> Comissão Clássico (%) {s('CML')}
+                                            </label>
+                                            <div className="input-composite">
+                                                <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    name="comissaoClassico"
+                                                    className="input-main"
+                                                    placeholder="12"
+                                                    value={getInputValue('comissaoClassico', inputs.comissaoClassico)}
+                                                    onFocus={() => handleFocus('comissaoClassico', inputs.comissaoClassico)}
+                                                    onChange={handleChange}
+                                                />
+                                                <span className="input-unit">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="input-group">
+                                            <label>
+                                                <Award size={16} /> Comissão Premium (%) {s('CML')}
+                                            </label>
+                                            <div className="input-composite">
+                                                <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    name="comissaoPremium"
+                                                    className="input-main"
+                                                    placeholder="17"
+                                                    value={getInputValue('comissaoPremium', inputs.comissaoPremium)}
+                                                    onFocus={() => handleFocus('comissaoPremium', inputs.comissaoPremium)}
+                                                    onChange={handleChange}
+                                                />
+                                                <span className="input-unit">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
+                                {/* Campos de Preço Anunciado - PAC, PAP e Ambos (Apenas na aba margem) */}
+                                {aba === 'margem' && (
+                                    <>
                                         <label>
                                             <span> Preço Anunciado (R$) </span>
                                             {modoCalculo === 'classico' ? s('PAC') : modoCalculo === 'premium' ? s('PAP') : s('PA')}
@@ -1093,9 +1031,9 @@ const MeliPage: React.FC = () => {
                                                     ? 'Comissão 17% + taxa fixa abaixo de R$79'
                                                     : 'Mesmo preço para ambos os tipos de anúncio'}
                                         </span>
-                                    </div>
-                                </>
-                            )}
+                                    </>
+                                )}
+                            </div>
 
                             {aba === 'ideal' && (
                                 <div className="input-group">
@@ -1106,24 +1044,24 @@ const MeliPage: React.FC = () => {
                                         <HelpCircle size={14} className="label-help" />
                                     </label>
 
-                                    <div className="margin-type-tabs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+                                    <div className="margin-type-tabs">
                                         <button
                                             className={`margin-tab ${tipoMargemIdeal === 'custo' ? 'active' : ''}`}
-                                            onClick={() => { setTipoMargemIdeal('custo'); }}
+                                            onClick={() => { resetCalculo(); setTipoMargemIdeal('custo'); }}
                                             style={{ fontSize: '0.8rem', padding: '0.4rem' }}
                                         >
                                             Sobre o Custo
                                         </button>
                                         <button
                                             className={`margin-tab ${tipoMargemIdeal === 'venda' ? 'active' : ''}`}
-                                            onClick={() => { setTipoMargemIdeal('venda'); }}
+                                            onClick={() => { resetCalculo(); setTipoMargemIdeal('venda'); }}
                                             style={{ fontSize: '0.8rem', padding: '0.4rem' }}
                                         >
                                             Sobre a Venda
                                         </button>
                                         <button
                                             className={`margin-tab ${tipoMargemIdeal === 'reais' ? 'active' : ''}`}
-                                            onClick={() => { setTipoMargemIdeal('reais'); }}
+                                            onClick={() => { resetCalculo(); setTipoMargemIdeal('reais'); }}
                                             style={{ fontSize: '0.8rem', padding: '0.4rem', whiteSpace: 'nowrap' }}
                                         >
                                             Ou (R$)
@@ -1550,14 +1488,14 @@ const MeliPage: React.FC = () => {
                 </div> {/* Fim calculator-left */}
 
 
-                <div className="calculator-right">
+                <div className="calculator-center">
+                    <div className="results-column-main">
                     {/* ── Abas de Tipo de Anúncio ── */}
                     {results && modoCalculo === 'ambos' && (
                         <div style={{
                             display: 'grid',
                             gridTemplateColumns: '1fr 1fr',
-                            gap: '1.5rem',
-                            marginBottom: '1.5rem'
+                            gap: '1rem'
                         }}>
                             {(['classico', 'premium'] as const).map((tipo) => {
                                 const isActive = inputs.tipoAnuncio === tipo;
@@ -1573,7 +1511,7 @@ const MeliPage: React.FC = () => {
                                 };
                                 const resultadoTipo = aba === 'margem'
                                     ? calcularTaxasMeli(inputsCalc)
-                                    : calcularTaxasMeli({ ...inputsCalc, precoVenda: calcularPrecoIdealMeli(inputsCalc, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal) });
+                                    : calcularTaxasMeli({ ...inputsCalc, precoVenda: calcularPrecoIdealMeli(inputsCalc, margemDesejada, tipoMargemIdeal) });
                                 const lucroTipo = resultadoTipo.lucroLiquido;
                                 const margemTipo = resultadoTipo.margemSobreVenda;
                                 const dcDeTipo = resultadoTipo.descontoCadastroValorDe;
@@ -1585,21 +1523,29 @@ const MeliPage: React.FC = () => {
                                         key={tipo}
                                         onClick={() => {
                                             setInputs(prev => ({ ...prev, tipoAnuncio: tipo }));
+                                            setTipoAnuncioCalculado(tipo);
+                                            
                                             if (results) {
                                                 setTimeout(() => {
-                                                    const inputsAtualizados = { ...inputs, tipoAnuncio: tipo };
+                                                    // Determina o preço correto para o tipo selecionado
+                                                    const paEspecifico = tipo === 'classico'
+                                                        ? inputs.precoAnunciadoClassico
+                                                        : inputs.precoAnunciadoPremium;
+                                                        
+                                                    const inputsAtualizados = { 
+                                                        ...inputs, 
+                                                        tipoAnuncio: tipo,
+                                                        precoVenda: paEspecifico || inputs.precoVenda
+                                                    };
+                                                    
                                                     const res = aba === 'margem'
                                                         ? calcularTaxasMeli(inputsAtualizados)
-                                                        : calcularTaxasMeli({ ...inputsAtualizados, precoVenda: calcularPrecoIdealMeli(inputsAtualizados, margemDesejada, tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal) });
-                                                    const tipoBase: 'custo' | 'venda' = tipoMargemIdeal === 'reais' ? 'venda' : tipoMargemIdeal;
-                                                    const sim = simularCenariosPrecoMeli(inputsAtualizados, isAutoCalcMode ? res.margemSobreVenda : margemDesejada, tipoBase);
-                                                    const pIdeal15 = calcularPrecoIdealMeli(inputsAtualizados, 15, tipoBase);
-                                                    const resIdeal15 = calcularTaxasMeli({ ...inputsAtualizados, precoVenda: pIdeal15 });
-                                                    setSimulacao({ ...sim, pAlvo: sim.pontoIdeal, pIdeal15: { ...resIdeal15, pesoTaxas: (resIdeal15.comissaoValor + resIdeal15.taxaFixa + resIdeal15.freteGratisValor) / (resIdeal15.precoVenda || 1) * 100 } } as any);
+                                                        : calcularTaxasMeli({ ...inputsAtualizados, precoVenda: calcularPrecoIdealMeli(inputsAtualizados, margemDesejada, tipoMargemIdeal) });
+
                                                     setResults(res);
-                                                    const msv = res.margemSobreVenda;
-                                                    if (msv <= 0) { setStatusClass('status-red'); setStatusText('Prejuízo!'); setStatusIcon(<AlertCircle size={24} />); }
-                                                    else if (msv < 15) { setStatusClass('status-orange'); setStatusText('Atenção: Margem abaixo do ideal (15%)'); setStatusIcon(<AlertTriangle size={24} />); }
+                                                    const msc = res.margemSobreCusto;
+                                                    if (msc <= 0) { setStatusClass('status-red'); setStatusText('Prejuízo!'); setStatusIcon(<AlertCircle size={24} />); }
+                                                    else if (msc < 15) { setStatusClass('status-orange'); setStatusText('Atenção: Margem abaixo do ideal (15%)'); setStatusIcon(<AlertTriangle size={24} />); }
                                                     else { setStatusClass('status-green'); setStatusText('Parabéns: Sua margem está saudável!'); setStatusIcon(<CheckCircle2 size={24} />); }
                                                 }, 0);
                                             }
@@ -1757,7 +1703,6 @@ const MeliPage: React.FC = () => {
                             </div>
 
                             <div className="premium-results-grid" style={{
-                                marginTop: '1rem',
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(3, 1fr)',
                                 gap: '1rem'
@@ -1906,9 +1851,9 @@ const MeliPage: React.FC = () => {
 
                                 <div className="details-group-header">Política do Mercado Livre {s('PDS')}</div>
                                 <div className="detail-row">
-                                    <span>Comissão Mercado Livre ({tipoAnuncioCalculado === 'premium' ? '17%' : '12%'}) {s('CML')}:</span>
+                                    <span>Comissão Mercado Livre ({porc((results.comissaoValor / (results.precoAnunciado || 1)) * 100)}%) {s('CML')}:</span>
                                     <div className="detail-values">
-                                        <span className="perc">{tipoAnuncioCalculado === 'premium' ? '17%' : '12%'}</span>
+                                        <span className="perc">({porc((results.comissaoValor / (results.precoAnunciado || 1)) * 100)}%)</span>
                                         <span className="val text-red">- R$ {moeda(results.comissaoValor)}</span>
                                     </div>
                                 </div>
@@ -1935,7 +1880,7 @@ const MeliPage: React.FC = () => {
                                 <div className="detail-row">
                                     <span>Custo do Produto {s('CDP')}:</span>
                                     <div className="detail-values">
-                                        <span className="perc">({porc((inputs.custoProduto || 0) / (results.precoAnunciado || 1) * 100)}%)</span>
+                                        <span className="perc">({porc((inputs.custoProduto || 0) / (results.precoVenda || 1) * 100)}%)</span>
                                         <span className="val text-red">- R$ {moeda(inputs.custoProduto)}</span>
                                     </div>
                                 </div>
@@ -1943,7 +1888,7 @@ const MeliPage: React.FC = () => {
                                     <div className="detail-row">
                                         <span>Imposto {s('IMP')}:</span>
                                         <div className="detail-values">
-                                            <span className="perc">({porc((results.impostoValor || 0) / (results.precoAnunciado || 1) * 100)}%)</span>
+                                            <span className="perc">({porc((results.impostoValor || 0) / (results.precoVenda || 1) * 100)}%)</span>
                                             <span className="val text-red">- R$ {moeda(results.impostoValor)}</span>
                                         </div>
                                     </div>
@@ -1952,16 +1897,17 @@ const MeliPage: React.FC = () => {
                                     <div className="detail-row">
                                         <span>Ads Mercado Livre {s('ADS')}:</span>
                                         <div className="detail-values">
-                                            <span className="perc">({porc((results.custoAds || 0) / (results.precoAnunciado || 1) * 100)}%)</span>
+                                            <span className="perc">({porc((results.custoAds || 0) / (results.precoVenda || 1) * 100)}%)</span>
                                             <span className="val text-red">- R$ {moeda(results.custoAds)}</span>
                                         </div>
                                     </div>
                                 )}
+
                                 {(results.despesaFixaValor ?? 0) > 0 && (
                                     <div className="detail-row">
                                         <span>Despesa fixa {s('DF')}:</span>
                                         <div className="detail-values">
-                                            <span className="perc">({porc((results.despesaFixaValor || 0) / (results.precoAnunciado || 1) * 100)}%)</span>
+                                            <span className="perc">({porc((results.despesaFixaValor || 0) / (results.precoVenda || 1) * 100)}%)</span>
                                             <span className="val text-red">- R$ {moeda(results.despesaFixaValor)}</span>
                                         </div>
                                     </div>
@@ -1970,134 +1916,83 @@ const MeliPage: React.FC = () => {
                                     <div className="detail-row">
                                         <span>Outras Despesas {s('OD')}:</span>
                                         <div className="detail-values">
-                                            <span className="perc">({porc((results.despesaAdicionalValor || 0) / (results.precoAnunciado || 1) * 100)}%)</span>
+                                            <span className="perc">({porc((results.despesaAdicionalValor || 0) / (results.precoVenda || 1) * 100)}%)</span>
                                             <span className="val text-red">- R$ {moeda(results.despesaAdicionalValor || 0)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {(results.rebateValor ?? 0) > 0 && (
+                                    <div className="detail-row">
+                                        <span>Crédito de Rebate {s('CR')}:</span>
+                                        <div className="detail-values">
+                                            <span className="perc">({porc((results.rebateValor || 0) / (results.precoVenda || 1) * 100)}%)</span>
+                                            <span className="val text-green">+ R$ {moeda(results.rebateValor)}</span>
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="result-card mini large" style={{ marginTop: '0.75rem' }}>
-                                <div className="result-header">
-                                    {results.margemSobreVenda >= 15 ? (
-                                        <ArrowUpRight size={18} className="text-green" />
-                                    ) : (
-                                        <ArrowDownRight size={18} className="text-red" />
-                                    )} Margem de Contribuição {s('MC')}
-                                </div>
-                                <div className="result-body">
-                                    <span className={`percentage ${results.margemSobreVenda <= 0 ? 'text-red' :
-                                        results.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
-                                        }`}>
-                                        {(() => {
-                                            const mc = ((results.precoAnunciado - results.lucroLiquido) / (results.precoAnunciado || 1)) * 100;
-                                            return arredondar(100 - mc, 2).toFixed(2).replace('.', ',');
-                                        })()}%
-                                    </span>
-                                    <span className="nominal">R$ {arredondar((results.precoAnunciado - results.custoProdutoValor) || 0, 2).toFixed(2).replace('.', ',')}</span>
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
+
+
             </div>
 
-            {results && simulacao && (
-                <div className="charts-main-section" style={{ marginTop: '3rem' }}>
-                    <div className="section-divider" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
-                        <div style={{ height: '1px', flex: 1, background: '#e2e8f0' }}></div>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e2937', fontStyle: 'italic' }}>ANÁLISE ANALÍTICA LCG</h2>
-                        <div style={{ height: '1px', flex: 1, background: '#e2e8f0' }}></div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                        <div className="card" style={{ padding: '20px' }}>
-                            <ComposicaoPrecoChart res={results!} />
-                            <div style={{ display: 'flex', alignItems: 'start', gap: '10px', marginTop: '1.5rem', padding: '12px', background: '#f8fafc', borderRadius: '10px' }}>
-                                <Info size={18} style={{ color: '#3b82f6', marginTop: '2px', flexShrink: 0 }} />
-                                <p style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4, margin: 0 }}>
-                                    Este gráfico mostra como cada real do faturamento é distribuído. O <strong>Lucro Líquido (Verde)</strong> é o que realmente sobra no seu bolso.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="card" style={{ padding: '20px' }}>
-                            <EstrategiaPrecoChart
-                                dados={simulacao!.cenarios}
-                                precoAtual={results!.precoVenda}
-                                pontoIdeal={simulacao!.pontoIdeal}
-                                pontoAlvo={simulacao!.pAlvo || simulacao!.pontoIdeal}
-                                onPriceSelect={(p) => setInputs(prev => ({ ...prev, precoVenda: p }))}
-                                isFullscreen={isFullscreenStrategy}
-                                onToggleFullscreen={() => setIsFullscreenStrategy(!isFullscreenStrategy)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="card" style={{ padding: '20px' }}>
-                        <TaxasPrecoChart
-                            inputs={inputs}
-                            precoAtual={results!.precoVenda}
-                            isFullscreen={isFullscreenScope}
-                            onToggleFullscreen={() => setIsFullscreenScope(!isFullscreenScope)}
-                        />
-                    </div>
-                </div>
-            )}
 
 
-            <div className="info-section" style={{ marginTop: '5rem', textAlign: 'center' }}>
-                <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>O que é Margem de Contribuição?</h2>
-                <div className="card" style={{ textAlign: 'left', lineHeight: '1.6', color: '#4b5563' }}>
-                    <p style={{ marginBottom: '1rem' }}>
-                        <strong>Margem de Contribuição</strong> é o dinheiro que realmente sobra depois de pagar <strong>todos os custos diretos</strong> de cada venda: comissão do marketplace, tarifas, frete, publicidade, impostos e embalagem. É diferente do "lucro bruto" que a maioria calcula errado (apenas preço de venda menos custo do produto).
+
+        </div>
+
+        <div className="info-section" style={{ marginTop: '5rem', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '2rem', marginBottom: '2rem' }}>O que é Margem de Contribuição?</h2>
+            <div className="card" style={{ textAlign: 'left', lineHeight: '1.6', color: '#4b5563' }}>
+                <p style={{ marginBottom: '1rem' }}>
+                    <strong>Margem de Contribuição</strong> é o dinheiro que realmente sobra depois de pagar <strong>todos os custos diretos</strong> de cada venda: comissão do marketplace, tarifas, frete, publicidade, impostos e embalagem. É diferente do "lucro bruto" que a maioria calcula errado (apenas preço de venda menos custo do produto).
+                </p>
+                <p style={{ marginBottom: '1.5rem' }}>
+                    No <strong>Mercado Livre</strong>, a conta é ainda mais complexa: <strong>12% de comissão</strong> (anúncios clássicos) ou <strong>17% (premium)</strong>, <strong>tarifa fixa</strong> que varia de R$ 6 a R$ 37 conforme o preço de venda, <strong>frete grátis obrigatório</strong> em produtos novos acima de R$ 79, custos de <strong>Mercado Ads</strong>, impostos e embalagem.
+                </p>
+                <div className="alert-box alert-blue" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                    <AlertCircle className="alert-icon" size={20} style={{ color: '#3b82f6' }} />
+                    <p style={{ color: '#1e40af' }}>
+                        <strong>Exemplo prático:</strong> Produto que custa R$ 50 e você vende por R$ 100. Muita gente acha que lucrou R$ 50 (100%). Na realidade, após comissão (12% = R$ 12), tarifa fixa (R$ 8), frete (R$ 12), imposto (6% = R$ 6) e embalagem (R$ 3), você lucra apenas <strong>R$ 9 (margem de 9%)</strong>. Grande diferença, né?
                     </p>
-                    <p style={{ marginBottom: '1rem' }}>
-                        Na <strong>Shopee</strong>, você precisa descontar: <strong>comissão variável por categoria</strong> (5% a 18%), <strong>taxa fixa</strong> (R$ 2 a R$ 3,70 por pedido), <strong>frete grátis</strong> que você paga, custos de <strong>Shopee Ads</strong> se usar publicidade, <strong>impostos</strong> (Simples Nacional, MEI) e <strong>embalagem</strong>. Só assim você sabe se está lucrando de verdade.
-                    </p>
-                    <p style={{ marginBottom: '1.5rem' }}>
-                        No <strong>Mercado Livre</strong>, a conta é ainda mais complexa: <strong>12% de comissão</strong> (anúncios clássicos) ou <strong>17% (premium)</strong>, <strong>tarifa fixa</strong> que varia de R$ 6 a R$ 37 conforme o preço de venda, <strong>frete grátis obrigatório</strong> em produtos novos acima de R$ 79, custos de <strong>Mercado Ads</strong>, impostos e embalagem.
-                    </p>
-                    <div className="alert-box alert-blue" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                        <AlertCircle className="alert-icon" size={20} style={{ color: '#3b82f6' }} />
-                        <p style={{ color: '#1e40af' }}>
-                            <strong>Exemplo prático:</strong> Produto que custa R$ 50 e você vende por R$ 100. Muita gente acha que lucrou R$ 50 (100%). Na realidade, após comissão (12% = R$ 12), tarifa fixa (R$ 8), frete (R$ 12), imposto (6% = R$ 6) e embalagem (R$ 3), você lucra apenas <strong>R$ 9 (margem de 9%)</strong>. Grande diferença, né?
-                        </p>
-                    </div>
                 </div>
             </div>
+        </div>
 
-            <div className="faq-section" style={{ marginTop: '5rem', marginBottom: '5rem' }}>
-                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Perguntas Frequentes</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Como funciona a comissão do Mercado Livre?</span></h4>
-                        <p>O Mercado Livre cobra <strong>12% de comissão</strong> para anúncios clássicos e <strong>17% para anúncios premium</strong>. Além da comissão, há um <strong>custo operacional de envio</strong> que varia conforme o peso e o preço do produto.</p>
-                    </div>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Qual a diferença entre anúncio clássico e premium?</span></h4>
-                        <p><strong>Clássico:</strong> 12% de comissão, menor visibilidade. <strong>Premium:</strong> 17% de comissão, mas aparece melhor posicionado nas buscas e tem mais benefícios como frete grátis destacado.</p>
-                    </div>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Como funciona o novo custo de envio do ML?</span></h4>
-                        <p>A partir de março de 2026, o Mercado Livre usa uma <strong>tabela única de custos operacionais</strong> baseada em peso do produto e preço de venda. Não existe mais tarifa fixa separada nem frete médio manual. O custo é calculado automaticamente pela combinação peso x preço. Os valores já incluem descontos por reputação.</p>
-                    </div>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>O que mudou nos custos do Mercado Livre em 2026?</span></h4>
-                        <p>O ML substituiu a <strong>tarifa fixa (R$ 6,25 a R$ 6,75)</strong> e o conceito de <strong>frete médio</strong> por uma tabela única. Agora o custo de envio depende de 29 faixas de peso e 8 faixas de preço, totalizando 232 combinações. O frete grátis continua a partir de R$ 19, e anúncios acima de R$ 79 oferecem frete grátis e rápido.</p>
-                    </div>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Vale a pena investir em Mercado Ads?</span></h4>
-                        <p>Depende do seu <strong>ROAS</strong> (retorno sobre investimento). Se você gasta R$ 10 em anúncios e vende R$ 50 (ROAS 5), provavelmente vale a pena. Configure o ROAS desejado para calcular o impacto na margem.</p>
-                    </div>
-                    <div className="card faq-card">
-                        <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Qual margem ideal para o Mercado Livre?</span></h4>
-                        <p>Uma margem saudável fica <strong>acima de 20%</strong>. Entre 10-20% é apertado mas viável. Abaixo de 10% você corre risco de prejuízo, especialmente considerando devoluções e custos operacionais.</p>
-                    </div>
+        <div className="faq-section" style={{ marginTop: '5rem', marginBottom: '5rem' }}>
+            <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Perguntas Frequentes</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Como funciona a comissão do Mercado Livre?</span></h4>
+                    <p>O Mercado Livre cobra <strong>12% de comissão</strong> para anúncios clássicos e <strong>17% para anúncios premium</strong>. Além da comissão, há um <strong>custo operacional de envio</strong> que varia conforme o peso e o preço do produto.</p>
+                </div>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Qual a diferença entre anúncio clássico e premium?</span></h4>
+                    <p><strong>Clássico:</strong> 12% de comissão, menor visibilidade. <strong>Premium:</strong> 17% de comissão, mas aparece melhor posicionado nas buscas e tem mais benefícios como frete grátis destacado.</p>
+                </div>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Como funciona o novo custo de envio do ML?</span></h4>
+                    <p>A partir de março de 2026, o Mercado Livre usa uma <strong>tabela única de custos operacionais</strong> baseada em peso do produto e preço de venda. Não existe mais tarifa fixa separada nem frete médio manual. O custo é calculado automaticamente pela combinação peso x preço. Os valores já incluem descontos por reputação.</p>
+                </div>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>O que mudou nos custos do Mercado Livre em 2026?</span></h4>
+                    <p>O ML substituiu a <strong>tarifa fixa (R$ 6,25 a R$ 6,75)</strong> e o conceito de <strong>frete médio</strong> por uma tabela única. Agora o custo de envio depende de 29 faixas de peso e 8 faixas de preço, totalizando 232 combinações. O frete grátis continua a partir de R$ 19, e anúncios acima de R$ 79 oferecem frete grátis e rápido.</p>
+                </div>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Vale a pena investir em Mercado Ads?</span></h4>
+                    <p>Depende do seu <strong>ROAS</strong> (retorno sobre investimento). Se você gasta R$ 10 em anúncios e vende R$ 50 (ROAS 5), provavelmente vale a pena. Configure o ROAS desejado para calcular o impacto na margem.</p>
+                </div>
+                <div className="card faq-card">
+                    <h4><span style={{ color: '#00a650' }}>Q:</span> <span>Qual margem ideal para o Mercado Livre?</span></h4>
+                    <p>Uma margem saudável fica <strong>acima de 20%</strong>. Entre 10-20% é apertado mas viável. Abaixo de 10% você corre risco de prejuízo, especialmente considerando devoluções e custos operacionais.</p>
                 </div>
             </div>
+        </div>
 
-            <div className="info-section" style={{ marginTop: '5rem' }}>
+        <div className="info-section" style={{ marginTop: '5rem' }}>
                 <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Tarifas de venda</h2>
                 <div className="card" style={{ padding: '0' }}>
                     <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
@@ -2177,6 +2072,200 @@ const MeliPage: React.FC = () => {
                     <p>• Em produtos acima de R$ 600 na categoria Tecnologia e Eletrodomésticos, o comprador pode parcelar em até 18x sem juros com Cartão Mercado Pago.</p>
                     <p>• Para vendas com parcelas inferiores a 12x, daremos aos compradores a opção de parcelar em até 12x com acréscimo, com taxas significativamente inferiores aos acréscimos convencionais, lembrando que a parcela nunca será menor do que R$ 5.</p>
                     <p>• A oferta de parcelas sem juros pode variar para itens vendidos por Mercado Livre.</p>
+                </div>
+            </div>
+
+            {/* TABELA 2 — Tarifas de venda por tipo de anúncio */}
+            <div className="info-section" style={{ marginTop: '5rem' }}>
+                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Tarifas de venda por tipo de anúncio</h2>
+                <div className="card" style={{ padding: '0' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="meli-table">
+                            <thead>
+                                <tr>
+                                    <th>Tipo de Anúncio</th>
+                                    <th>Tarifa Mínima</th>
+                                    <th>Tarifa Máxima</th>
+                                    <th>Observação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Grátis</td>
+                                    <td>0%</td>
+                                    <td>0%</td>
+                                    <td>Baixa exposição, duração 60 dias</td>
+                                </tr>
+                                <tr>
+                                    <td>Clássico</td>
+                                    <td>10%</td>
+                                    <td>14%</td>
+                                    <td>Varia por categoria</td>
+                                </tr>
+                                <tr>
+                                    <td>Premium</td>
+                                    <td>15%</td>
+                                    <td>19%</td>
+                                    <td>Varia por categoria + parcelamento sem juros</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '0.75rem', lineHeight: '1.6' }}>
+                    <p>• <strong>Clássico</strong> = tarifa de intermediação ML + custo de cobrança Mercado Pago.</p>
+                    <p>• <strong>Premium</strong> = tarifa de intermediação ML + custo de cobrança Mercado Pago + taxa por oferecer parcelamento sem juros.</p>
+                    <p>• Produtos de categorias selecionadas com preço entre <strong>R$ 150 e R$ 700</strong> pagam tarifa reduzida.</p>
+                    <p>• Abaixo de <strong>R$ 79</strong>: pode haver taxa fixa adicional além da comissão percentual.</p>
+                </div>
+            </div>
+
+            {/* TABELA 4 — Frete Grátis: Regras de Ativação */}
+            <div className="info-section" style={{ marginTop: '5rem' }}>
+                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Frete Grátis — Regras de Ativação</h2>
+                <div className="card" style={{ padding: '0' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="meli-table">
+                            <thead>
+                                <tr>
+                                    <th>Tipo de Loja</th>
+                                    <th>Frete grátis obrigatório a partir de</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Loja normal (Clássico / Premium)</td>
+                                    <td><strong>R$ 79,00</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Full Super (Supermercado)</td>
+                                    <td><strong>R$ 199,00</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '0.75rem', lineHeight: '1.6' }}>
+                    <p>• <strong>Quem paga o frete grátis:</strong> O custo é descontado do vendedor, não do comprador.</p>
+                    <p>• <strong>Condição:</strong> Reputação do vendedor deve ser Verde para manter o benefício ativo.</p>
+                </div>
+            </div>
+
+            {/* TABELA 5 — Faixas de Peso e Custo de Frete */}
+            <div className="info-section" style={{ marginTop: '5rem' }}>
+                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Faixas de Peso e Custo de Frete (Mercado Envios)</h2>
+                <p style={{ color: '#4b5563', marginBottom: '1.5rem', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                    Use para estimar o custo de frete <strong>[FG]</strong> com base no peso do produto <strong>[PES]</strong>. A calculadora detecta a faixa automaticamente.
+                </p>
+                <div className="card" style={{ padding: '0' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="meli-table">
+                            <thead>
+                                <tr>
+                                    <th>Faixa de Peso</th>
+                                    <th>Classificação</th>
+                                    <th>Custo Estimado (referência)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Até 0,3 kg</td><td>Pequeno</td><td>R$ 12,00 – R$ 18,00</td></tr>
+                                <tr><td>Até 0,7 kg</td><td>Pequeno</td><td>R$ 14,00 – R$ 20,00</td></tr>
+                                <tr><td>Até 1 kg</td><td>Pequeno</td><td>R$ 16,00 – R$ 22,00</td></tr>
+                                <tr><td>Até 3 kg</td><td>Médio</td><td>R$ 20,00 – R$ 30,00</td></tr>
+                                <tr><td>Até 5 kg</td><td>Médio</td><td>R$ 25,00 – R$ 40,00</td></tr>
+                                <tr><td>Até 9 kg</td><td>Grande</td><td>R$ 40,00 – R$ 70,00</td></tr>
+                                <tr><td>Até 15 kg</td><td>Grande</td><td>R$ 60,00 – R$ 90,00</td></tr>
+                                <tr><td>Até 30 kg</td><td>Extra Grande</td><td>R$ 80,00 – R$ 130,00</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '0.75rem', lineHeight: '1.6' }}>
+                    <p>• O custo é calculado com base no <strong>peso, dimensões e preço do produto</strong>.</p>
+                    <p>• Atacado com <strong>15+ unidades</strong>: economia de até <strong>80% no frete</strong> (mesmo CD).</p>
+                    <p>• Kits virtuais: frete calculado pelo espaço total do pacote.</p>
+                    <p>• Produtos da seção Supermercado: <strong>não têm economia</strong> por quantidade.</p>
+                </div>
+            </div>
+
+            {/* TABELA 7 — Venda por Quantidade: Economia no Frete */}
+            <div className="info-section" style={{ marginTop: '5rem' }}>
+                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Venda por Quantidade — Economia no Frete</h2>
+                <div className="card" style={{ padding: '0' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="meli-table">
+                            <thead>
+                                <tr>
+                                    <th>Modalidade</th>
+                                    <th>Economia no Frete</th>
+                                    <th>Condição</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Descontos por quantidade (2+ unidades)</td>
+                                    <td>Proporcional ao volume</td>
+                                    <td>Mesmo CD</td>
+                                </tr>
+                                <tr>
+                                    <td>Preços de atacado (15+ unidades)</td>
+                                    <td><strong>Até 80%</strong></td>
+                                    <td>Mesmo CD</td>
+                                </tr>
+                                <tr>
+                                    <td>Kits virtuais (2+ produtos diferentes)</td>
+                                    <td>Proporcional ao espaço total</td>
+                                    <td>Mesmo CD</td>
+                                </tr>
+                                <tr>
+                                    <td>Produtos Supermercado</td>
+                                    <td>Sem economia</td>
+                                    <td>—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '0.75rem', lineHeight: '1.6' }}>
+                    <p>• Preço de atacado disponível apenas para compradores com <strong>CNPJ</strong> validado pelo ML.</p>
+                    <p>• O preço de atacado deve ser <strong>inferior</strong> ao preço normal; quanto maior a quantidade, menor o preço por unidade.</p>
+                </div>
+            </div>
+
+            {/* TABELA 8 — Custos NÃO incluídos no cálculo por venda */}
+            <div className="info-section" style={{ marginTop: '5rem', marginBottom: '5rem' }}>
+                <h2 style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '3rem' }}>Custos não incluídos no cálculo por venda</h2>
+                <p style={{ color: '#4b5563', marginBottom: '1.5rem', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                    O Mercado Livre não considera estes custos no valor recebido por venda individual. Trate-os como <strong>custos fixos separados</strong>.
+                </p>
+                <div className="card" style={{ padding: '0' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table className="meli-table">
+                            <thead>
+                                <tr>
+                                    <th>Custo</th>
+                                    <th>Onde consultar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Custos com publicidade (Mercado Ads)</td>
+                                    <td>Faturamento mensal</td>
+                                </tr>
+                                <tr>
+                                    <td>Custos por operar com o Full</td>
+                                    <td>Faturamento mensal</td>
+                                </tr>
+                                <tr>
+                                    <td>Tarifa de manutenção de "Minha página"</td>
+                                    <td>Faturamento mensal</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#6b7280', lineHeight: '1.6' }}>
+                    <p>• <strong>Importante:</strong> O Mercado Livre <strong>não retém impostos</strong> sobre as vendas. O vendedor é responsável pelo pagamento conforme sua situação fiscal (Simples Nacional, DAS, etc.).</p>
                 </div>
             </div>
 

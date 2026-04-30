@@ -51,6 +51,8 @@ interface Product {
   outrasDespesasOD: number;
   adsADS: number;
   rebateCR: number;
+  comissaoClassico: number;
+  comissaoPremium: number;
 }
 
 // Mapeamento de campos internos para labels amigáveis
@@ -62,7 +64,9 @@ const FIELD_LABELS: Record<string, string> = {
   despesaFixaDF: 'Despesa Fixa (%)',
   outrasDespesasOD: 'Outras Despesas (%)',
   adsADS: 'Ads (%)',
-  rebateCR: 'Rebate (%)'
+  rebateCR: 'Rebate (%)',
+  comissaoClassico: 'Comis. Clássico (%)',
+  comissaoPremium: 'Comis. Premium (%)'
 };
 
 const CatalogPage: React.FC = () => {
@@ -151,7 +155,9 @@ const CatalogPage: React.FC = () => {
         despesaFixaDF: 8.0,
         outrasDespesasOD: 1.0,
         adsADS: 2.0,
-        rebateCR: 0
+        rebateCR: 0,
+        comissaoClassico: 12,
+        comissaoPremium: 17
       }];
       setProductsSP(initial);
       setProductsSC(initial);
@@ -279,7 +285,9 @@ const CatalogPage: React.FC = () => {
       despesaFixaDF: 0,
       outrasDespesasOD: 0,
       adsADS: 0,
-      rebateCR: 0
+      rebateCR: 0,
+      comissaoClassico: 12,
+      comissaoPremium: 17
     };
     setActiveProducts([newProduct, ...activeProducts]);
   };
@@ -408,7 +416,9 @@ const CatalogPage: React.FC = () => {
       'Despesa Fixa (%)': p.despesaFixaDF,
       'Outras Despesas (%)': p.outrasDespesasOD,
       'Ads (%)': p.adsADS,
-      'Rebate (%)': p.rebateCR
+      'Rebate (%)': p.rebateCR,
+      'Comis. Clássico (%)': p.comissaoClassico,
+      'Comis. Premium (%)': p.comissaoPremium
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -451,7 +461,9 @@ const CatalogPage: React.FC = () => {
       despesaFixaDF: ['fixa', 'df', 'despesa fixa'],
       outrasDespesasOD: ['outras', 'od', 'outras despesas'],
       adsADS: ['ads', 'shopee ads', 'marketing'],
-      rebateCR: ['rebate', 'cr', 'comissao', 'comissão']
+      rebateCR: ['rebate', 'cr', 'comissao', 'comissão'],
+      comissaoClassico: ['classico', 'clássico', 'comissao classico'],
+      comissaoPremium: ['premium', 'comissao premium']
     };
 
     const usedCols = new Set<string>();
@@ -550,6 +562,8 @@ const CatalogPage: React.FC = () => {
           outrasDespesasOD: parseBRNumber(row[columnMapping['outrasDespesasOD']] || 0),
           adsADS: parseBRNumber(row[columnMapping['adsADS']] || 0),
           rebateCR: parseBRNumber(row[columnMapping['rebateCR']] || 0),
+          comissaoClassico: parseBRNumber(row[columnMapping['comissaoClassico']] || 12),
+          comissaoPremium: parseBRNumber(row[columnMapping['comissaoPremium']] || 17),
         } as Product;
       })
       .filter(p => p !== null) as Product[];
@@ -689,6 +703,8 @@ const CatalogPage: React.FC = () => {
                   <option value="outrasDespesasOD">Outras Despesas (%)</option>
                   <option value="adsADS">Ads (%)</option>
                   <option value="rebateCR">Rebate (%)</option>
+                  <option value="comissaoClassico">Comis. Clássico (%)</option>
+                  <option value="comissaoPremium">Comis. Premium (%)</option>
                   <option value="custoCDP">Custo CDP (R$)</option>
                 </select>
                 <input
@@ -787,7 +803,7 @@ const CatalogPage: React.FC = () => {
                     </button>
                   )}
                 </th>
-                <th>SKU</th><th>Descrição</th><th>Custo Produto (R$)</th><th>Imposto (%)</th><th>Despesa Fixa (%)</th><th>Outras Despesas (%)</th><th>Ads (%)</th><th>Rebate (%)</th><th></th>
+                <th>SKU</th><th>Descrição</th><th>Custo Produto (R$)</th><th>Imposto (%)</th><th>Fixa (%)</th><th>Outras (%)</th><th>Ads (%)</th><th>Rebate (%)</th><th>Clássico (%)</th><th>Premium (%)</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -808,6 +824,8 @@ const CatalogPage: React.FC = () => {
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'outrasDespesasOD' ? getPercentEditValue(p.outrasDespesasOD) : formatPercentDisplay(p.outrasDespesasOD)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'outrasDespesasOD' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'adsADS' ? getPercentEditValue(p.adsADS) : formatPercentDisplay(p.adsADS)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'adsADS' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'adsADS', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'rebateCR' ? getPercentEditValue(p.rebateCR) : formatPercentDisplay(p.rebateCR)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'rebateCR' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'rebateCR', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center text-blue" style={{ fontWeight: 700 }} value={focusedPercent?.id === p.id && focusedPercent?.field === 'comissaoClassico' ? getPercentEditValue(p.comissaoClassico) : formatPercentDisplay(p.comissaoClassico)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'comissaoClassico' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'comissaoClassico', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td><input className="cell-input text-center text-blue" style={{ fontWeight: 700 }} value={focusedPercent?.id === p.id && focusedPercent?.field === 'comissaoPremium' ? getPercentEditValue(p.comissaoPremium) : formatPercentDisplay(p.comissaoPremium)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'comissaoPremium' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'comissaoPremium', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td className="text-center">
                     {isAdmin && (
                       <button onClick={() => removeProduct(p.id)} className="delete-btn"><Trash2 size={20} /></button>
@@ -817,7 +835,7 @@ const CatalogPage: React.FC = () => {
               ))}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={12}>
                     <div className="empty-state-container">
                       <div className="empty-icon"><LayoutGrid size={48} /></div>
                       <p className="empty-text">Nenhum produto encontrado em <strong>{activeWarehouse}</strong></p>
@@ -929,13 +947,16 @@ const CatalogPage: React.FC = () => {
         .catalog-table th:nth-child(4), .catalog-table td:nth-child(4) { width: 150px; min-width: 150px; } /* Custo */
         .custo-input { font-weight: 700; color: #059669; }
         .custo-input:focus { background: white; border-color: var(--primary-main); }
-        .catalog-table th:nth-child(5), .catalog-table td:nth-child(5) { width: 110px; min-width: 110px; } /* Imposto */
-        .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { width: 120px; min-width: 120px; } /* Despesa Fixa */
-        .catalog-table th:nth-child(7), .catalog-table td:nth-child(7) { width: 140px; min-width: 140px; } /* Outras Despesas */
-        .catalog-table th:nth-child(8), .catalog-table td:nth-child(8) { width: 90px; min-width: 90px; } /* Ads */
-        .catalog-table th:nth-child(9), .catalog-table td:nth-child(9) { width: 90px; min-width: 90px; } /* Rebate */
+        .catalog-table th:nth-child(5), .catalog-table td:nth-child(5) { width: 90px; min-width: 90px; } /* Imposto */
+        .catalog-table th:nth-child(6), .catalog-table td:nth-child(6) { width: 80px; min-width: 80px; } /* Fixa */
+        .catalog-table th:nth-child(7), .catalog-table td:nth-child(7) { width: 80px; min-width: 80px; } /* Outras */
+        .catalog-table th:nth-child(8), .catalog-table td:nth-child(8) { width: 70px; min-width: 70px; } /* Ads */
+        .catalog-table th:nth-child(9), .catalog-table td:nth-child(9) { width: 80px; min-width: 80px; } /* Rebate */
+        .catalog-table th:nth-child(10), .catalog-table td:nth-child(10) { width: 100px; min-width: 100px; } /* Clássico */
+        .catalog-table th:nth-child(11), .catalog-table td:nth-child(11) { width: 100px; min-width: 100px; } /* Premium */
         .text-center { text-align: center; }
         .text-green { color: #059669; font-weight: 700; }
+        .text-blue { color: #2563eb; }
         .delete-btn { color: #cbd5e1; background: none; border: none; cursor: pointer; padding: 0.6rem; }
         .delete-btn:hover { color: #ef4444; }
 

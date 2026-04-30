@@ -154,7 +154,9 @@ export interface MeliInput {
     precoAnunciadoPremium?: number;  // PAP - Novo campo
 
     tipoAnuncio: TipoAnuncio;
-    comissaoPorcentagem?: number; // % da categoria
+    comissaoPorcentagem?: number; // Legado: % global da categoria
+    comissaoClassico?: number;    // Manual: % Clássico
+    comissaoPremium?: number;     // Manual: % Premium
 
     freteGratis?: number; // Valor manual
     pesoKg?: string; // Chave da faixa de peso (legado/manual)
@@ -184,7 +186,10 @@ export interface MeliInput {
     descontoCadastroValorPor?: number; // Valor final informado (Por: R$ Y)
 
     reputacao?: TipoReputacao; // Reputação do vendedor para cálculo de frete
+    tipoEnvio?: string; // Tipo de envio (Full, Coleta, etc)
 
+    desconto?: number; // Desconto Geral Cliente (PDV)
+    
     fatorAlavancagem?: number;
     fatorAlavancagemAtivo?: boolean;
 }
@@ -254,6 +259,9 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
 
     // 1. Calcular o cupom sobre o PA (Preço Anunciado)
     const cupomValor = arredondar(VAL({ value: input.cupomDesconto || 0, type: mapUnidade(input.cupomTipo || 'fixo') }, PA), 2);
+    
+    // 1.0.1 Calcular o desconto adicional (Desconto Cliente no grid principal)
+    const descontoGeralValor = arredondar(VAL({ value: input.desconto || 0, type: 'percent' }, PA), 2);
 
     // 1.1 Calcular o desconto no cadastro - cálculo reverso
     // Se PA é o valor final "Por", então valor "De" = PA / (1 - desconto%)
@@ -281,8 +289,8 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
         descontoCadastroValor = 0;
     }
 
-    // 2. Calcular o PDV (Preço de Venda) = PA - cupom (o DC já está "embutido" no PA)
-    const PDV = arredondar(PA - cupomValor, 2);
+    // 2. Calcular o PDV (Preço de Venda) = PA - cupom - desconto (o DC já está "embutido" no PA)
+    const PDV = arredondar(PA - cupomValor - descontoGeralValor, 2);
 
     // 3. Definição das Variáveis - Política ML sobre PA, demais custos sobre PDV
     const CDP: TaxaInput = { value: input.custoProduto || 0, type: 'fixed' };
@@ -292,7 +300,14 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
     const ADS: TaxaInput = { value: input.adsValor || 0, type: input.adsTipo === 'roas' ? 'fixed' : mapUnidade(input.adsTipo as UnidadeValor) };
 
     // 4. Comissão Mercado Livre (sobre PA - política do ML)
-    const comissaoPct = input.comissaoPorcentagem || (input.tipoAnuncio === 'premium' ? 17 : 12);
+    let comissaoPct = input.comissaoPorcentagem;
+    if (comissaoPct === undefined) {
+        if (input.tipoAnuncio === 'premium') {
+            comissaoPct = input.comissaoPremium !== undefined ? input.comissaoPremium : 17;
+        } else {
+            comissaoPct = input.comissaoClassico !== undefined ? input.comissaoClassico : 12;
+        }
+    }
     const comissaoValor = arredondar(VAL({ value: comissaoPct, type: 'percent' }, PA), 2);
 
     // 5. Taxa Fixa (sobre PA - política do ML)
@@ -374,48 +389,69 @@ export const calcularTaxasMeli = (input: MeliInput): MeliOutput => {
 export const calcularPrecoIdealMeli = (
     input: MeliInput,
     margemDesejada: number | undefined,
-    tipoBase: 'custo' | 'venda' = 'venda'
+    tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
 ): number => {
-    const m = normalizarMargemDesejada(margemDesejada) / 100;
-    const custo = input.custoProduto || 0;
+    const isReais = tipoBase === 'reais';
+    const m = isReais ? 0 : (normalizarMargemDesejada(margemDesejada) / 100);
+    const lucroFixo = isReais ? normalizarMargemDesejada(margemDesejada) : 0;
+    const custoProd = input.custoProduto || 0;
 
-    const resolverCenario = (taxasFixas: number, taxasVariaveis: number): number => {
-        if (tipoBase === 'venda') {
-            const divisor = 1 - taxasVariaveis - m;
-            if (divisor <= 0) return custo * 10;
-            return (taxasFixas + custo) / divisor;
-        } else {
-            const divisor = 1 - taxasVariaveis;
-            if (divisor <= 0) return custo * 10;
-            return (taxasFixas + custo * (1 + m)) / divisor;
-        }
-    };
+    // --- Taxas Variáveis (%) ---
+    // Respeita a comissão informada manualmente, por tipo ou global; fallback: 17% Premium / 12% Clássico
+    const comissaoPct = input.comissaoPorcentagem !== undefined
+        ? input.comissaoPorcentagem
+        : (input.tipoAnuncio === 'premium'
+            ? (input.comissaoPremium !== undefined ? input.comissaoPremium : 17)
+            : (input.comissaoClassico !== undefined ? input.comissaoClassico : 12));
+    const comissaoP = comissaoPct / 100;
 
-    // Taxas Variáveis (%)
-    const comissaoP = (input.comissaoPorcentagem || (input.tipoAnuncio === 'premium' ? 17 : 12)) / 100;
     const impostoP = (input.impostoPorcentagem || 0) / 100;
-    const adsP = (input.adsTipo === 'porcentagem' ? (input.adsValor || 0) / 100 : 0);
+    const adsP = (input.adsTipo === 'porcentagem' ? (input.adsValor || 0) / 100 : (input.adsTipo === 'roas' && input.adsValor ? (1 / input.adsValor) : 0));
     const cupomP = (input.cupomTipo === 'porcentagem' ? (input.cupomDesconto || 0) / 100 : 0);
     const rebateP = (input.rebateTipo === 'porcentagem' ? (input.rebatePorcentagem || 0) / 100 : 0);
     const despFixaP = (input.despesaFixaTipo === 'porcentagem' ? (input.despesaFixa || 0) / 100 : 0);
     const despAdicP = (input.despesaAdicionalTipo === 'porcentagem' ? (input.despesaAdicional || 0) / 100 : 0);
 
-    const taxasVariaveis = comissaoP + impostoP + adsP + cupomP + despFixaP + despAdicP - rebateP;
+    // Soma das taxas que incidem sobre o PDV
+    const somaTaxasVariaveisPDV = impostoP + adsP + despFixaP + despAdicP - rebateP;
 
-    // Taxas Fixas ($)
+    // --- Taxas Fixas ($) ---
     const despFixaV = (input.despesaFixaTipo === 'fixo' ? (input.despesaFixa || 0) : 0);
     const despAdicV = (input.despesaAdicionalTipo === 'fixo' ? (input.despesaAdicional || 0) : 0);
     const cupomV = (input.cupomTipo === 'fixo' ? (input.cupomDesconto || 0) : 0);
     const rebateV = (input.rebateTipo === 'fixo' ? (input.rebatePorcentagem || 0) : 0);
     const adsV = (input.adsTipo === 'fixo' ? (input.adsValor || 0) : 0);
 
-    const baseTaxasFixas = despFixaV + despAdicV + cupomV + adsV - rebateV;
+    // Soma das taxas fixas incidentes sobre o PDV
+    const taxasFixasPDV = despFixaV + despAdicV + adsV - rebateV;
 
-    // Cenário A: Abaixo de 79 (Com Taxa Fixa ML R$ 6.00)
-    const pdvA = resolverCenario(baseTaxasFixas + 6.00, taxasVariaveis);
-    if (pdvA < 79) return arredondar(pdvA, 2);
+    /**
+     * Função que resolve a equação para um cenário de taxa fixa ML e frete.
+     * Isola PA na equação: PDV * (1 - CP) - Com% * PA = L + Custo + TF + FT + CF
+     */
+    const resolverCenarioAlgebraico = (taxaMeliML: number, freteML: number): number => {
+        // fatorRetencaoPDV: Quanto sobra do PDV após as taxas variáveis que incidem sobre ele.
+        // Se modo venda, m (margem sobre PDV) entra como um custo variável extra.
+        const margemPDV = (tipoBase === 'venda') ? m : 0;
+        const fatorRetencaoPDV = 1 - somaTaxasVariaveisPDV - margemPDV;
 
-    // Cenário B: Acima de 79 (Com Frete Grátis)
+        // Numerador: Lucro alvo + Custos fixos fora da base PA
+        const L = (tipoBase === 'custo') ? (custoProd * m) : (tipoBase === 'reais' ? lucroFixo : 0);
+        const numerador = L + custoProd + taxaMeliML + freteML + taxasFixasPDV + (cupomV * fatorRetencaoPDV);
+
+        // Denominador: Coeficiente de PA
+        const denominador = (1 - cupomP) * fatorRetencaoPDV - comissaoP;
+
+        if (denominador <= 0.001) return (numerador || 1) * 10; // Evita divisão por zero ou negativa
+
+        return numerador / denominador;
+    };
+
+    // Cenário A: Abaixo de 79 (Taxa Fixa R$ 6.00, Sem Frete Grátis)
+    const paA = resolverCenarioAlgebraico(6.00, 0);
+    if (paA < 79) return arredondar(paA, 2);
+
+    // Cenário B: Acima de 79 (Sem Taxa Fixa, Com Frete Grátis)
     let freteMeli = input.freteGratis || 0;
     const faixaPeso = input.pesoRealKg !== undefined ? getFaixaPesoAutomatico(input.pesoRealKg) : input.pesoKg;
     const tabelaFreteCalc = getTabelaFreteMeliSync();
@@ -423,8 +459,10 @@ export const calcularPrecoIdealMeli = (
         freteMeli = tabelaFreteCalc[faixaPeso];
     }
 
-    const pdvB = resolverCenario(baseTaxasFixas + freteMeli, taxasVariaveis);
-    return arredondar(pdvB, 2);
+    const paB = resolverCenarioAlgebraico(0, freteMeli);
+    // Se o preço ideal cair no vale entre as faixas, retorna a barreira dos 79 se for mais vantajoso,
+    // mas o arredondar 2 já ajuda.
+    return arredondar(paB, 2);
 };
 
 export interface OtimizacaoPrecoResult {
@@ -450,7 +488,7 @@ export interface OtimizacaoPrecoResult {
 export const calcularPrecoIdealMeliDetalhado = (
     input: MeliInput,
     margemDesejada: number | undefined,
-    tipoBase: 'custo' | 'venda' = 'venda'
+    tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
 ): OtimizacaoPrecoResult => {
     const paMatematico = calcularPrecoIdealMeli(input, margemDesejada, tipoBase);
     const resultadoReferencia = calcularTaxasMeli({ ...input, precoVenda: paMatematico });
@@ -463,6 +501,17 @@ export const calcularPrecoIdealMeliDetalhado = (
     let quedaPreco = 0;
     let quedaLucro = 0;
     let esforcoPercentual = 0;
+
+    let lucroAlvoParaAjuste = 0;
+    if (tipoBase === 'reais') {
+        lucroAlvoParaAjuste = margemDesejada || 0;
+    } else if (tipoBase === 'custo') {
+        lucroAlvoParaAjuste = (input.custoProduto || 0) * (margemDesejada || 0) / 100;
+    } else {
+        // Modo VENDA: O lucro é % do PDV.
+        // Usamos o PDV de referência do cálculo matemático para definir o alvo em centavos.
+        lucroAlvoParaAjuste = (resultadoReferencia.precoVenda || 0) * (margemDesejada || 0) / 100;
+    }
 
     if (input.fatorAlavancagemAtivo !== false) {
         // Otimização "Sweet Spot" (perto de R$ 79)
@@ -479,7 +528,25 @@ export const calcularPrecoIdealMeliDetalhado = (
                 melhorLucro = resTeste.lucroLiquido;
             } else if (paTeste < paMatematico - 50) break;
         }
+    } else {
+        // Ajuste Fino de Precisão (+/- 5 centavos)
+        // Busca o preço real que resulte no lucro mais próximo do esperado matemático.
+        for (let i = -5; i <= 5; i++) {
+            const paTeste = arredondar(paMatematico + (i / 100), 2);
+            if (paTeste === melhorPa && i !== 0) continue;
 
+            const resTeste = calcularTaxasMeli({ ...input, precoVenda: paTeste });
+            const difAtual = Math.abs(melhorLucro - lucroAlvoParaAjuste);
+            const difTeste = Math.abs(resTeste.lucroLiquido - lucroAlvoParaAjuste);
+
+            if (difTeste < difAtual || (difTeste === difAtual && paTeste < melhorPa)) {
+                melhorPa = paTeste;
+                melhorLucro = resTeste.lucroLiquido;
+            }
+        }
+    }
+
+    if (input.fatorAlavancagemAtivo !== false) {
         // Alavancagem de Giro
         const fatorAlvo = input.fatorAlavancagem || 5.0;
         for (let i = 1; i <= 1000; i++) {
@@ -541,7 +608,7 @@ export interface ResultadoSimulacaoMeli {
 export const simularCenariosPrecoMeli = (
     input: MeliInput,
     margemAlvo: number | undefined,
-    tipoBase: 'custo' | 'venda' = 'venda'
+    tipoBase: 'custo' | 'venda' | 'reais' = 'venda'
 ): ResultadoSimulacaoMeli => {
     const margem = margemAlvo ?? 0;
     const breakeven = calcularPrecoIdealMeli(input, 0, tipoBase);

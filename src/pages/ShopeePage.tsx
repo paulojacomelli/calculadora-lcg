@@ -50,136 +50,9 @@ const moeda = (val: number | undefined | null) => arredondar(val || 0, 2).toLoca
 const porc = (val: number | undefined | null) => arredondar(val || 0, 2).toFixed(2).replace('.', ',');
 
 // =============================================================
-// COMPONENTES DE GRÁFICO — definidos FORA do ShopeePage para
-// evitar re-criação de referência a cada render do pai.
+// COMPONENTES DE GRÁFICO — Removidos
 // =============================================================
 
-const ComposicaoPrecoChart = React.memo(({ res, isFullscreen, onToggleFullscreen }: {
-    res: ShopeeOutput,
-    isFullscreen: boolean,
-    onToggleFullscreen: () => void
-}) => {
-    if (!res) return null;
-    const data = [
-        { name: 'PA', Lucro: res.lucroLiquido, Custo: res.custoProdutoValor, Ads: res.custoAds, Operacao: res.despesaFixaValor + res.despesaAdicionalValor, Taxas: res.comissaoValor + res.tarifaFixa + res.impostoValor, fullPreco: `R$ ${(res.precoComCupom || res.precoVenda || 0).toFixed(2)}` }
-    ];
-    return (
-        <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ background: '#fff' }}>
-            <div className="chart-header-actions">
-                <h4 className="chart-title">Composição do Preço</h4>
-                <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}>
-                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                </button>
-            </div>
-            <ResponsiveContainer width="100%" height={isFullscreen ? '80%' : 280}>
-                <BarChart data={data} layout="vertical" margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" hide />
-                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: any, name: any) => [`R$ ${Number(value).toFixed(2)}`, name]} />
-                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
-                    <Bar dataKey="Lucro" stackId="a" fill="#10B981" name="Lucro" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Custo" stackId="a" fill="#EF4444" name="Custo" />
-                    <Bar dataKey="Ads" stackId="a" fill="#3b82f6" name="Ads" />
-                    <Bar dataKey="Operacao" stackId="a" fill="#fbbf24" name="Op." />
-                    <Bar dataKey="Taxas" stackId="a" fill="#f97316" name="Taxas" radius={[0, 4, 4, 0]} />
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-    );
-});
-
-const EstrategiaPrecoChart = React.memo(({ dados, precoAtual, pontoIdeal, pontoAlvo, onPriceSelect, isFullscreen, onToggleFullscreen }: {
-    dados: CenarioPreco[],
-    precoAtual: number,
-    pontoIdeal: CenarioPreco,
-    pontoAlvo: CenarioPreco,
-    onPriceSelect: (price: number) => void,
-    isFullscreen: boolean,
-    onToggleFullscreen: () => void
-}) => {
-    if (!dados || dados.length === 0 || !pontoIdeal) return null;
-    const isAlvoDifferentFromIdeal = pontoAlvo && Math.abs(pontoAlvo.precoVenda - pontoIdeal.precoVenda) > 0.01;
-    const precosRelevantes = [precoAtual, pontoIdeal.precoVenda, pontoAlvo?.precoVenda].filter((p): p is number => p !== undefined && !isNaN(p as number));
-    const minP = Math.min(...precosRelevantes, dados[0]?.precoVenda || 0);
-    const maxP = Math.max(...precosRelevantes, dados[dados.length - 1]?.precoVenda || 0);
-    const diff = maxP - minP;
-    const marginX = Math.max(diff * 0.15, 20);
-    const domainX = [Math.max(0, minP - marginX), maxP + marginX];
-    return (
-        <div className={`chart-container ${isFullscreen ? 'fullscreen' : ''}`} style={{ cursor: 'crosshair', background: '#fff' }}>
-            <div className="chart-header-actions">
-                <h4 className="chart-title">Análise de Lucratividade vs Preço</h4>
-                <button className="fullscreen-toggle" onClick={onToggleFullscreen} title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}>
-                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                </button>
-            </div>
-            <ResponsiveContainer width="100%" height={isFullscreen ? '80%' : 280}>
-                <ComposedChart data={dados} margin={{ top: 40, right: 30, left: 0, bottom: 0 }} onClick={(state: any) => { if (state && state.activePayload && state.activePayload.length > 0) { onPriceSelect(state.activePayload[0].payload.precoVenda); } }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="precoVenda" type="number" domain={domainX} tickFormatter={(val) => `R$${Math.round(val)}`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7280' }} />
-                    <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#10B981' }} />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={(val) => `${val.toFixed(0)}%`} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#f97316' }} />
-                    <Tooltip shared={true} cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: any, name: any) => [String(name).includes('%') ? `${Number(value).toFixed(1)}%` : `R$ ${Number(value).toFixed(2)}`, name]} />
-                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
-                    <Area yAxisId="left" type="monotone" dataKey="lucroLiquido" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
-                    <Line yAxisId="right" type="monotone" dataKey="pesoTaxas" name="Peso das Taxas (%)" stroke="#f97316" strokeWidth={2} dot={false} />
-                    <ReferenceLine yAxisId="left" y={0} stroke="#64748b" strokeWidth={1} />
-                    <ReferenceLine x={pontoIdeal.precoVenda} yAxisId="left" stroke="#10B981" strokeDasharray="3 3" label={{ position: 'top', value: 'IDEAL', fontSize: 10, fill: '#065f46', dy: -20 }} />
-                    {isAlvoDifferentFromIdeal && (<ReferenceLine x={pontoAlvo.precoVenda} yAxisId="left" stroke="#f59e0b" strokeDasharray="5 5" label={{ position: 'top', value: 'ALVO', fontSize: 10, fill: '#b45309', dy: -10 }} />)}
-                    <ReferenceLine x={precoAtual} yAxisId="left" stroke="#3b82f6" strokeWidth={3} label={{ position: 'top', value: 'VOCÊ', fontSize: 11, fill: '#1e40af', fontWeight: 800, dy: -5 }} />
-                </ComposedChart>
-            </ResponsiveContainer>
-        </div>
-    );
-});
-
-const TaxasPrecoChart = React.memo(({ inputs, precoAtual, isFullscreen, onToggleFullscreen }: {
-    inputs: ShopeeInput,
-    precoAtual: number,
-    isFullscreen: boolean,
-    onToggleFullscreen: () => void
-}) => {
-    // Gera array de pontos apenas quando props mudam (React.memo)
-    const points = React.useMemo(() => {
-        const pts: { x: number; lucro: number; taxas: number }[] = [];
-        const minX = Math.max(20, (inputs.custoProduto || 0) * 0.5);
-        const maxX = Math.max((precoAtual || 50) * 1.5, 300);
-        const step = (maxX - minX) / 60;
-        for (let x = minX; x <= maxX; x += step) {
-            const res = calcularTaxasShopee({ ...inputs, precoVenda: x });
-            pts.push({ x, lucro: res.lucroLiquido, taxas: res.comissaoValor + res.tarifaFixa + res.impostoValor + res.custoAds });
-        }
-        const critical = precoAtual || 0;
-        const resCrit = calcularTaxasShopee({ ...inputs, precoVenda: critical });
-        pts.push({ x: critical, lucro: resCrit.lucroLiquido, taxas: resCrit.comissaoValor + resCrit.tarifaFixa + resCrit.impostoValor + resCrit.custoAds });
-        pts.sort((a, b) => a.x - b.x);
-        return pts;
-    }, [inputs, precoAtual]);
-
-    return (
-        <div className={`chart-container large-chart ${isFullscreen ? 'fullscreen' : ''}`}>
-            <div className="chart-header-actions">
-                <h4 className="chart-title">Visualização do Escopo Shopee 2026</h4>
-                <button className="fullscreen-toggle" onClick={onToggleFullscreen}>
-                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                </button>
-            </div>
-            <ResponsiveContainer width="100%" height={isFullscreen ? '85%' : 320}>
-                <ComposedChart data={points} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="x" type="number" domain={['auto', 'auto']} tickFormatter={(val) => `R$${val.toFixed(0)}`} />
-                    <YAxis yAxisId="left" tickFormatter={(val) => `R$${val}`} />
-                    <Tooltip formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`} />
-                    <Legend verticalAlign="top" align="right" />
-                    <Area yAxisId="left" type="monotone" dataKey="lucro" name="Lucro Líquido (R$)" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
-                    <Line yAxisId="left" type="monotone" dataKey="taxas" name="Taxas Totais (R$)" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="3 3" />
-                    <ReferenceLine x={precoAtual} yAxisId="left" stroke="#3b82f6" strokeWidth={3} label={{ value: 'SEU PREÇO', position: 'top', fill: '#1d4ed8', fontSize: 11, fontWeight: 900 }} />
-                </ComposedChart>
-            </ResponsiveContainer>
-        </div>
-    );
-});
 
 const defaultInputs: ShopeeInput = {
     custoProduto: undefined,
@@ -209,23 +82,11 @@ const ShopeePage: React.FC = () => {
     const [simulacao, setSimulacao] = useState<any>(null);
     const [otimizacaoIdeal, setOtimizacaoIdeal] = useState<OtimizacaoPrecoResult | null>(null);
     // const [sweetSpot, setSweetSpot] = useState<ResultadoSweetSpot | null>(null);
-    const [fullscreenChart, setFullscreenChart] = useState<'composicao' | 'estrategia' | 'taxas' | null>(null);
 
-    // Callbacks estáveis para toggles de fullscreen — dependência zero, usa setState funcional
-    // Isso garante que React.memo nos componentes de gráfico não re-renderize por mudança de referência
-    const toggleTaxasFullscreen = React.useCallback(
-        () => setFullscreenChart(prev => prev === 'taxas' ? null : 'taxas'), []
-    );
-    const toggleEstrategiaFullscreen = React.useCallback(
-        () => setFullscreenChart(prev => prev === 'estrategia' ? null : 'estrategia'), []
-    );
-    const toggleComposicaoFullscreen = React.useCallback(
-        () => setFullscreenChart(prev => prev === 'composicao' ? null : 'composicao'), []
-    );
 
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isCalculating, setIsCalculating] = useState<boolean>(false);
-    const [qtdMultiplier, setQtdMultiplier] = useState<number>(1);
+    const [qtdMultiplier, setQtdMultiplier] = useState<number | string>(1);
 
     // Sistema de Notificações Toast
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info'; show: boolean } | null>(null);
@@ -519,7 +380,7 @@ const ShopeePage: React.FC = () => {
 
         const inputsCalc = {
             ...inputs,
-            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * qtdMultiplier : undefined
+            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * (Number(qtdMultiplier) || 1) : undefined
         };
 
         // 1. Determina o resultado principal (DRE) - Sempre baseado no PA manual do usuário
@@ -1186,7 +1047,7 @@ const ShopeePage: React.FC = () => {
                                             type="number"
                                             min="1"
                                             value={qtdMultiplier}
-                                            onChange={(e) => setQtdMultiplier(Math.max(1, parseInt(e.target.value) || 1))}
+                                            onChange={(e) => setQtdMultiplier(e.target.value)}
                                             style={{ width: '48px', border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', padding: '0.75rem 0', fontWeight: 600, color: 'inherit' }}
                                             title="Multiplicador de quantidade (Ex: Kit com 2)"
                                         />
@@ -1197,7 +1058,7 @@ const ShopeePage: React.FC = () => {
                             <div className="input-group">
                                 {aba === 'margem' ? (
                                     <>
-                                        <div className="input-group" style={{ marginTop: '0.8rem' }}>
+                                        <div className="input-group">
                                             <label><CircleDollarSign size={16} /> Preço Anunciado (R$) {s('PA')}</label>
                                             <input
                                                 type="text"
@@ -1221,7 +1082,7 @@ const ShopeePage: React.FC = () => {
                                     </>
                                 ) : (
                                     <>
-                                        <div className="input-group" style={{ marginTop: '1rem' }}>
+                                        <div className="input-group">
                                             <label style={{ margin: 0, marginBottom: '0.4rem', display: 'flex' }}>
                                                 <TrendingUp size={16} />
                                                 <span>Lucro desejado {tipoMargemIdeal !== 'reais' ? '(%)' : '(R$)'}:</span>
@@ -1229,7 +1090,7 @@ const ShopeePage: React.FC = () => {
                                                 <HelpCircle size={14} className="label-help" />
                                             </label>
 
-                                            <div className="margin-type-tabs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+                                            <div className="margin-type-tabs">
                                                 <button
                                                     className={`margin-tab ${tipoMargemIdeal === 'custo' ? 'active' : ''}`}
                                                     onClick={() => { setTipoMargemIdeal('custo'); }}
@@ -1639,7 +1500,7 @@ const ShopeePage: React.FC = () => {
 
                                             if (otimizacaoIdeal.isAlavancagem) {
                                                 return (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
                                                             {statusIcon} <span>{statusText}</span>
                                                         </div>
@@ -1657,7 +1518,7 @@ const ShopeePage: React.FC = () => {
                                             }
 
                                             return (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
                                                             {statusIcon} <span>{statusText}</span>
                                                         </div>
@@ -1676,7 +1537,7 @@ const ShopeePage: React.FC = () => {
                                         // 2. Otimização da Aba Margem (Detecção via Simulação)
                                         if (melhorAnteriorComp && aba !== 'ideal') {
                                             return (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
                                                             {statusIcon} <span>{statusText}</span>
                                                         </div>
@@ -1697,7 +1558,7 @@ const ShopeePage: React.FC = () => {
                                             const f = melhorLeverageComp.fator;
 
                                             return (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                         <div className={`alert-box-result ${statusClass}`}>
                                                             {statusIcon} <span>{statusText}</span>
                                                         </div>
@@ -1740,7 +1601,7 @@ const ShopeePage: React.FC = () => {
                                             justifyContent: 'space-between',
                                             gap: '1rem'
                                         }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>Lucro líquido custo:</span>
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>({porc(activeResults.margemLiquidaSobreCusto)}%)</span>
@@ -1848,7 +1709,7 @@ const ShopeePage: React.FC = () => {
                                         )}
                                     </div> {/* Fecha details */}
 
-                                    <div className="result-card mini large" style={{ marginTop: '0.75rem' }}>
+                                    <div className="result-card mini large">
                                         <div className="result-header">
                                             {activeResults.margemSobreVenda >= 15 ? (
                                                 <ArrowUpRight size={18} className="text-green" />
@@ -1870,36 +1731,7 @@ const ShopeePage: React.FC = () => {
                                     </div>
                                 </div> {/* Fecha results-column-main */}
 
-                                {/* Coluna 3: Gráficos Analíticos */}
-                                {simulacao && (
-                                    <div className="analytical-charts-section">
-                                        <TaxasPrecoChart
-                                            inputs={activeInputs}
-                                            precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
-                                            isFullscreen={fullscreenChart === 'taxas'}
-                                            onToggleFullscreen={toggleTaxasFullscreen}
-                                        />
-                                        <div className="charts-grid">
-                                            <EstrategiaPrecoChart
-                                                dados={simulacao.cenarios}
-                                                precoAtual={activeResults?.precoVenda || results?.precoVenda || 0}
-                                                pontoIdeal={simulacao.pIdeal15}
-                                                pontoAlvo={(simulacao as any).pAlvo}
-                                                onPriceSelect={(p) => {
-                                                    setInputs(prev => ({ ...prev, precoVenda: p }));
-                                                    setTimeout(handleCalcular, 0);
-                                                }}
-                                                isFullscreen={fullscreenChart === 'estrategia'}
-                                                onToggleFullscreen={toggleEstrategiaFullscreen}
-                                            />
-                                            <ComposicaoPrecoChart
-                                                res={activeResults || results!}
-                                                isFullscreen={fullscreenChart === 'composicao'}
-                                                onToggleFullscreen={toggleComposicaoFullscreen}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+
                             </div>
                         </div>
                     )}
