@@ -747,7 +747,7 @@ const ShopeePage: React.FC = () => {
                                         <>
                                             <input
                                                 type="text"
-                                                placeholder="Digite SKU ou descrição para carregar os custos..."
+                                                placeholder="Buscar por SKU ou descrição"
                                                 value={searchQuery}
                                                 onChange={(e) => {
                                                     setSearchQuery(e.target.value);
