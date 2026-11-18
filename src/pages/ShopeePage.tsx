@@ -1870,7 +1870,7 @@ const ShopeePage: React.FC = () => {
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
                                         <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`}>
-                                            <span>Comissão Shopee ({arredondar(activeResults.comissaoPorcentagem, 0)}%) {s('CS')}:</span>
+                                            <span>Comissão Shopee {s('CS')}:</span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
@@ -1897,7 +1897,7 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         {(activeResults.outrasDespesasShopeeValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('ODS') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Taxas extras Shopee (campanhas) {s('TES')}:</span>
+                                                <span>Taxas extras Shopee {s('TES')}:</span>
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
