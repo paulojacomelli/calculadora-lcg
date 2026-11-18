@@ -1387,7 +1387,7 @@ const ShopeePage: React.FC = () => {
                                 <div className="input-section-title">Impostos e Custos Fixos</div>
 
                                 <div className={`input-group ${isRefHighlighted('INPUT_IMP') ? 'dre-ref-pulse' : ''}`}>
-                                    <label><ShieldCheck size={16} /> Imposto {s('IMP')}</label>
+                                    <label><ShieldCheck size={16} /> Imposto (% do valor da nota) {s('IMP')}</label>
                                     <div className="input-composite">
                                         <input
                                             type="text"
