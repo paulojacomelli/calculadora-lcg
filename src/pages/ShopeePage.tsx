@@ -120,6 +120,7 @@ const ShopeePage: React.FC = () => {
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
     const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'TES' | 'IMP' | 'ADS' | 'DF' | 'OD', number>>>({});
+    const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Sistema de Autenticação Centralizado
@@ -585,6 +586,37 @@ const ShopeePage: React.FC = () => {
 
         if (isCorrectionMode && overrideKey) {
             const currentVal = dreOverrides[overrideKey] ?? originalVal;
+            const isEditingThis = correctionEditing?.key === overrideKey;
+            const displayValue = isEditingThis
+                ? correctionEditing.text
+                : (Number.isFinite(currentVal) ? currentVal.toFixed(2).replace('.', ',') : '0,00');
+
+            const commitCorrection = (rawText: string) => {
+                const trimmed = rawText.trim();
+                if (trimmed === '') {
+                    setDreOverrides(prev => {
+                        const next = { ...prev };
+                        delete next[overrideKey];
+                        return next;
+                    });
+                } else {
+                    const normalized = trimmed.replace(/\./g, (m, offset, str) => (str.includes(',') ? '' : m)).replace(',', '.');
+                    const num = parseFloat(normalized);
+                    if (!isNaN(num)) {
+                        const rounded = arredondar(Math.max(0, num), 2);
+                        setDreOverrides(prev => {
+                            if (Math.abs(rounded - originalVal) < 0.005) {
+                                const next = { ...prev };
+                                delete next[overrideKey];
+                                return next;
+                            }
+                            return { ...prev, [overrideKey]: rounded };
+                        });
+                    }
+                }
+                setCorrectionEditing(null);
+            };
+
             return (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     {hasDiff && (
@@ -593,23 +625,26 @@ const ShopeePage: React.FC = () => {
                         </span>
                     )}
                     <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={Number.isFinite(currentVal) ? currentVal : 0}
+                        type="text"
+                        inputMode="decimal"
+                        value={displayValue}
+                        onFocus={(e) => {
+                            setCorrectionEditing({
+                                key: overrideKey,
+                                text: Number.isFinite(currentVal) ? currentVal.toFixed(2).replace('.', ',') : ''
+                            });
+                            e.currentTarget.select();
+                        }}
                         onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '') {
-                                setDreOverrides(prev => {
-                                    const next = { ...prev };
-                                    delete next[overrideKey];
-                                    return next;
-                                });
-                                return;
-                            }
-                            const num = parseFloat(raw);
-                            if (!isNaN(num)) {
-                                setDreOverrides(prev => ({ ...prev, [overrideKey]: Math.max(0, num) }));
+                            setCorrectionEditing({ key: overrideKey, text: e.target.value });
+                        }}
+                        onBlur={(e) => commitCorrection(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                            } else if (e.key === 'Escape') {
+                                setCorrectionEditing(null);
+                                e.currentTarget.blur();
                             }
                         }}
                         style={{
