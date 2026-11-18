@@ -1459,7 +1459,7 @@ const ShopeePage: React.FC = () => {
                                 </div>
 
                                 <div className={`input-group ${isRefHighlighted('INPUT_OD') ? 'dre-ref-pulse' : ''}`}>
-                                    <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
+                                    <label><Calculator size={16} /> Outros custos variáveis (% do valor da nota) {s('OD')}</label>
                                     <div className="input-composite">
                                         <input
                                             type="text"
@@ -1491,7 +1491,7 @@ const ShopeePage: React.FC = () => {
                                             <option value="fixo">R$</option>
                                         </select>
                                     </div>
-                                    <span className="input-hint">Custos operacionais diversos</span>
+                                    <span className="input-hint">Embalagem, comissão interna, etc.</span>
                                 </div>
 
                                 <div className="input-section-title">Marketing e Descontos</div>
