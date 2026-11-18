@@ -1494,10 +1494,10 @@ const ShopeePage: React.FC = () => {
                                     <span className="input-hint">Embalagem, comissão interna, etc.</span>
                                 </div>
 
-                                <div className="input-section-title">Marketing e Descontos</div>
+                                <div className="input-section-title">Marketing</div>
 
                                 <div className={`input-group ${isRefHighlighted('INPUT_ADS') ? 'dre-ref-pulse' : ''}`}>
-                                    <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
+                                    <label><RefreshCcw size={16} /> Shopee Ads (% do valor da nota) {s('ADS')}</label>
                                     <div className="input-composite">
                                         <input
                                             type="text"
@@ -1530,7 +1530,7 @@ const ShopeePage: React.FC = () => {
                                             <option value="roas">ROAS</option>
                                         </select>
                                     </div>
-                                    <span className="input-hint">Shopee Ads por venda</span>
+                                    <span className="input-hint">% sobre o valor da nota, R$ fixo ou ROAS</span>
                                 </div>
 
                                 {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
