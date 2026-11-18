@@ -1153,7 +1153,7 @@ const ShopeePage: React.FC = () => {
 
 
                             <div className={`input-group ${isRefHighlighted('INPUT_DR') ? 'dre-ref-pulse' : ''}`}>
-                                <label><Sparkles size={16} /> Desconto de Rebate {s('DR')}</label>
+                                <label><Sparkles size={16} /> Rebate Shopee (subsídio da campanha) {s('DR')}</label>
                                 <div className="input-composite">
                                     <input
                                         type="text"
@@ -1185,7 +1185,7 @@ const ShopeePage: React.FC = () => {
                                         <option value="fixo">R$</option>
                                     </select>
                                 </div>
-                                <span className="input-hint">Rebate de campanhas Shopee</span>
+                                <span className="input-hint">Desconto bancado pela Shopee, devolvido como crédito</span>
                             </div>
 
                             <div className={`input-group ${isRefHighlighted('INPUT_CD') ? 'dre-ref-pulse' : ''}`}>
