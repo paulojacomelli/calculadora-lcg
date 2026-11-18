@@ -386,7 +386,8 @@ const ShopeePage: React.FC = () => {
 
         const inputsCalc = {
             ...inputs,
-            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * (Number(qtdMultiplier) || 1) : undefined
+            custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * (Number(qtdMultiplier) || 1) : undefined,
+            fretePagoCliente: aba === 'margem' ? inputs.fretePagoCliente : undefined
         };
 
         // 1. Determina o resultado principal (DRE) - Sempre baseado no PA manual do usuário
@@ -1219,29 +1220,31 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Valor do cupom da loja</span>
                             </div>
 
-                            <div className={`input-group ${isRefHighlighted('INPUT_FPC') ? 'dre-ref-pulse' : ''}`}>
-                                <label><Truck size={16} /> Frete pago pelo cliente (R$) {s('FPC')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    name="fretePagoCliente"
-                                    autoComplete="off"
-                                    value={getInputValue('fretePagoCliente', inputs.fretePagoCliente)}
-                                    onFocus={() => {
-                                        setFocusedInput('fretePagoCliente');
-                                        setFocusedValue(inputs.fretePagoCliente !== undefined ? inputs.fretePagoCliente.toFixed(2).replace('.', ',') : '');
-                                    }}
-                                    onBlur={() => {
-                                        setFocusedInput(null);
-                                        setFocusedValue('');
-                                        triggerCalculation();
-                                    }}
-                                    onChange={handleChange}
-                                    onWheel={handleWheel}
-                                    placeholder="Não informado"
-                                />
-                                <span className="input-hint">Opcional — se não aplicável, deixe em branco</span>
-                            </div>
+                            {aba === 'margem' && (
+                                <div className={`input-group ${isRefHighlighted('INPUT_FPC') ? 'dre-ref-pulse' : ''}`}>
+                                    <label><Truck size={16} /> Frete pago pelo cliente (R$) {s('FPC')}</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        name="fretePagoCliente"
+                                        autoComplete="off"
+                                        value={getInputValue('fretePagoCliente', inputs.fretePagoCliente)}
+                                        onFocus={() => {
+                                            setFocusedInput('fretePagoCliente');
+                                            setFocusedValue(inputs.fretePagoCliente !== undefined ? inputs.fretePagoCliente.toFixed(2).replace('.', ',') : '');
+                                        }}
+                                        onBlur={() => {
+                                            setFocusedInput(null);
+                                            setFocusedValue('');
+                                            triggerCalculation();
+                                        }}
+                                        onChange={handleChange}
+                                        onWheel={handleWheel}
+                                        placeholder="Não informado"
+                                    />
+                                    <span className="input-hint">Opcional — se não aplicável, deixe em branco</span>
+                                </div>
+                            )}
 
                             <div className={`input-group ${isRefHighlighted('INPUT_ODS') ? 'dre-ref-pulse' : ''}`}>
                                 <label><Calculator size={16} /> Outras Despesas Shopee {s('ODS')}</label>
