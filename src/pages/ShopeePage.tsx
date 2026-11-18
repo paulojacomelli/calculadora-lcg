@@ -1423,7 +1423,7 @@ const ShopeePage: React.FC = () => {
                                 </div>
 
                                 <div className={`input-group ${isRefHighlighted('INPUT_DF') ? 'dre-ref-pulse' : ''}`}>
-                                    <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
+                                    <label><RotateCcw size={16} /> Rateio de custos fixos (% do valor da nota) {s('DF')}</label>
                                     <div className="input-composite">
                                         <input
                                             type="text"
@@ -1455,7 +1455,7 @@ const ShopeePage: React.FC = () => {
                                             <option value="porcentagem">%</option>
                                         </select>
                                     </div>
-                                    <span className="input-hint">Caixa, fita, etiqueta...</span>
+                                    <span className="input-hint">Aluguel, equipe e estrutura ÷ faturamento mensal</span>
                                 </div>
 
                                 <div className={`input-group ${isRefHighlighted('INPUT_OD') ? 'dre-ref-pulse' : ''}`}>
