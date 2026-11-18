@@ -116,6 +116,7 @@ const ShopeePage: React.FC = () => {
     const [focusedValue, setFocusedValue] = useState<string>('');
     const [highlightedRefs, setHighlightedRefs] = useState<string[]>([]);
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
+    const [isResultStale, setIsResultStale] = useState(false);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Sistema de Autenticação Centralizado
@@ -284,6 +285,13 @@ const ShopeePage: React.FC = () => {
         return () => clearTimeout(timer);
     }, [aba, tipoMargemIdeal, isAdvancedOpen, user]);
 
+    // Marca o resultado exibido como desatualizado sempre que algum parâmetro mudar
+    useEffect(() => {
+        if (results) {
+            setIsResultStale(true);
+        }
+    }, [inputs, margemDesejada, qtdMultiplier, aba, tipoMargemIdeal]);
+
     // Função mantida por compatibilidade com onBlur de inputs, mas sem ação em modo manual
     const triggerCalculation = () => {
         // Modo manual: cálculo só via botão. Não executa nada aqui.
@@ -382,6 +390,7 @@ const ShopeePage: React.FC = () => {
     };
 
     const executarCalculo = () => {
+        setIsResultStale(false);
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
 
@@ -1538,6 +1547,25 @@ const ShopeePage: React.FC = () => {
 
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
+                            {isResultStale && results && (
+                                <div style={{
+                                    width: '100%',
+                                    background: '#fffbeb',
+                                    border: '1px solid #fcd34d',
+                                    color: '#b45309',
+                                    borderRadius: '8px',
+                                    padding: '0.5rem 0.75rem',
+                                    marginBottom: '0.5rem',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <AlertTriangle size={16} />
+                                    <span>Resultado desatualizado — clique em Calcular Agora</span>
+                                </div>
+                            )}
                             <button
                                 className="btn-primary"
                                 style={{
@@ -1690,8 +1718,23 @@ const ShopeePage: React.FC = () => {
                                     })()}
 
                                     <div className="details">
-                                        <div className="details-group-header" style={{ marginTop: '0', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', color: '#1e3a8a' }}>
-                                            Demonstração do Resultado do Exercício (DRE)
+                                        <div className="details-group-header" style={{ marginTop: '0', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                            <span>Demonstração do Resultado do Exercício (DRE)</span>
+                                            {isResultStale && (
+                                                <span style={{
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 700,
+                                                    background: '#fffbeb',
+                                                    color: '#b45309',
+                                                    border: '1px solid #fcd34d',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '999px',
+                                                    textTransform: 'none',
+                                                    letterSpacing: 0
+                                                }}>
+                                                    Resultado desatualizado
+                                                </span>
+                                            )}
                                         </div>
                                         <div style={{
                                             marginBottom: '1rem',
