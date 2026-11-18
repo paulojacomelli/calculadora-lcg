@@ -1089,6 +1089,7 @@ const ShopeePage: React.FC = () => {
                                                 onWheel={handleWheel}
                                                 onKeyDown={handleKeyDown}
                                             />
+                                            <span className="input-hint">Preço de tabela, antes de rebate e cupom</span>
                                         </div>
                                     </>
                                 ) : (
