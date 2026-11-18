@@ -24,7 +24,8 @@ import {
     Plus,
     ChevronLeft,
     ChevronRight,
-    Truck
+    Truck,
+    Edit3
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -117,6 +118,8 @@ const ShopeePage: React.FC = () => {
     const [highlightedRefs, setHighlightedRefs] = useState<string[]>([]);
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
+    const [isCorrectionMode, setIsCorrectionMode] = useState(false);
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'TES' | 'IMP' | 'ADS' | 'DF' | 'OD', number>>>({});
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Sistema de Autenticação Centralizado
@@ -391,6 +394,8 @@ const ShopeePage: React.FC = () => {
 
     const executarCalculo = () => {
         setIsResultStale(false);
+        setDreOverrides({});
+        setIsCorrectionMode(false);
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
 
@@ -501,12 +506,162 @@ const ShopeePage: React.FC = () => {
 
 
 
-    // activeResults usa apenas o último resultado calculado pelo botão.
-    // Enquanto não há cálculo, retorna null para indicar estado de espera.
-    const activeResults: ShopeeOutput | null = results || resultsRef.current;
+    // baseResults mantém o cálculo original da fórmula; activeResults aplica correções manuais da sessão
+    const baseResults: ShopeeOutput | null = results || resultsRef.current;
+
+    const activeResults: ShopeeOutput | null = (() => {
+        if (!baseResults) return null;
+        if (Object.keys(dreOverrides).length === 0) return baseResults;
+
+        const rebateValor = dreOverrides.DR ?? baseResults.rebateValor;
+        const cupomValor = dreOverrides.CD ?? baseResults.cupomValor;
+        const baseCalculo = arredondar(baseResults.precoVenda - rebateValor, 2);
+        const valorNota = arredondar(baseCalculo - cupomValor, 2);
+        const precoComCupom = arredondar(valorNota + (baseResults.freteValor || 0), 2);
+        const comissaoValor = dreOverrides.CS ?? baseResults.comissaoValor;
+        const tarifaFixa = dreOverrides.TFS ?? baseResults.tarifaFixa;
+        const outrasDespesasShopeeValor = dreOverrides.TES ?? baseResults.outrasDespesasShopeeValor;
+        const impostoValor = dreOverrides.IMP ?? baseResults.impostoValor;
+        const custoAds = dreOverrides.ADS ?? baseResults.custoAds;
+        const despesaFixaValor = dreOverrides.DF ?? baseResults.despesaFixaValor;
+        const despesaAdicionalValor = dreOverrides.OD ?? baseResults.despesaAdicionalValor;
+
+        const repasse = arredondar(
+            precoComCupom - comissaoValor - tarifaFixa - outrasDespesasShopeeValor - (baseResults.freteValor || 0) - (baseResults.freteVendedorValor || 0) + rebateValor,
+            2
+        );
+        const lucroLiquido = arredondar(
+            repasse - baseResults.custoProdutoValor - impostoValor - custoAds - despesaFixaValor - despesaAdicionalValor,
+            2
+        );
+        const margemSobreVenda = precoComCupom > 0 ? arredondar((lucroLiquido / precoComCupom) * 100, 2) : 0;
+        const margemLiquidaSobreCusto = baseResults.custoProdutoValor > 0 ? arredondar((lucroLiquido / baseResults.custoProdutoValor) * 100, 2) : 0;
+
+        return {
+            ...baseResults,
+            rebateValor,
+            cupomValor,
+            baseCalculo,
+            valorNota,
+            precoComCupom,
+            comissaoValor,
+            tarifaFixa,
+            outrasDespesasShopeeValor,
+            impostoValor,
+            custoAds,
+            despesaFixaValor,
+            despesaAdicionalValor,
+            repasse,
+            lucroLiquido,
+            margemSobreVenda,
+            margemLiquidaSobreCusto
+        };
+    })();
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
+
+    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS' | 'TES' | 'IMP' | 'ADS' | 'DF' | 'OD';
+
+    const renderDreValor = (
+        originalVal: number,
+        correctedVal: number,
+        prefix: string,
+        valClassName: string,
+        overrideKey?: DreOverrideKey,
+        bold?: boolean
+    ) => {
+        const diff = arredondar(correctedVal - originalVal, 2);
+        const hasDiff = Math.abs(diff) >= 0.005;
+
+        if (isCorrectionMode && overrideKey) {
+            const currentVal = dreOverrides[overrideKey] ?? originalVal;
+            return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {hasDiff && (
+                        <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
+                            {prefix}R$ {moeda(originalVal)}
+                        </span>
+                    )}
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={Number.isFinite(currentVal) ? currentVal : 0}
+                        onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === '') {
+                                setDreOverrides(prev => {
+                                    const next = { ...prev };
+                                    delete next[overrideKey];
+                                    return next;
+                                });
+                                return;
+                            }
+                            const num = parseFloat(raw);
+                            if (!isNaN(num)) {
+                                setDreOverrides(prev => ({ ...prev, [overrideKey]: Math.max(0, num) }));
+                            }
+                        }}
+                        style={{
+                            width: '84px',
+                            padding: '2px 6px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            textAlign: 'right',
+                            border: hasDiff ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            background: hasDiff ? '#f5f3ff' : '#ffffff',
+                            color: '#1e293b'
+                        }}
+                    />
+                    {hasDiff && (
+                        <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: diff > 0 ? '#b45309' : '#047857',
+                            background: diff > 0 ? '#fef3c7' : '#d1fae5',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
+                        </span>
+                    )}
+                </div>
+            );
+        }
+
+        if (hasDiff) {
+            return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
+                        {prefix}R$ {moeda(originalVal)}
+                    </span>
+                    <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
+                        {prefix}R$ {moeda(correctedVal)}
+                    </span>
+                    <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: diff > 0 ? '#7c3aed' : '#047857',
+                        background: diff > 0 ? '#f3e8ff' : '#d1fae5',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
+                    </span>
+                </div>
+            );
+        }
+
+        return (
+            <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
+                {prefix}R$ {moeda(correctedVal)}
+            </span>
+        );
+    };
 
     let statusClass = 'status-orange';
     let statusIcon = <AlertCircle size={20} />;
@@ -1719,23 +1874,63 @@ const ShopeePage: React.FC = () => {
                                     })()}
 
                                     <div className="details">
-                                        <div className="details-group-header" style={{ marginTop: '0', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                        <div className="details-group-header" style={{ marginTop: '0', marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
                                             <span>Demonstração do Resultado do Exercício (DRE)</span>
-                                            {isResultStale && (
-                                                <span style={{
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 700,
-                                                    background: '#fffbeb',
-                                                    color: '#b45309',
-                                                    border: '1px solid #fcd34d',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '999px',
-                                                    textTransform: 'none',
-                                                    letterSpacing: 0
-                                                }}>
-                                                    Resultado desatualizado
-                                                </span>
-                                            )}
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textTransform: 'none', letterSpacing: 0 }}>
+                                                {isResultStale && (
+                                                    <span style={{
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 700,
+                                                        background: '#fffbeb',
+                                                        color: '#b45309',
+                                                        border: '1px solid #fcd34d',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '999px'
+                                                    }}>
+                                                        Resultado desatualizado
+                                                    </span>
+                                                )}
+                                                {Object.keys(dreOverrides).length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDreOverrides({})}
+                                                        style={{
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 700,
+                                                            background: '#f1f5f9',
+                                                            color: '#475569',
+                                                            border: '1px solid #cbd5e1',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        title="Desfazer correções deste cálculo"
+                                                    >
+                                                        Restaurar
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsCorrectionMode(prev => !prev)}
+                                                    style={{
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 700,
+                                                        background: isCorrectionMode ? '#7c3aed' : '#ffffff',
+                                                        color: isCorrectionMode ? '#ffffff' : '#475569',
+                                                        border: isCorrectionMode ? '1px solid #7c3aed' : '1px solid #cbd5e1',
+                                                        padding: '3px 9px',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="Editar valores divergentes apenas para este cálculo"
+                                                >
+                                                    <Edit3 size={13} />
+                                                    {isCorrectionMode ? 'Concluir Correção' : 'Modo Correção'}
+                                                </button>
+                                            </div>
                                         </div>
                                         <div style={{
                                             marginBottom: '1rem',
@@ -1775,17 +1970,38 @@ const ShopeePage: React.FC = () => {
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lucro Líquido Final</div>
-                                                <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>R$ {moeda(activeResults.lucroLiquido)}</div>
+                                                {baseResults && Math.abs(activeResults.lucroLiquido - baseResults.lucroLiquido) >= 0.005 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                                        <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.95rem', fontWeight: 700 }}>
+                                                            R$ {moeda(baseResults.lucroLiquido)}
+                                                        </span>
+                                                        <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                                                            R$ {moeda(activeResults.lucroLiquido)}
+                                                        </div>
+                                                        <span style={{
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 700,
+                                                            color: activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '#047857' : '#b45309',
+                                                            background: activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '#d1fae5' : '#fef3c7',
+                                                            padding: '1px 6px',
+                                                            borderRadius: '4px'
+                                                        }}>
+                                                            {activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '+' : '-'}R$ {moeda(Math.abs(activeResults.lucroLiquido - baseResults.lucroLiquido))}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>R$ {moeda(activeResults.lucroLiquido)}</div>
+                                                )}
                                             </div>
                                         </div>
 
-                                        {((activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0) && (
+                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
                                                     <span className="val" style={{ fontWeight: 700, cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">R$ {moeda(activeResults.precoVenda)}</span>
                                                 </div>
-                                                {(activeResults.rebateValor ?? 0) > 0 && (
+                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0) && (
                                                     <>
                                                         <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`}>
                                                             <span>Desconto de Rebate {s('DR')}:</span>
@@ -1797,22 +2013,23 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
                                                                 <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                                <span className="val text-red">- R$ {moeda(activeResults.rebateValor)}</span>
+                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR')}
                                                             </div>
                                                         </div>
-                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={((activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
-                                                            <span
-                                                                className="val"
-                                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                                            <div
+                                                                style={{ cursor: 'help' }}
                                                                 title={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
                                                                 onMouseEnter={() => setHighlightedRefs(['PA', 'DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
-                                                            >R$ {moeda(activeResults.baseCalculo)}</span>
+                                                            >
+                                                                {renderDreValor(baseResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true)}
+                                                            </div>
                                                         </div>
                                                     </>
                                                 )}
-                                                {(activeResults.cupomValor ?? 0) > 0 && (
+                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
                                                     <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`}>
                                                         <span>Desconto aplicado {s('CD')}:</span>
                                                         <div
@@ -1823,21 +2040,22 @@ const ShopeePage: React.FC = () => {
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
                                                             <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                            <span className="val text-red">- R$ {moeda(activeResults.cupomValor)}</span>
+                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD')}
                                                         </div>
                                                     </div>
                                                 )}
                                                 <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(activeResults.freteValor ?? 0) <= 0 ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                     <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
-                                                    <span
-                                                        className="val"
-                                                        style={{ fontWeight: 700, cursor: 'help' }}
+                                                    <div
+                                                        style={{ cursor: 'help' }}
                                                         title={`${(activeResults.rebateValor ?? 0) > 0
                                                             ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
                                                             : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
                                                         onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : [])])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
-                                                    >R$ {moeda(activeResults.valorNota)}</span>
+                                                    >
+                                                        {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true)}
+                                                    </div>
                                                 </div>
                                                 {(activeResults.freteValor ?? 0) > 0 && (
                                                     <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
@@ -1858,15 +2076,16 @@ const ShopeePage: React.FC = () => {
                                         )}
                                         <div className={`detail-row ${(isRefHighlighted('PDV') || (isRefHighlighted('STP') && (activeResults.rebateValor ?? 0) <= 0) || ((isRefHighlighted('VN') || isRefHighlighted('MC')) && (activeResults.rebateValor ?? 0) <= 0 && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0)) ? 'dre-ref-pulse' : ''}`}>
                                             <span style={{ fontWeight: 700 }}>Preço de Venda {s('PDV')}:</span>
-                                            <span
-                                                className="val"
-                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                            <div
+                                                style={{ cursor: 'help' }}
                                                 title={`${(activeResults.rebateValor ?? 0) > 0
                                                     ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
                                                     : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
-                                            >R$ {moeda(activeResults.precoComCupom)}</span>
+                                            >
+                                                {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true)}
+                                            </div>
                                         </div>
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
@@ -1879,8 +2098,8 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                <span className="perc">({porc(activeResults.comissaoPorcentagem)}%)</span>
-                                                <span className="val text-red">- R$ {moeda(activeResults.comissaoValor)}</span>
+                                                <span className="perc">({porc((activeResults.comissaoValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
+                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS')}
                                             </div>
                                         </div>
                                         <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`}>
@@ -1893,10 +2112,10 @@ const ShopeePage: React.FC = () => {
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 <span className="perc">({porc((activeResults.tarifaFixa || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
-                                                <span className="val text-red">- R$ {moeda(activeResults.tarifaFixa)}</span>
+                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS')}
                                             </div>
                                         </div>
-                                        {(activeResults.outrasDespesasShopeeValor ?? 0) > 0 && (
+                                        {(isCorrectionMode || (activeResults.outrasDespesasShopeeValor ?? 0) > 0 || (baseResults?.outrasDespesasShopeeValor ?? 0) > 0) && (
                                             <div className={`detail-row ${isRefHighlighted('ODS') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Taxas extras Shopee {s('TES')}:</span>
                                                 <div
@@ -1907,7 +2126,7 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.outrasDespesasShopeeValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.outrasDespesasShopeeValor)}</span>
+                                                    {renderDreValor(baseResults?.outrasDespesasShopeeValor ?? 0, activeResults.outrasDespesasShopeeValor, '- ', 'val text-red', 'TES')}
                                                 </div>
                                             </div>
                                         )}
@@ -1952,19 +2171,20 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                    <span className="val text-green">(+ R$ {moeda(activeResults.rebateValor)})</span>
+                                                    {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '+ ', 'val text-green')}
                                                 </div>
                                             </div>
                                         )}
                                         <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
                                             <span style={{ fontWeight: 700 }}>Repasse:</span>
-                                            <span
-                                                className="val"
-                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                            <div
+                                                style={{ cursor: 'help' }}
                                                 title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.outrasDespesasShopeeValor ?? 0) > 0 ? ` - TES (R$ ${moeda(activeResults.outrasDespesasShopeeValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'ODS', 'FPC_DEB', 'FCV', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
-                                            >R$ {moeda(activeResults.repasse)}</span>
+                                            >
+                                                {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true)}
+                                            </div>
                                         </div>
 
                                         <div className="details-group-header">Política da LCG {s('PDL')}</div>
@@ -1981,7 +2201,7 @@ const ShopeePage: React.FC = () => {
                                                 <span className="val text-red">- R$ {moeda(activeInputs.custoProduto)}</span>
                                             </div>
                                         </div>
-                                        {(activeResults.impostoValor ?? 0) > 0 && (
+                                        {(isCorrectionMode || (activeResults.impostoValor ?? 0) > 0 || (baseResults?.impostoValor ?? 0) > 0) && (
                                             <div className={`detail-row ${isRefHighlighted('IMP') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Imposto {s('IMP')}:</span>
                                                 <div
@@ -1992,11 +2212,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.impostoValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.impostoValor)}</span>
+                                                    {renderDreValor(baseResults?.impostoValor ?? 0, activeResults.impostoValor, '- ', 'val text-red', 'IMP')}
                                                 </div>
                                             </div>
                                         )}
-                                        {(activeResults.custoAds ?? 0) > 0 && (
+                                        {(isCorrectionMode || (activeResults.custoAds ?? 0) > 0 || (baseResults?.custoAds ?? 0) > 0) && (
                                             <div className={`detail-row ${isRefHighlighted('ADS') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Ads Shopee {s('ADS')}:</span>
                                                 <div
@@ -2007,11 +2227,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.custoAds || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.custoAds)}</span>
+                                                    {renderDreValor(baseResults?.custoAds ?? 0, activeResults.custoAds, '- ', 'val text-red', 'ADS')}
                                                 </div>
                                             </div>
                                         )}
-                                        {(activeResults.despesaFixaValor ?? 0) > 0 && (
+                                        {(isCorrectionMode || (activeResults.despesaFixaValor ?? 0) > 0 || (baseResults?.despesaFixaValor ?? 0) > 0) && (
                                             <div className={`detail-row ${isRefHighlighted('DF') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Despesa fixa {s('DF')}:</span>
                                                 <div
@@ -2022,11 +2242,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.despesaFixaValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.despesaFixaValor)}</span>
+                                                    {renderDreValor(baseResults?.despesaFixaValor ?? 0, activeResults.despesaFixaValor, '- ', 'val text-red', 'DF')}
                                                 </div>
                                             </div>
                                         )}
-                                        {(activeResults.despesaAdicionalValor ?? 0) > 0 && (
+                                        {(isCorrectionMode || (activeResults.despesaAdicionalValor ?? 0) > 0 || (baseResults?.despesaAdicionalValor ?? 0) > 0) && (
                                             <div className={`detail-row ${isRefHighlighted('OD') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Outras Despesas {s('OD')}:</span>
                                                 <div
@@ -2037,7 +2257,7 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.despesaAdicionalValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.despesaAdicionalValor || 0)}</span>
+                                                    {renderDreValor(baseResults?.despesaAdicionalValor ?? 0, activeResults.despesaAdicionalValor || 0, '- ', 'val text-red', 'OD')}
                                                 </div>
                                             </div>
                                         )}
