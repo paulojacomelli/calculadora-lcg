@@ -33,6 +33,7 @@ export interface ShopeeInput {
   cupomTipo: UnidadeValor | '';
 
   fretePagoCliente?: number;
+  freteCobradoVendedor?: number;
 
 
   // Parâmetros de Simulação Sweet Spot
@@ -60,6 +61,7 @@ export interface ShopeeOutput {
   margem: number;             // Subtotal conforme fórmula do usuário
   cupomValor: number;
   freteValor: number;
+  freteVendedorValor: number;
   baseCalculo: number;        // STP = PA - DR
   valorNota: number;          // VN = STP - CD
   repasse: number;            // PDV - CS - TFS - Frete + CR
@@ -166,6 +168,8 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const rebateValor = roundResult ? arredondar(dRebateValor.toNumber(), 2) : dRebateValor.toNumber();
   const cupomValorCalculado = roundResult ? arredondar(dCupomValor.toNumber(), 2) : dCupomValor.toNumber();
   const freteValor = roundResult ? arredondar(dFreteValor.toNumber(), 2) : dFreteValor.toNumber();
+  const dFreteVendedorValor = new Decimal(input.freteCobradoVendedor && input.freteCobradoVendedor > 0 ? input.freteCobradoVendedor : 0);
+  const freteVendedorValor = roundResult ? arredondar(dFreteVendedorValor.toNumber(), 2) : dFreteVendedorValor.toNumber();
 
   let csPorcentagem = 14;
   let tfsValor = 0;
@@ -207,6 +211,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(tarifaFixaValor)
     .plus(outrasDespesasShopeeValor)
     .plus(freteValor)
+    .plus(freteVendedorValor)
     .plus(custoProdutoValor)
     .plus(impostoValor)
     .plus(despesaFixaValor)
@@ -214,7 +219,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(custoAds);
 
   const custos = dCustos.toNumber();
-  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).plus(rebateValor).toNumber();
+  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).minus(freteVendedorValor).plus(rebateValor).toNumber();
 
   const LLV = dPDV.minus(dCustos).plus(rebateValor).toNumber();
 
@@ -232,6 +237,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .minus(comissaoValor)
     .minus(tarifaFixaValor)
     .minus(outrasDespesasShopeeValor)
+    .minus(freteVendedorValor)
     .toNumber();
 
   return {
@@ -252,6 +258,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     margem: roundResult ? arredondar(margem, 2) : margem,
     cupomValor: roundResult ? arredondar(cupomValorCalculado, 2) : cupomValorCalculado,
     freteValor: roundResult ? arredondar(freteValor, 2) : freteValor,
+    freteVendedorValor: roundResult ? arredondar(freteVendedorValor, 2) : freteVendedorValor,
     baseCalculo: roundResult ? arredondar(BC, 2) : BC,
     valorNota: roundResult ? arredondar(VN, 2) : VN,
     repasse: roundResult ? arredondar(repasse, 2) : repasse,
