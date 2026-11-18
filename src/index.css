@@ -1414,6 +1414,44 @@ body {
   font-weight: 500;
 }
 
+@keyframes dreRefPulse {
+  0%, 100% {
+    background-color: rgba(124, 58, 237, 0.05);
+  }
+  50% {
+    background-color: rgba(124, 58, 237, 0.16);
+  }
+}
+
+@keyframes dreRefInputPulse {
+  0%, 100% {
+    background-color: rgba(124, 58, 237, 0.05);
+    box-shadow: inset 0 0 0 1000px rgba(124, 58, 237, 0.05);
+  }
+  50% {
+    background-color: rgba(124, 58, 237, 0.16);
+    box-shadow: inset 0 0 0 1000px rgba(124, 58, 237, 0.16);
+  }
+}
+
+.detail-row.dre-ref-pulse {
+  animation: dreRefPulse 1.1s ease-in-out infinite;
+}
+
+.input-group:not(.dre-ref-pulse) input:-webkit-autofill,
+.input-group:not(.dre-ref-pulse) input:-webkit-autofill:hover,
+.input-group:not(.dre-ref-pulse) input:-webkit-autofill:focus,
+.input-group:not(.dre-ref-pulse) input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: inherit !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.input-group.dre-ref-pulse > input,
+.input-group.dre-ref-pulse > .input-composite > input.input-main {
+  animation: dreRefInputPulse 1.1s ease-in-out infinite;
+}
+
 .detail-row.total {
   margin-top: 1rem;
   padding: 0.75rem 1rem;

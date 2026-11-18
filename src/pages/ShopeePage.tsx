@@ -23,7 +23,8 @@ import {
     Search,
     Plus,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Truck
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -61,14 +62,17 @@ const defaultInputs: ShopeeInput = {
     despesaFixaTipo: 'porcentagem',
     despesaAdicional: undefined,
     despesaAdicionalTipo: 'porcentagem',
+    outrasDespesasShopee: undefined,
+    outrasDespesasShopeeTipo: 'porcentagem',
     impostoPorcentagem: undefined,
     impostoTipo: 'porcentagem',
     adsValor: undefined,
     adsTipo: 'porcentagem',
     rebatePorcentagem: undefined,
-    rebateTipo: 'porcentagem',
+    rebateTipo: '',
     cupomDesconto: undefined,
-    cupomTipo: 'porcentagem',
+    cupomTipo: '',
+    fretePagoCliente: undefined,
     fatorAlavancagem: undefined
 };
 
@@ -109,6 +113,8 @@ const ShopeePage: React.FC = () => {
     const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<{ sku: string; descricao: string; _wh: string } | null>(null);
 
     const [focusedValue, setFocusedValue] = useState<string>('');
+    const [highlightedRefs, setHighlightedRefs] = useState<string[]>([]);
+    const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Sistema de Autenticação Centralizado
@@ -824,7 +830,8 @@ const ShopeePage: React.FC = () => {
                                                                                     despesaFixa: p.despesaFixaDF !== undefined && p.despesaFixaDF !== 0 ? p.despesaFixaDF : prev.despesaFixa,
                                                                                     despesaAdicional: p.outrasDespesasOD !== undefined && p.outrasDespesasOD !== 0 ? p.outrasDespesasOD : prev.despesaAdicional,
                                                                                     adsValor: p.adsADS !== undefined && p.adsADS !== 0 ? p.adsADS : prev.adsValor,
-                                                                                    rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem
+                                                                                    rebatePorcentagem: p.rebateCR !== undefined && p.rebateCR !== 0 ? p.rebateCR : prev.rebatePorcentagem,
+                                                                                    rebateTipo: p.rebateCR !== undefined && p.rebateCR !== 0 ? (prev.rebateTipo || 'porcentagem') : prev.rebateTipo
                                                                                 }));
                                                                             }}
                                                                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
@@ -1019,7 +1026,7 @@ const ShopeePage: React.FC = () => {
                                 </div>
                             )}
 
-                            <div className="input-group">
+                            <div className={`input-group ${isRefHighlighted('INPUT_CDP') ? 'dre-ref-pulse' : ''}`}>
                                 <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
                                 <div className="input-composite">
                                     <input
@@ -1140,8 +1147,8 @@ const ShopeePage: React.FC = () => {
                             </div>
 
 
-                            <div className="input-group">
-                                <label><Sparkles size={16} /> Crédito de Rebate {s('CR')}</label>
+                            <div className={`input-group ${isRefHighlighted('INPUT_DR') ? 'dre-ref-pulse' : ''}`}>
+                                <label><Sparkles size={16} /> Desconto de Rebate {s('DR')}</label>
                                 <div className="input-composite">
                                     <input
                                         type="text"
@@ -1168,6 +1175,7 @@ const ShopeePage: React.FC = () => {
                                         value={inputs.rebateTipo}
                                         onChange={handleChange}
                                     >
+                                        <option value="">Selecione</option>
                                         <option value="porcentagem">%</option>
                                         <option value="fixo">R$</option>
                                     </select>
@@ -1175,7 +1183,7 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Rebate de campanhas Shopee</span>
                             </div>
 
-                            <div className="input-group">
+                            <div className={`input-group ${isRefHighlighted('INPUT_CD') ? 'dre-ref-pulse' : ''}`}>
                                 <label><CircleDollarSign size={16} /> Cupom de Desconto {s('CD')}</label>
                                 <div className="input-composite">
                                     <input
@@ -1203,11 +1211,73 @@ const ShopeePage: React.FC = () => {
                                         value={inputs.cupomTipo}
                                         onChange={handleChange}
                                     >
+                                        <option value="">Selecione</option>
                                         <option value="fixo">R$</option>
                                         <option value="porcentagem">%</option>
                                     </select>
                                 </div>
                                 <span className="input-hint">Valor do cupom da loja</span>
+                            </div>
+
+                            <div className={`input-group ${isRefHighlighted('INPUT_FPC') ? 'dre-ref-pulse' : ''}`}>
+                                <label><Truck size={16} /> Frete pago pelo cliente (R$) {s('FPC')}</label>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    name="fretePagoCliente"
+                                    autoComplete="off"
+                                    value={getInputValue('fretePagoCliente', inputs.fretePagoCliente)}
+                                    onFocus={() => {
+                                        setFocusedInput('fretePagoCliente');
+                                        setFocusedValue(inputs.fretePagoCliente !== undefined ? inputs.fretePagoCliente.toFixed(2).replace('.', ',') : '');
+                                    }}
+                                    onBlur={() => {
+                                        setFocusedInput(null);
+                                        setFocusedValue('');
+                                        triggerCalculation();
+                                    }}
+                                    onChange={handleChange}
+                                    onWheel={handleWheel}
+                                    placeholder="Não informado"
+                                />
+                                <span className="input-hint">Opcional — se não aplicável, deixe em branco</span>
+                            </div>
+
+                            <div className={`input-group ${isRefHighlighted('INPUT_ODS') ? 'dre-ref-pulse' : ''}`}>
+                                <label><Calculator size={16} /> Outras Despesas Shopee {s('ODS')}</label>
+                                <div className="input-composite">
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        name="outrasDespesasShopee"
+                                        autoComplete="off"
+                                        className="input-main"
+                                        value={getInputValue('outrasDespesasShopee', inputs.outrasDespesasShopee)}
+                                        onFocus={() => {
+                                            setFocusedInput('outrasDespesasShopee');
+                                            setFocusedValue(inputs.outrasDespesasShopee !== undefined ? inputs.outrasDespesasShopee.toFixed(2).replace('.', ',') : '');
+                                        }}
+                                        onBlur={() => {
+                                            setFocusedInput(null);
+                                            setFocusedValue('');
+                                            triggerCalculation();
+                                        }}
+                                        onChange={handleChange}
+                                        onWheel={handleWheel}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="0,00"
+                                    />
+                                    <select
+                                        name="outrasDespesasShopeeTipo"
+                                        className="input-unit"
+                                        value={inputs.outrasDespesasShopeeTipo || 'porcentagem'}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="porcentagem">%</option>
+                                        <option value="fixo">R$</option>
+                                    </select>
+                                </div>
+                                <span className="input-hint">Taxas ou campanhas extras da Shopee</span>
                             </div>
 
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
@@ -1283,7 +1353,7 @@ const ShopeePage: React.FC = () => {
 
                                 <div className="input-section-title">Impostos e Custos Fixos</div>
 
-                                <div className="input-group">
+                                <div className={`input-group ${isRefHighlighted('INPUT_IMP') ? 'dre-ref-pulse' : ''}`}>
                                     <label><ShieldCheck size={16} /> Imposto {s('IMP')}</label>
                                     <div className="input-composite">
                                         <input
@@ -1319,7 +1389,7 @@ const ShopeePage: React.FC = () => {
                                     <span className="input-hint">DAS, Simples Nacional, etc.</span>
                                 </div>
 
-                                <div className="input-group">
+                                <div className={`input-group ${isRefHighlighted('INPUT_DF') ? 'dre-ref-pulse' : ''}`}>
                                     <label><RotateCcw size={16} /> Despesa fixa {s('DF')}</label>
                                     <div className="input-composite">
                                         <input
@@ -1355,7 +1425,7 @@ const ShopeePage: React.FC = () => {
                                     <span className="input-hint">Caixa, fita, etiqueta...</span>
                                 </div>
 
-                                <div className="input-group">
+                                <div className={`input-group ${isRefHighlighted('INPUT_OD') ? 'dre-ref-pulse' : ''}`}>
                                     <label><Calculator size={16} /> Outras Despesas {s('OD')}</label>
                                     <div className="input-composite">
                                         <input
@@ -1393,7 +1463,7 @@ const ShopeePage: React.FC = () => {
 
                                 <div className="input-section-title">Marketing e Descontos</div>
 
-                                <div className="input-group">
+                                <div className={`input-group ${isRefHighlighted('INPUT_ADS') ? 'dre-ref-pulse' : ''}`}>
                                     <label><RefreshCcw size={16} /> Ads (Marketing) {s('ADS')}</label>
                                     <div className="input-composite">
                                         <input
@@ -1602,111 +1672,284 @@ const ShopeePage: React.FC = () => {
                                             gap: '1rem'
                                         }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <div
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'help' }}
+                                                    title={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Custo do Produto [CDP] (R$ ${moeda(activeInputs.custoProduto)})`}
+                                                    onMouseEnter={() => setHighlightedRefs(['CDP'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>Lucro líquido custo:</span>
                                                     <span style={{ fontSize: '0.95rem', color: '#c2410c', fontWeight: 700 }}>({porc(activeResults.margemLiquidaSobreCusto)}%)</span>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <div
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'help' }}
+                                                    title={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Preço de Venda [PDV] (R$ ${moeda(activeResults.precoComCupom)})`}
+                                                    onMouseEnter={() => setHighlightedRefs(['PDV'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
                                                     <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>Lucro líquido venda:</span>
                                                     <span style={{ fontSize: '0.95rem', color: '#1e40af', fontWeight: 700 }}>({porc(activeResults.margemSobreVenda)}%)</span>
                                                 </div>
                                             </div>
-                                            <div style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.5rem' }}>
+                                            <div
+                                                style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.5rem', cursor: 'help' }}
+                                                title={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL]`}
+                                                onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lucro Líquido Final</div>
                                                 <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>R$ {moeda(activeResults.lucroLiquido)}</div>
                                             </div>
                                         </div>
 
-                                        {(inputs.cupomDesconto ?? 0) > 0 && (
+                                        {((activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0) && (
                                             <>
-                                                <div className="detail-row">
+                                                <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
-                                                    <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
+                                                    <span className="val" style={{ fontWeight: 700, cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">R$ {moeda(activeResults.precoVenda)}</span>
                                                 </div>
-                                                <div className="detail-row" style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
-                                                    <span>Desconto aplicado {s('CD')}:</span>
-                                                    <div className="detail-values">
-                                                        <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                        <span className="val text-red">- R$ {moeda(activeResults.cupomValor)}</span>
+                                                {(activeResults.rebateValor ?? 0) > 0 && (
+                                                    <>
+                                                        <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`}>
+                                                            <span>Desconto de Rebate {s('DR')}:</span>
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [DR]'}
+                                                                onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                                <span className="val text-red">- R$ {moeda(activeResults.rebateValor)}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={((activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                            <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
+                                                            <span
+                                                                className="val"
+                                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                                                title={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
+                                                                onMouseEnter={() => setHighlightedRefs(['PA', 'DR'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >R$ {moeda(activeResults.baseCalculo)}</span>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {(activeResults.cupomValor ?? 0) > 0 && (
+                                                    <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`}>
+                                                        <span>Desconto aplicado {s('CD')}:</span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            title={activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]'}
+                                                            onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                            <span className="val text-red">- R$ {moeda(activeResults.cupomValor)}</span>
+                                                        </div>
                                                     </div>
+                                                )}
+                                                <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(activeResults.freteValor ?? 0) <= 0 ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                    <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
+                                                    <span
+                                                        className="val"
+                                                        style={{ fontWeight: 700, cursor: 'help' }}
+                                                        title={`${(activeResults.rebateValor ?? 0) > 0
+                                                            ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
+                                                            : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
+                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : [])])}
+                                                        onMouseLeave={() => setHighlightedRefs([])}
+                                                    >R$ {moeda(activeResults.valorNota)}</span>
                                                 </div>
+                                                {(activeResults.freteValor ?? 0) > 0 && (
+                                                    <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
+                                                        <span>Frete pago pelo cliente {s('FPC')}:</span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            title="Ref.: Valor fixo informado no campo [FPC]"
+                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            <span className="perc">({porc((activeResults.freteValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                            <span className="val text-green">+ R$ {moeda(activeResults.freteValor)}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
-                                        <div className="detail-row">
+                                        <div className={`detail-row ${(isRefHighlighted('PDV') || (isRefHighlighted('STP') && (activeResults.rebateValor ?? 0) <= 0) || ((isRefHighlighted('VN') || isRefHighlighted('MC')) && (activeResults.rebateValor ?? 0) <= 0 && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0)) ? 'dre-ref-pulse' : ''}`}>
                                             <span style={{ fontWeight: 700 }}>Preço de Venda {s('PDV')}:</span>
-                                            <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoComCupom)}</span>
+                                            <span
+                                                className="val"
+                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                                title={`${(activeResults.rebateValor ?? 0) > 0
+                                                    ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
+                                                    : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >R$ {moeda(activeResults.precoComCupom)}</span>
                                         </div>
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
-                                        <div className="detail-row">
+                                        <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`}>
                                             <span>Comissão Shopee ({arredondar(activeResults.comissaoPorcentagem, 0)}%) {s('CS')}:</span>
-                                            <div className="detail-values">
+                                            <div
+                                                className="detail-values"
+                                                style={{ cursor: 'help' }}
+                                                title={`Ref.: Calculada sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`}
+                                                onMouseEnter={() => setHighlightedRefs(['STP'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >
                                                 <span className="perc">({porc(activeResults.comissaoPorcentagem)}%)</span>
                                                 <span className="val text-red">- R$ {moeda(activeResults.comissaoValor)}</span>
                                             </div>
                                         </div>
-                                        <div className="detail-row">
+                                        <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`}>
                                             <span>Tarifa Fixa Shopee {s('TFS')}:</span>
-                                            <div className="detail-values">
-                                                <span className="perc">({porc((activeResults.tarifaFixa || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                            <div
+                                                className="detail-values"
+                                                style={{ cursor: 'help' }}
+                                                title={`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`}
+                                                onMouseEnter={() => setHighlightedRefs(['STP'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >
+                                                <span className="perc">({porc((activeResults.tarifaFixa || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
                                                 <span className="val text-red">- R$ {moeda(activeResults.tarifaFixa)}</span>
                                             </div>
                                         </div>
+                                        {(activeResults.outrasDespesasShopeeValor ?? 0) > 0 && (
+                                            <div className={`detail-row ${isRefHighlighted('ODS') ? 'dre-ref-pulse' : ''}`}>
+                                                <span>Outras Despesas Shopee {s('ODS')}:</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? `Ref.: Calculadas sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})` : 'Ref.: Valor fixo informado no campo [ODS]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? ['STP', 'INPUT_ODS'] : ['INPUT_ODS'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.outrasDespesasShopeeValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
+                                                    <span className="val text-red">- R$ {moeda(activeResults.outrasDespesasShopeeValor)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(activeResults.freteValor ?? 0) > 0 && (
+                                            <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`}>
+                                                <span>Frete pago pelo cliente {s('FPC')}:</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title="Ref.: Valor fixo informado no campo [FPC]"
+                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.freteValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                    <span className="val text-red">- R$ {moeda(activeResults.freteValor)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(activeResults.rebateValor ?? 0) > 0 && (
+                                            <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`}>
+                                                <span>Crédito de Rebate {s('CR')}:</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                    <span className="val text-green">(+ R$ {moeda(activeResults.rebateValor)})</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
+                                            <span style={{ fontWeight: 700 }}>Repasse:</span>
+                                            <span
+                                                className="val"
+                                                style={{ fontWeight: 700, cursor: 'help' }}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.outrasDespesasShopeeValor ?? 0) > 0 ? ` - ODS (R$ ${moeda(activeResults.outrasDespesasShopeeValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'ODS', 'FPC_DEB', 'CR'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >R$ {moeda(activeResults.repasse)}</span>
+                                        </div>
 
                                         <div className="details-group-header">Política da LCG {s('PDL')}</div>
-                                        <div className="detail-row">
+                                        <div className={`detail-row ${isRefHighlighted('CDP') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                             <span>Custo do Produto {s('CDP')}:</span>
-                                            <div className="detail-values">
+                                            <div
+                                                className="detail-values"
+                                                style={{ cursor: 'help' }}
+                                                title="Ref.: Valor fixo informado no campo [CDP]"
+                                                onMouseEnter={() => setHighlightedRefs(['INPUT_CDP'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >
                                                 <span className="perc">({porc((activeInputs.custoProduto || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
                                                 <span className="val text-red">- R$ {moeda(activeInputs.custoProduto)}</span>
                                             </div>
                                         </div>
                                         {(activeResults.impostoValor ?? 0) > 0 && (
-                                            <div className="detail-row">
+                                            <div className={`detail-row ${isRefHighlighted('IMP') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Imposto {s('IMP')}:</span>
-                                                <div className="detail-values">
-                                                    <span className="perc">({porc((activeResults.impostoValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.impostoTipo === 'porcentagem' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [IMP]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.impostoTipo === 'porcentagem' ? ['VN', 'INPUT_IMP'] : ['INPUT_IMP'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.impostoValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
                                                     <span className="val text-red">- R$ {moeda(activeResults.impostoValor)}</span>
                                                 </div>
                                             </div>
                                         )}
                                         {(activeResults.custoAds ?? 0) > 0 && (
-                                            <div className="detail-row">
+                                            <div className={`detail-row ${isRefHighlighted('ADS') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Ads Shopee {s('ADS')}:</span>
-                                                <div className="detail-values">
-                                                    <span className="perc">({porc((activeResults.custoAds || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.adsTipo !== 'fixo' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [ADS]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.adsTipo !== 'fixo' ? ['VN', 'INPUT_ADS'] : ['INPUT_ADS'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.custoAds || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
                                                     <span className="val text-red">- R$ {moeda(activeResults.custoAds)}</span>
                                                 </div>
                                             </div>
                                         )}
                                         {(activeResults.despesaFixaValor ?? 0) > 0 && (
-                                            <div className="detail-row">
+                                            <div className={`detail-row ${isRefHighlighted('DF') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Despesa fixa {s('DF')}:</span>
-                                                <div className="detail-values">
-                                                    <span className="perc">({porc((activeResults.despesaFixaValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.despesaFixaTipo === 'porcentagem' ? `Ref.: Calculada sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [DF]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.despesaFixaTipo === 'porcentagem' ? ['VN', 'INPUT_DF'] : ['INPUT_DF'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.despesaFixaValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
                                                     <span className="val text-red">- R$ {moeda(activeResults.despesaFixaValor)}</span>
                                                 </div>
                                             </div>
                                         )}
                                         {(activeResults.despesaAdicionalValor ?? 0) > 0 && (
-                                            <div className="detail-row">
+                                            <div className={`detail-row ${isRefHighlighted('OD') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Outras Despesas {s('OD')}:</span>
-                                                <div className="detail-values">
-                                                    <span className="perc">({porc((activeResults.despesaAdicionalValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    title={activeInputs.despesaAdicionalTipo === 'porcentagem' ? `Ref.: Calculadas sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [OD]'}
+                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.despesaAdicionalTipo === 'porcentagem' ? ['VN', 'INPUT_OD'] : ['INPUT_OD'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.despesaAdicionalValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
                                                     <span className="val text-red">- R$ {moeda(activeResults.despesaAdicionalValor || 0)}</span>
                                                 </div>
                                             </div>
                                         )}
 
-                                        {(activeResults.rebateValor ?? 0) > 0 && (
-                                            <div className="detail-row">
-                                                <span>Crédito de Rebate {s('CR')}:</span>
-                                                <div className="detail-values">
-                                                    <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoComCupom || 1) * 100)}%)</span>
-                                                    <span className="val text-green">(+ R$ {moeda(activeResults.rebateValor)})</span>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div> {/* Fecha details */}
 
                                     <div className="result-card mini large">
@@ -1717,12 +1960,18 @@ const ShopeePage: React.FC = () => {
                                                 <ArrowDownRight size={18} className="text-red" />
                                             )} Margem de Contribuição {s('MC')}
                                         </div>
-                                        <div className="result-body">
+                                        <div
+                                            className="result-body"
+                                            title={`Ref.: (PA R$ ${moeda(activeResults.precoVenda)} - CDP R$ ${moeda(activeResults.custoProdutoValor)}) ÷ PA R$ ${moeda(activeResults.precoVenda)}`}
+                                            style={{ cursor: 'help' }}
+                                            onMouseEnter={() => setHighlightedRefs(['MC'])}
+                                            onMouseLeave={() => setHighlightedRefs([])}
+                                        >
                                             <span className={`percentage ${activeResults.margemSobreVenda <= 0 ? 'text-red' :
                                                 activeResults.margemSobreVenda < 15 ? 'text-orange' : 'text-green'
                                                 }`}>
                                                 {(() => {
-                                                    const mc = (activeResults.custoProdutoValor / (activeResults.precoVenda || 1)) * 100;
+                                                    const mc = ((activeResults.precoVenda - activeResults.custoProdutoValor) / (activeResults.precoVenda || 1)) * 100;
                                                     return arredondar(mc, 2).toFixed(2).replace('.', ',');
                                                 })()}%
                                             </span>

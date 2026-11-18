@@ -17,6 +17,9 @@ export interface ShopeeInput {
   despesaAdicional?: number;
   despesaAdicionalTipo: UnidadeValor;
 
+  outrasDespesasShopee?: number;
+  outrasDespesasShopeeTipo?: UnidadeValor;
+
   impostoPorcentagem?: number;
   impostoTipo: UnidadeValor;
 
@@ -24,10 +27,12 @@ export interface ShopeeInput {
   adsTipo: 'fixo' | 'roas' | 'porcentagem';
 
   rebatePorcentagem?: number;
-  rebateTipo: UnidadeValor;
+  rebateTipo: UnidadeValor | '';
 
   cupomDesconto?: number;
-  cupomTipo: UnidadeValor;
+  cupomTipo: UnidadeValor | '';
+
+  fretePagoCliente?: number;
 
 
   // Parâmetros de Simulação Sweet Spot
@@ -51,8 +56,13 @@ export interface ShopeeOutput {
   nominalSobreCusto?: number; // Spread puro para o MC Card
   despesaFixaValor: number;
   despesaAdicionalValor: number;
+  outrasDespesasShopeeValor: number;
   margem: number;             // Subtotal conforme fórmula do usuário
   cupomValor: number;
+  freteValor: number;
+  baseCalculo: number;        // STP = PA - DR
+  valorNota: number;          // VN = STP - CD
+  repasse: number;            // PDV - CS - TFS - Frete + CR
 
   precoComCupom: number;
   precoVenda: number;
@@ -100,6 +110,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const IMP: TaxaInput = { value: input.impostoPorcentagem || 0, type: mapUnidade(input.impostoTipo || 'porcentagem') };
   const DF: TaxaInput = { value: input.despesaFixa || 0, type: mapUnidade(input.despesaFixaTipo || 'fixo') };
   const OD: TaxaInput = { value: input.despesaAdicional || 0, type: mapUnidade(input.despesaAdicionalTipo || 'fixo') };
+  const ODS: TaxaInput = { value: input.outrasDespesasShopee || 0, type: mapUnidade(input.outrasDespesasShopeeTipo || 'fixo') };
 
   let adsMappedType: TaxaType = 'fixed';
   let adsMappedValue = input.adsValor || 0;
@@ -112,37 +123,61 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const ADS: TaxaInput = { value: adsMappedValue, type: adsMappedType };
 
   const dPA = new Decimal(PA || 0);
-  const dCDValue = new Decimal(CD.value);
-  let dPDV = dPA;
-  let dCupomValor = new Decimal(0);
+  const dDRValue = new Decimal(CR.value);
+  let dRebateValor = new Decimal(0);
+  let dBC = dPA;
 
-  if (CD.value > 0) {
-    if (CD.type === 'percent') {
-      dCupomValor = dPA.times(dCDValue).dividedBy(100);
-      dPDV = dPA.minus(dCupomValor);
+  if (CR.value > 0 && input.rebateTipo) {
+    if (CR.type === 'percent') {
+      dRebateValor = dPA.times(dDRValue).dividedBy(100);
+      dBC = dPA.minus(dRebateValor);
     } else {
-      dCupomValor = dCDValue;
-      dPDV = dPA.minus(dCDValue);
+      dRebateValor = dDRValue;
+      dBC = dPA.minus(dDRValue);
     }
   }
 
-  // As faixas da Shopee (brackets) são determinadas pelo PDV arredondado.
-  // Arredondamos aqui para garantir consistência entre cálculo real e simulação.
+  const dCDValue = new Decimal(CD.value);
+  let dPDV = dBC;
+  let dCupomValor = new Decimal(0);
+
+  if (CD.value > 0 && input.cupomTipo) {
+    if (CD.type === 'percent') {
+      dCupomValor = dPA.times(dCDValue).dividedBy(100);
+      if (roundResult) {
+        dCupomValor = dCupomValor.toDecimalPlaces(2, Decimal.ROUND_CEIL);
+      }
+      dPDV = dBC.minus(dCupomValor);
+    } else {
+      dCupomValor = dCDValue;
+      dPDV = dBC.minus(dCDValue);
+    }
+  }
+
+  const dFreteValor = new Decimal(input.fretePagoCliente && input.fretePagoCliente > 0 ? input.fretePagoCliente : 0);
+  const dVN = dPDV;
+  dPDV = dPDV.plus(dFreteValor);
+
+  // As faixas da Shopee (brackets) são determinadas pelo Subtotal dos produtos (STP) arredondado.
+  const baseShopee = arredondar(dBC.toNumber(), 2);
   const PDV = arredondar(dPDV.toNumber(), 2);
-  const PCC = roundResult ? arredondar(dPA.toNumber(), 2) : dPA.toNumber();
+  const BC = roundResult ? baseShopee : dBC.toNumber();
+  const VN = roundResult ? arredondar(dVN.toNumber(), 2) : dVN.toNumber();
+  const rebateValor = roundResult ? arredondar(dRebateValor.toNumber(), 2) : dRebateValor.toNumber();
   const cupomValorCalculado = roundResult ? arredondar(dCupomValor.toNumber(), 2) : dCupomValor.toNumber();
+  const freteValor = roundResult ? arredondar(dFreteValor.toNumber(), 2) : dFreteValor.toNumber();
 
   let csPorcentagem = 14;
   let tfsValor = 0;
-  // As taxas são determinadas pelo Preço de Venda (PDV)
-  if (PDV <= 79.99) {
+  // As taxas da Shopee são determinadas pela Base de Cálculo (BC)
+  if (baseShopee <= 79.99) {
     csPorcentagem = 20;
     tfsValor = 4.00;
-  } else if (PDV <= 99.99) {
+  } else if (baseShopee <= 99.99) {
     tfsValor = 16.00;
-  } else if (PDV <= 199.99) {
+  } else if (baseShopee <= 199.99) {
     tfsValor = 20.00;
-  } else if (PDV <= 499.99) {
+  } else if (baseShopee <= 499.99) {
     tfsValor = 26.00;
   } else {
     tfsValor = 26.00;
@@ -152,17 +187,24 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const TFS: TaxaInput = { value: tfsValor, type: 'fixed' };
 
   // 5. Cálculo dos Custos
-  // As taxas da Shopee incidem sobre o Preço de Venda (PDV)
-  const comissaoValor = roundResult ? arredondar(VAL(CS, PDV), 2) : VAL(CS, PDV);
-  const tarifaFixaValor = roundResult ? arredondar(VAL(TFS, PDV), 2) : VAL(TFS, PDV);
-  const custoProdutoValor = roundResult ? arredondar(VAL(CDP, PDV), 2) : VAL(CDP, PDV);
-  const impostoValor = roundResult ? arredondar(VAL(IMP, PDV), 2) : VAL(IMP, PDV);
-  const despesaFixaValor = roundResult ? arredondar(VAL(DF, PDV), 2) : VAL(DF, PDV);
-  const despesaAdicionalValor = roundResult ? arredondar(VAL(OD, PDV), 2) : VAL(OD, PDV);
-  const custoAds = roundResult ? arredondar(VAL(ADS, PDV), 2) : VAL(ADS, PDV);
+  // As taxas da Shopee incidem sobre o Subtotal dos produtos (STP = baseShopee)
+  // As políticas da LCG incidem sobre o Valor da nota (VN)
+  const baseVN = roundResult ? VN : dVN.toNumber();
+  const comissaoValor = roundResult
+    ? new Decimal(VAL(CS, baseShopee)).toDecimalPlaces(2, Decimal.ROUND_CEIL).toNumber()
+    : VAL(CS, baseShopee);
+  const tarifaFixaValor = roundResult ? arredondar(VAL(TFS, baseShopee), 2) : VAL(TFS, baseShopee);
+  const outrasDespesasShopeeValor = roundResult ? arredondar(VAL(ODS, baseShopee), 2) : VAL(ODS, baseShopee);
+  const custoProdutoValor = roundResult ? arredondar(VAL(CDP, baseVN), 2) : VAL(CDP, baseVN);
+  const impostoValor = roundResult ? arredondar(VAL(IMP, baseVN), 2) : VAL(IMP, baseVN);
+  const despesaFixaValor = roundResult ? arredondar(VAL(DF, baseVN), 2) : VAL(DF, baseVN);
+  const despesaAdicionalValor = roundResult ? arredondar(VAL(OD, baseVN), 2) : VAL(OD, baseVN);
+  const custoAds = roundResult ? arredondar(VAL(ADS, baseVN), 2) : VAL(ADS, baseVN);
 
   const dCustos = new Decimal(comissaoValor)
     .plus(tarifaFixaValor)
+    .plus(outrasDespesasShopeeValor)
+    .plus(freteValor)
     .plus(custoProdutoValor)
     .plus(impostoValor)
     .plus(despesaFixaValor)
@@ -170,7 +212,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(custoAds);
 
   const custos = dCustos.toNumber();
-  const rebateValor = roundResult ? arredondar(VAL(CR, PCC), 2) : VAL(CR, PCC);
+  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).plus(rebateValor).toNumber();
 
   const LLV = dPDV.minus(dCustos).plus(rebateValor).toNumber();
 
@@ -187,6 +229,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .minus(despesaAdicionalValor)
     .minus(comissaoValor)
     .minus(tarifaFixaValor)
+    .minus(outrasDespesasShopeeValor)
     .toNumber();
 
   return {
@@ -203,8 +246,13 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     margemLiquidaSobreCusto: roundResult ? arredondar(llc, 2) : llc,
     despesaFixaValor: roundResult ? arredondar(despesaFixaValor, 2) : despesaFixaValor,
     despesaAdicionalValor: roundResult ? arredondar(despesaAdicionalValor, 2) : despesaAdicionalValor,
+    outrasDespesasShopeeValor: roundResult ? arredondar(outrasDespesasShopeeValor, 2) : outrasDespesasShopeeValor,
     margem: roundResult ? arredondar(margem, 2) : margem,
     cupomValor: roundResult ? arredondar(cupomValorCalculado, 2) : cupomValorCalculado,
+    freteValor: roundResult ? arredondar(freteValor, 2) : freteValor,
+    baseCalculo: roundResult ? arredondar(BC, 2) : BC,
+    valorNota: roundResult ? arredondar(VN, 2) : VN,
+    repasse: roundResult ? arredondar(repasse, 2) : repasse,
     precoComCupom: roundResult ? arredondar(PDV, 2) : PDV,
     precoVenda: roundResult ? arredondar(PA, 2) : PA,
     nominalSobreCusto: roundResult ? arredondar(nominalSobreCusto, 2) : nominalSobreCusto,
@@ -412,23 +460,21 @@ export const simularCenariosPreco = (
   }
 
   // Injetar pontos críticos de mudança de política para garantir degraus nítidos no gráfico
-  // IMPORTANTE: Os pontos críticos (degraus) são baseados no PDV (Preço Final), 
+  // IMPORTANTE: Os pontos críticos (degraus) são baseados na Base de Cálculo (BC = PA - DR),
   // então precisamos converter para o PA (Preço Anunciado) correspondente para injetar na simulação.
-  const degrausPDV = [79.99, 80.00, 99.99, 100.00, 199.99, 200.00, 499.99, 500.00];
+  const degrausBC = [79.99, 80.00, 99.99, 100.00, 199.99, 200.00, 499.99, 500.00];
 
-  degrausPDV.forEach(pPDV => {
-    let paNecessario = pPDV;
-    if (input.cupomDesconto && input.cupomDesconto > 0) {
-      if (input.cupomTipo === 'porcentagem') {
-        // PA = PDV / (1 - %)
-        paNecessario = pPDV / (1 - (input.cupomDesconto / 100));
-      } else {
-        // PA = PDV + Fixo
-        paNecessario = pPDV + input.cupomDesconto;
+  degrausBC.forEach(pBC => {
+    let paNecessario = pBC;
+    if (input.rebatePorcentagem && input.rebatePorcentagem > 0 && input.rebateTipo) {
+      if (input.rebateTipo === 'porcentagem' && input.rebatePorcentagem < 100) {
+        paNecessario = pBC / (1 - (input.rebatePorcentagem / 100));
+      } else if (input.rebateTipo === 'fixo') {
+        paNecessario = pBC + input.rebatePorcentagem;
       }
     }
 
-    // Injetamos o Preço Anunciado (PA) que levaria a esse degrau no PDV
+    // Injetamos o Preço Anunciado (PA) que levaria a esse degrau no BC
     const pPA = arredondar(paNecessario, 2);
     if (pPA >= precoMin && pPA <= precoMax) precosX.push(pPA);
   });
