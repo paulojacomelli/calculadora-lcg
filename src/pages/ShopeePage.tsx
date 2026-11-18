@@ -397,6 +397,7 @@ const ShopeePage: React.FC = () => {
         const inputsCalc = {
             ...inputs,
             custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * (Number(qtdMultiplier) || 1) : undefined,
+            qtdAnuncio: Number(qtdMultiplier) || 1,
             fretePagoCliente: aba === 'margem' ? inputs.fretePagoCliente : undefined
         };
 
@@ -1887,7 +1888,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`}
+                                                title={`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})${(Number(qtdMultiplier) || 1) > 1 ? ` × ${Number(qtdMultiplier) || 1} un.` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >

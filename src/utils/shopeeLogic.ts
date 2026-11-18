@@ -34,6 +34,7 @@ export interface ShopeeInput {
 
   fretePagoCliente?: number;
   freteCobradoVendedor?: number;
+  qtdAnuncio?: number;
 
 
   // Parâmetros de Simulação Sweet Spot
@@ -187,8 +188,9 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     tfsValor = 26.00;
   }
 
+  const qtdAnuncio = input.qtdAnuncio && input.qtdAnuncio > 0 ? input.qtdAnuncio : 1;
   const CS: TaxaInput = { value: csPorcentagem, type: 'percent' };
-  const TFS: TaxaInput = { value: tfsValor, type: 'fixed' };
+  const TFS: TaxaInput = { value: new Decimal(tfsValor).times(qtdAnuncio).toNumber(), type: 'fixed' };
 
   // 5. Cálculo dos Custos
   // As taxas da Shopee incidem sobre o Subtotal dos produtos (STP = baseShopee)
