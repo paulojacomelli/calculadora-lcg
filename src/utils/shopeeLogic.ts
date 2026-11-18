@@ -18,7 +18,7 @@ export interface ShopeeInput {
   despesaAdicionalTipo: UnidadeValor;
 
   outrasDespesasShopee?: number;
-  outrasDespesasShopeeTipo?: UnidadeValor;
+  outrasDespesasShopeeTipo?: UnidadeValor | '';
 
   impostoPorcentagem?: number;
   impostoTipo: UnidadeValor;
@@ -194,7 +194,9 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     ? new Decimal(VAL(CS, baseShopee)).toDecimalPlaces(2, Decimal.ROUND_CEIL).toNumber()
     : VAL(CS, baseShopee);
   const tarifaFixaValor = roundResult ? arredondar(VAL(TFS, baseShopee), 2) : VAL(TFS, baseShopee);
-  const outrasDespesasShopeeValor = roundResult ? arredondar(VAL(ODS, baseShopee), 2) : VAL(ODS, baseShopee);
+  const outrasDespesasShopeeValor = input.outrasDespesasShopeeTipo
+    ? (roundResult ? arredondar(VAL(ODS, baseShopee), 2) : VAL(ODS, baseShopee))
+    : 0;
   const custoProdutoValor = roundResult ? arredondar(VAL(CDP, baseVN), 2) : VAL(CDP, baseVN);
   const impostoValor = roundResult ? arredondar(VAL(IMP, baseVN), 2) : VAL(IMP, baseVN);
   const despesaFixaValor = roundResult ? arredondar(VAL(DF, baseVN), 2) : VAL(DF, baseVN);

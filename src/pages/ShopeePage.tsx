@@ -63,7 +63,7 @@ const defaultInputs: ShopeeInput = {
     despesaAdicional: undefined,
     despesaAdicionalTipo: 'porcentagem',
     outrasDespesasShopee: undefined,
-    outrasDespesasShopeeTipo: 'porcentagem',
+    outrasDespesasShopeeTipo: '',
     impostoPorcentagem: undefined,
     impostoTipo: 'porcentagem',
     adsValor: undefined,
@@ -1273,9 +1273,10 @@ const ShopeePage: React.FC = () => {
                                     <select
                                         name="outrasDespesasShopeeTipo"
                                         className="input-unit"
-                                        value={inputs.outrasDespesasShopeeTipo || 'porcentagem'}
+                                        value={inputs.outrasDespesasShopeeTipo || ''}
                                         onChange={handleChange}
                                     >
+                                        <option value="">Selecione</option>
                                         <option value="porcentagem">%</option>
                                         <option value="fixo">R$</option>
                                     </select>
