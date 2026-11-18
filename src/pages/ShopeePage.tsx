@@ -1189,7 +1189,7 @@ const ShopeePage: React.FC = () => {
                             </div>
 
                             <div className={`input-group ${isRefHighlighted('INPUT_CD') ? 'dre-ref-pulse' : ''}`}>
-                                <label><CircleDollarSign size={16} /> Cupom de Desconto {s('CD')}</label>
+                                <label><CircleDollarSign size={16} /> Cupom da loja (custo seu) {s('CD')}</label>
                                 <div className="input-composite">
                                     <input
                                         type="text"
@@ -1221,7 +1221,7 @@ const ShopeePage: React.FC = () => {
                                         <option value="porcentagem">%</option>
                                     </select>
                                 </div>
-                                <span className="input-hint">Valor do cupom da loja</span>
+                                <span className="input-hint">% ou R$, bancado por você. Base: preço anunciado</span>
                             </div>
 
                             {aba === 'margem' && (
