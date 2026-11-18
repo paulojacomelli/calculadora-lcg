@@ -1368,7 +1368,7 @@ const ShopeePage: React.FC = () => {
 
 
                                 <div className="input-group">
-                                    <label><RefreshCcw size={16} /> Fator de Alavancagem (Giro)</label>
+                                    <label><RefreshCcw size={16} /> Fator de oportunidade (desconto ÷ lucro cedido)</label>
                                     <div className="input-with-icon">
                                         <input
                                             type="text"
