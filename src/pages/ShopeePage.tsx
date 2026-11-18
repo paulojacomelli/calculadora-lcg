@@ -1028,7 +1028,10 @@ const ShopeePage: React.FC = () => {
                             )}
 
                             <div className={`input-group ${isRefHighlighted('INPUT_CDP') ? 'dre-ref-pulse' : ''}`}>
-                                <label><ShoppingCart size={16} /> Custo do Produto (R$) {s('CDP')}</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                    <label style={{ marginBottom: 0 }}><ShoppingCart size={16} /> Custo unitário (R$) {s('CDP')}</label>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Qtd. no anúncio</span>
+                                </div>
                                 <div className="input-composite">
                                     <input
                                         type="text"
