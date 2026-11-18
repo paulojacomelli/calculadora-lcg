@@ -382,7 +382,16 @@ const ShopeePage: React.FC = () => {
         }
     };
 
+    const missingUnitFields: string[] = [];
+    if ((inputs.rebatePorcentagem ?? 0) > 0 && !inputs.rebateTipo) missingUnitFields.push('Rebate Shopee [DR]');
+    if ((inputs.cupomDesconto ?? 0) > 0 && !inputs.cupomTipo) missingUnitFields.push('Cupom da loja [CD]');
+    if ((inputs.outrasDespesasShopee ?? 0) > 0 && !inputs.outrasDespesasShopeeTipo) missingUnitFields.push('Taxas extras Shopee [TES]');
+
     const handleCalcular = () => {
+        if (missingUnitFields.length > 0) {
+            notify(`Selecione % ou R$ em: ${missingUnitFields.join(', ')}`, 'error');
+            return;
+        }
         setIsCalculating(true);
 
         // Simulação de processamento para feedback visual (800ms conforme solicitado)
@@ -1345,6 +1354,7 @@ const ShopeePage: React.FC = () => {
                                         className="input-unit"
                                         value={inputs.rebateTipo}
                                         onChange={handleChange}
+                                        style={(inputs.rebatePorcentagem ?? 0) > 0 && !inputs.rebateTipo ? { borderColor: '#ef4444', color: '#dc2626', fontWeight: 700 } : undefined}
                                     >
                                         <option value="">Selecione</option>
                                         <option value="porcentagem">%</option>
@@ -1381,6 +1391,7 @@ const ShopeePage: React.FC = () => {
                                         className="input-unit"
                                         value={inputs.cupomTipo}
                                         onChange={handleChange}
+                                        style={(inputs.cupomDesconto ?? 0) > 0 && !inputs.cupomTipo ? { borderColor: '#ef4444', color: '#dc2626', fontWeight: 700 } : undefined}
                                     >
                                         <option value="">Selecione</option>
                                         <option value="fixo">R$</option>
@@ -1469,6 +1480,7 @@ const ShopeePage: React.FC = () => {
                                         className="input-unit"
                                         value={inputs.outrasDespesasShopeeTipo || ''}
                                         onChange={handleChange}
+                                        style={(inputs.outrasDespesasShopee ?? 0) > 0 && !inputs.outrasDespesasShopeeTipo ? { borderColor: '#ef4444', color: '#dc2626', fontWeight: 700 } : undefined}
                                     >
                                         <option value="">Selecione</option>
                                         <option value="porcentagem">%</option>
@@ -1703,6 +1715,25 @@ const ShopeePage: React.FC = () => {
 
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
+                            {missingUnitFields.length > 0 && (
+                                <div style={{
+                                    width: '100%',
+                                    background: '#fef2f2',
+                                    border: '1px solid #fca5a5',
+                                    color: '#b91c1c',
+                                    borderRadius: '8px',
+                                    padding: '0.5rem 0.75rem',
+                                    marginBottom: '0.5rem',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <AlertCircle size={16} />
+                                    <span>Selecione % ou R$ em: {missingUnitFields.join(', ')}</span>
+                                </div>
+                            )}
                             {isResultStale && results && (
                                 <div style={{
                                     width: '100%',
@@ -1737,10 +1768,11 @@ const ShopeePage: React.FC = () => {
                                     justifyContent: 'center',
                                     gap: '8px',
                                     transition: 'all 0.3s ease',
-                                    opacity: isCalculating ? 0.8 : 1
+                                    opacity: isCalculating || missingUnitFields.length > 0 ? 0.6 : 1,
+                                    cursor: missingUnitFields.length > 0 ? 'not-allowed' : 'pointer'
                                 }}
                                 onClick={handleCalcular}
-                                disabled={isCalculating}
+                                disabled={isCalculating || missingUnitFields.length > 0}
                             >
                                 {isCalculating ? (
                                     <RefreshCcw size={22} className="animate-spin" />
