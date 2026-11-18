@@ -1276,7 +1276,7 @@ const ShopeePage: React.FC = () => {
                             </div>
 
                             <div className={`input-group ${isRefHighlighted('INPUT_ODS') ? 'dre-ref-pulse' : ''}`}>
-                                <label><Calculator size={16} /> Outras Despesas Shopee {s('ODS')}</label>
+                                <label><Calculator size={16} /> Taxas extras Shopee (campanhas) {s('TES')}</label>
                                 <div className="input-composite">
                                     <input
                                         type="text"
@@ -1310,7 +1310,7 @@ const ShopeePage: React.FC = () => {
                                         <option value="fixo">R$</option>
                                     </select>
                                 </div>
-                                <span className="input-hint">Taxas ou campanhas extras da Shopee</span>
+                                <span className="input-hint">Só o que não está na comissão</span>
                             </div>
 
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
@@ -1854,11 +1854,11 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         {(activeResults.outrasDespesasShopeeValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('ODS') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Outras Despesas Shopee {s('ODS')}:</span>
+                                                <span>Taxas extras Shopee (campanhas) {s('TES')}:</span>
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
-                                                    title={activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? `Ref.: Calculadas sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})` : 'Ref.: Valor fixo informado no campo [ODS]'}
+                                                    title={activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? `Ref.: Calculadas sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})` : 'Ref.: Valor fixo informado no campo [TES]'}
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? ['STP', 'INPUT_ODS'] : ['INPUT_ODS'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -1917,7 +1917,7 @@ const ShopeePage: React.FC = () => {
                                             <span
                                                 className="val"
                                                 style={{ fontWeight: 700, cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.outrasDespesasShopeeValor ?? 0) > 0 ? ` - ODS (R$ ${moeda(activeResults.outrasDespesasShopeeValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.outrasDespesasShopeeValor ?? 0) > 0 ? ` - TES (R$ ${moeda(activeResults.outrasDespesasShopeeValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'ODS', 'FPC_DEB', 'FCV', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >R$ {moeda(activeResults.repasse)}</span>
