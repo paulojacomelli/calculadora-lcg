@@ -4173,7 +4173,9 @@ const ShopeePage: React.FC = () => {
                                                     <th style={{ padding: '0.48rem 0.3rem', whiteSpace: 'nowrap' }}>SKU</th>
                                                     <th style={{ padding: '0.48rem 0.3rem', whiteSpace: 'nowrap' }}>Pedido</th>
                                                     <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço Anunciado {s('PA')}</th>
-                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
+                                                    {!hideSensitiveData && (
+                                                        <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
+                                                    )}
                                                     <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Repasse</th>
                                                     <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Lucro</th>
                                                     <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Ações</th>
@@ -4184,7 +4186,7 @@ const ShopeePage: React.FC = () => {
                                                     <React.Fragment key={group.dayKey}>
                                                         <tr>
                                                             <td
-                                                                colSpan={7}
+                                                                colSpan={hideSensitiveData ? 6 : 7}
                                                                 style={{
                                                                     padding: '0.55rem 0.4rem 0.35rem',
                                                                     fontSize: '0.74rem',
@@ -4271,14 +4273,16 @@ const ShopeePage: React.FC = () => {
                                                                         />
                                                                     </td>
                                                                     <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
-                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
-                                                                        {hasVnCorr && (
-                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', marginRight: '4px' }}>
-                                                                                R$ {moeda(origVn)}
-                                                                            </span>
-                                                                        )}
-                                                                        {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
-                                                                    </td>
+                                                                    {!hideSensitiveData && (
+                                                                        <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                            {hasVnCorr && (
+                                                                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', marginRight: '4px' }}>
+                                                                                    R$ {moeda(origVn)}
+                                                                                </span>
+                                                                            )}
+                                                                            {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
+                                                                        </td>
+                                                                    )}
                                                                     <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
                                                                         {hasRepasseCorr && (
                                                                             <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', marginRight: '4px' }}>
