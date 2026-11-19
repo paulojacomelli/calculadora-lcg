@@ -254,7 +254,11 @@ const ShopeePage: React.FC = () => {
         // Força conversão para número caso venha como string do localStorage
         const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
 
-        return (typeof num === 'number' && !isNaN(num)) ? arredondar(num, 2).toFixed(2).replace('.', ',') : '';
+        if (typeof num !== 'number' || isNaN(num)) return '';
+        if (name === 'custoProduto') {
+            return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false });
+        }
+        return arredondar(num, 2).toFixed(2).replace('.', ',');
     };
 
     const s = (key: string) => <span style={{ color: '#7c3aed', fontWeight: 600, marginLeft: '4px' }}>[{key}]</span>;
@@ -1436,7 +1440,7 @@ const ShopeePage: React.FC = () => {
                                         value={getInputValue('custoProduto', inputs.custoProduto)}
                                         onFocus={() => {
                                             setFocusedInput('custoProduto');
-                                            setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toFixed(2).replace('.', ',') : '');
+                                            setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false }) : '');
                                         }}
                                         onBlur={() => {
                                             setFocusedInput(null);
