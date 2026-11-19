@@ -1453,7 +1453,7 @@ const ShopeePage: React.FC = () => {
 
                     return (
                         <React.Fragment key={item.id}>
-                            <div className="detail-row" style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} title={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
+                            <div className={`detail-row ${isRefHighlighted(`CUSTOM_${section}`) ? 'dre-ref-pulse' : ''}`} style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} title={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
                                 {isCorrectionMode ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
                                         <button
@@ -3134,7 +3134,7 @@ const ShopeePage: React.FC = () => {
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
                                                                 title={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
-                                                                onMouseEnter={() => setHighlightedRefs(['PA', 'DR'])}
+                                                                onMouseEnter={() => setHighlightedRefs(['PA', 'DR', 'CUSTOM_STP'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
                                                                 {renderDreValor(baseResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
@@ -3177,7 +3177,7 @@ const ShopeePage: React.FC = () => {
                                                         title={`${(activeResults.rebateValor ?? 0) > 0
                                                             ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
                                                             : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
-                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : [])])}
+                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
                                                         {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
@@ -3223,7 +3223,7 @@ const ShopeePage: React.FC = () => {
                                                 title={`${(activeResults.rebateValor ?? 0) > 0
                                                     ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
                                                     : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED'])}
+                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED', 'CUSTOM_PDV'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
@@ -3393,8 +3393,8 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FPS (R$ ${moeda(activeResults.freteVendedorValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'FPS', 'CR', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
