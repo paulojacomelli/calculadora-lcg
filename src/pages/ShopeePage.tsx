@@ -3375,20 +3375,22 @@ const ShopeePage: React.FC = () => {
 
                                                     return (
                                                         <>
-                                                            <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(!showTopFreteBlock && !isCorrectionMode && !showPdvCustom) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
-                                                                <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
-                                                                <div
-                                                                    className="detail-values"
-                                                                    style={{ cursor: 'help' }}
-                                                                    title={`${(activeResults.rebateValor ?? 0) > 0
-                                                                        ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
-                                                                        : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
-                                                                    onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
-                                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                                >
-                                                                    {renderDreValor(expectedResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
+                                                            {!hideSensitiveData && (
+                                                                <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(!showTopFreteBlock && !isCorrectionMode && !showPdvCustom) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                                    <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
+                                                                    <div
+                                                                        className="detail-values"
+                                                                        style={{ cursor: 'help' }}
+                                                                        title={`${(activeResults.rebateValor ?? 0) > 0
+                                                                            ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
+                                                                            : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
+                                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
+                                                                        onMouseLeave={() => setHighlightedRefs([])}
+                                                                    >
+                                                                        {renderDreValor(expectedResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            )}
                                                             {showTopFreteBlock && (
                                                                 <>
                                                                     <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC_CRED ? { opacity: 0.6 } : undefined}>
