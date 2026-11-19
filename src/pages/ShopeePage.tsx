@@ -4256,9 +4256,9 @@ const ShopeePage: React.FC = () => {
                                                                         )}
                                                                         {repasseVal !== undefined ? `R$ ${moeda(repasseVal)}` : 'N/A'}
                                                                     </td>
-                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', fontWeight: 700, color: hideSensitiveData ? '#64748b' : (item.lucro >= 0 ? '#047857' : '#dc2626'), whiteSpace: 'nowrap' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>
                                                                         {hideSensitiveData ? (
-                                                                            '••••••'
+                                                                            item.lucro >= 0 ? 'Lucro' : 'Prejuízo'
                                                                         ) : (
                                                                             <>
                                                                                 {hasLucroCorr && (
