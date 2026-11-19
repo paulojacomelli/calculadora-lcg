@@ -128,6 +128,8 @@ const ShopeePage: React.FC = () => {
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [dreComments, setDreComments] = useState<Record<string, string>>({});
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
+    const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+    const [isViewingOriginal, setIsViewingOriginal] = useState(false);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -135,6 +137,9 @@ const ShopeePage: React.FC = () => {
         vn?: number;
         repasse?: number;
         lucro: number;
+        originalVn?: number;
+        originalRepasse?: number;
+        originalLucro?: number;
         createdAt: string;
         qtdMultiplier?: string;
         inputsSnapshot?: ShopeeInput;
@@ -144,12 +149,19 @@ const ShopeePage: React.FC = () => {
         tipoMargemIdealSnapshot?: 'venda' | 'custo' | 'reais';
         margemDesejadaSnapshot?: number;
         resultsSnapshot?: ShopeeOutput;
+        correctionsSnapshot?: {
+            dreOverrides?: Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', number>>;
+            dreAbsent?: Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', boolean>>;
+            dreDetails?: Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
+            customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>;
+            dreComments?: Record<string, string>;
+        };
     };
 
     const dedupeHistoryItems = (items: CalcHistoryEntry[]): CalcHistoryEntry[] => {
         const seen = new Set<string>();
         return items.filter((item) => {
-            const key = `${item.sku}|${item.pa}|${item.vn ?? item.resultsSnapshot?.valorNota ?? ''}|${item.lucro}`;
+            const key = `${item.sku}|${item.pa}|${item.originalVn ?? item.vn ?? item.resultsSnapshot?.valorNota ?? ''}|${item.originalLucro ?? item.lucro}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -506,6 +518,7 @@ const ShopeePage: React.FC = () => {
 
     const executarCalculo = () => {
         setIsResultStale(false);
+        setIsViewingOriginal(false);
         setDreOverrides({});
         setDreAbsent({});
         setDreDetails({});
@@ -596,13 +609,29 @@ const ShopeePage: React.FC = () => {
         setResults(resultado);
         setLastCalculatedInputs(inputsCalc);
 
-        const newHistoryEntry = {
-            id: String(Date.now() + Math.random()),
-            sku: selectedCatalogProduct?.sku || 'Avulso',
-            pa: arredondar(resultado.precoVenda, 2),
-            vn: arredondar(resultado.valorNota, 2),
-            repasse: arredondar(resultado.repasse, 2),
-            lucro: arredondar(resultado.lucroLiquido, 2),
+        const originalVnVal = arredondar(resultado.valorNota, 2);
+        const originalRepasseVal = arredondar(resultado.repasse, 2);
+        const originalLucroVal = arredondar(resultado.lucroLiquido, 2);
+        const entrySku = selectedCatalogProduct?.sku || 'Avulso';
+        const entryPa = arredondar(resultado.precoVenda, 2);
+        const existingMatch = calcHistory.find(
+            h =>
+                h.sku === entrySku &&
+                h.pa === entryPa &&
+                (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
+                (h.originalLucro ?? h.lucro) === originalLucroVal
+        );
+
+        const newHistoryEntry: CalcHistoryEntry = {
+            id: existingMatch ? existingMatch.id : String(Date.now() + Math.random()),
+            sku: entrySku,
+            pa: entryPa,
+            vn: originalVnVal,
+            repasse: originalRepasseVal,
+            lucro: originalLucroVal,
+            originalVn: originalVnVal,
+            originalRepasse: originalRepasseVal,
+            originalLucro: originalLucroVal,
             createdAt: new Date().toISOString(),
             qtdMultiplier,
             inputsSnapshot: inputsCalc,
@@ -611,11 +640,19 @@ const ShopeePage: React.FC = () => {
             abaSnapshot: aba,
             tipoMargemIdealSnapshot: tipoMargemIdeal,
             margemDesejadaSnapshot: margemDesejada,
-            resultsSnapshot: resultado
+            resultsSnapshot: resultado,
+            correctionsSnapshot: undefined
         };
+        setActiveHistoryId(newHistoryEntry.id);
         setCalcHistory(prev => {
             const filtered = prev.filter(
-                h => !(h.sku === newHistoryEntry.sku && h.pa === newHistoryEntry.pa && (h.vn ?? h.resultsSnapshot?.valorNota) === newHistoryEntry.vn && h.lucro === newHistoryEntry.lucro)
+                h =>
+                    !(
+                        h.sku === newHistoryEntry.sku &&
+                        h.pa === newHistoryEntry.pa &&
+                        (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
+                        (h.originalLucro ?? h.lucro) === originalLucroVal
+                    )
             );
             const next = [newHistoryEntry, ...filtered].slice(0, 50);
             syncHistoryToFirestore(next);
@@ -637,7 +674,61 @@ const ShopeePage: React.FC = () => {
         setSimulacao(null);
         setOtimizacaoIdeal(null);
         setSelectedCatalogProduct(null); // Limpa o chip de produto ao reiniciar
+        setActiveHistoryId(null);
+        setIsViewingOriginal(false);
         setIsResetModalOpen(false);
+    };
+
+    const loadHistoryItem = (item: CalcHistoryEntry, viewOriginal: boolean) => {
+        if (!item.resultsSnapshot) return;
+        skipNextStaleRef.current = true;
+        const resolvedQtd = item.qtdMultiplier || '1';
+        setQtdMultiplier(resolvedQtd);
+
+        if (item.formInputsSnapshot) {
+            setInputs({ ...defaultInputs, ...item.formInputsSnapshot });
+        } else if (item.inputsSnapshot) {
+            const mult = Number(resolvedQtd) || 1;
+            setInputs({
+                ...defaultInputs,
+                ...item.inputsSnapshot,
+                custoProduto: item.inputsSnapshot.custoProduto !== undefined ? item.inputsSnapshot.custoProduto / mult : undefined,
+                precoVenda: item.inputsSnapshot.precoVenda ?? item.pa
+            });
+        }
+
+        if (item.catalogProductSnapshot !== undefined) {
+            setSelectedCatalogProduct(item.catalogProductSnapshot);
+        } else if (item.sku && item.sku !== 'Avulso') {
+            const foundProd = catalogProducts.find((p: any) => p.sku === item.sku);
+            setSelectedCatalogProduct(
+                foundProd
+                    ? { sku: foundProd.sku || item.sku, descricao: foundProd.descricao || '', _wh: foundProd._wh || 'SP' }
+                    : { sku: item.sku, descricao: '', _wh: 'SP' }
+            );
+        } else {
+            setSelectedCatalogProduct(null);
+        }
+
+        if (item.abaSnapshot) setAba(item.abaSnapshot);
+        if (item.tipoMargemIdealSnapshot) setTipoMargemIdeal(item.tipoMargemIdealSnapshot);
+        if (item.margemDesejadaSnapshot !== undefined) setMargemDesejada(item.margemDesejadaSnapshot);
+
+        setResults(item.resultsSnapshot);
+        if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
+
+        const snap = item.correctionsSnapshot;
+        setDreOverrides(snap?.dreOverrides ?? {});
+        setDreAbsent(snap?.dreAbsent ?? {});
+        setDreDetails(snap?.dreDetails ?? {});
+        setCustomDreItems(snap?.customDreItems ?? []);
+        setDreComments(snap?.dreComments ?? {});
+        setOpenCommentKey(null);
+        setActiveHistoryId(item.id);
+        setIsViewingOriginal(viewOriginal);
+        setIsCorrectionMode(false);
+        setIsResultStale(false);
+        setIsHistoryModalOpen(false);
     };
 
     // --- ESTADO DERIVADO PARA RENDERIZAÇÃO ---
@@ -649,10 +740,17 @@ const ShopeePage: React.FC = () => {
 
 
 
-    // baseResults mantém o cálculo original da fórmula; activeResults aplica correções manuais da sessão
+    // baseResults mantém o cálculo original da fórmula; correctedResults aplica correções manuais da sessão
     const baseResults: ShopeeOutput | null = results || resultsRef.current;
 
-    const activeResults: ShopeeOutput | null = (() => {
+    const hasAnyCorrection =
+        Object.keys(dreOverrides).length > 0 ||
+        customDreItems.length > 0 ||
+        Object.values(dreAbsent).some(Boolean) ||
+        Object.keys(dreDetails).length > 0 ||
+        Object.values(dreComments).some(c => c.trim().length > 0);
+
+    const correctedResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
         const hasDetails = Object.keys(dreDetails).length > 0;
         if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean) && !hasDetails) return baseResults;
@@ -717,6 +815,44 @@ const ShopeePage: React.FC = () => {
             margemLiquidaSobreCusto
         };
     })();
+
+    const activeResults: ShopeeOutput | null = isViewingOriginal ? baseResults : correctedResults;
+
+    // Mantém correções, comentários e valores corrigidos sincronizados no registro do histórico atual
+    useEffect(() => {
+        if (!baseResults || !correctedResults) return;
+        const nextVn = arredondar(correctedResults.valorNota, 2);
+        const nextRepasse = arredondar(correctedResults.repasse, 2);
+        const nextLucro = arredondar(correctedResults.lucroLiquido, 2);
+        const nextCorrections = hasAnyCorrection
+            ? { dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments }
+            : undefined;
+        const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, c: nextCorrections });
+
+        setCalcHistory(prev => {
+            const targetId = activeHistoryId ?? prev[0]?.id;
+            if (!targetId) return prev;
+            const idx = prev.findIndex(h => h.id === targetId);
+            if (idx === -1) return prev;
+            const cur = prev[idx];
+            const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, c: cur.correctionsSnapshot });
+            if (curFingerprint === nextFingerprint) return prev;
+            const updated: CalcHistoryEntry = {
+                ...cur,
+                vn: nextVn,
+                repasse: nextRepasse,
+                lucro: nextLucro,
+                originalVn: cur.originalVn ?? arredondar(baseResults.valorNota, 2),
+                originalRepasse: cur.originalRepasse ?? arredondar(baseResults.repasse, 2),
+                originalLucro: cur.originalLucro ?? arredondar(baseResults.lucroLiquido, 2),
+                correctionsSnapshot: nextCorrections ? JSON.parse(JSON.stringify(nextCorrections)) : undefined
+            };
+            const next = [...prev];
+            next[idx] = updated;
+            syncHistoryToFirestore(next);
+            return next;
+        });
+    }, [dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments, correctedResults, baseResults, activeHistoryId, hasAnyCorrection]);
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
@@ -801,11 +937,13 @@ const ShopeePage: React.FC = () => {
     };
 
     const withCommentTitle = (baseTitle: string, commentKey: string) => {
+        if (isViewingOriginal) return baseTitle;
         const comment = (dreComments[commentKey] ?? '').trim();
         return comment ? `${baseTitle}\n💬 Comentário: ${comment}` : baseTitle;
     };
 
     const renderCommentControl = (commentKey: string) => {
+        if (isViewingOriginal) return null;
         const trimmed = (dreComments[commentKey] ?? '').trim();
         const isInputOpen = openCommentKey === commentKey;
         const hasComment = trimmed.length > 0;
@@ -924,7 +1062,7 @@ const ShopeePage: React.FC = () => {
     };
 
     const renderDreDetailsList = (key: DreOverrideKey, baseRefVal: number, parentTargetVal: number) => {
-        if (dreAbsent[key]) return null;
+        if (isViewingOriginal || dreAbsent[key]) return null;
         const group = dreDetails[key];
         if (!group) return null;
         if (!isCorrectionMode && group.items.every(i => i.valor <= 0)) return null;
@@ -1146,7 +1284,7 @@ const ShopeePage: React.FC = () => {
         bold?: boolean,
         percText?: string
     ) => {
-        if (overrideKey && dreAbsent[overrideKey]) {
+        if (!isViewingOriginal && overrideKey && dreAbsent[overrideKey]) {
             return (
                 <>
                     <span className="perc" style={{ textDecoration: 'line-through', color: '#94a3b8' }}>
@@ -1275,6 +1413,7 @@ const ShopeePage: React.FC = () => {
     };
 
     const renderCustomDreSection = (section: 'STP' | 'VN' | 'PDS', baseRefVal: number) => {
+        if (isViewingOriginal) return null;
         const items = customDreItems.filter(i => i.section === section);
         if (!isCorrectionMode && items.every(i => i.valor <= 0)) return null;
 
@@ -2655,11 +2794,41 @@ const ShopeePage: React.FC = () => {
                                                         Resultado desatualizado
                                                     </span>
                                                 )}
-                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean) || Object.keys(dreDetails).length > 0 || Object.values(dreComments).some(c => c.trim().length > 0)) && (
+                                                {hasAnyCorrection && (
+                                                    <button
+                                                        type="button"
+                                                        className={`dre-correction-btn ${isCorrectionMode || isViewingOriginal ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setIsViewingOriginal(prev => {
+                                                                const next = !prev;
+                                                                if (next) setIsCorrectionMode(false);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        style={{
+                                                            fontSize: isViewingOriginal ? '0.72rem' : '0.7rem',
+                                                            fontWeight: isViewingOriginal ? 700 : 500,
+                                                            background: isViewingOriginal ? '#f59e0b' : 'transparent',
+                                                            color: isViewingOriginal ? '#ffffff' : '#94a3b8',
+                                                            border: isViewingOriginal ? '1px solid #f59e0b' : 'none',
+                                                            padding: isViewingOriginal ? '3px 9px' : '2px 4px',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                        title={isViewingOriginal ? 'Voltar para a DRE com as correções aplicadas' : 'Visualizar cálculo original sem as correções'}
+                                                    >
+                                                        <Eye size={11} />
+                                                        {isViewingOriginal ? 'Ver Corrigido' : 'Ver Original'}
+                                                    </button>
+                                                )}
+                                                {hasAnyCorrection && (
                                                     <button
                                                         type="button"
                                                         className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
-                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); setDreComments({}); setOpenCommentKey(null); }}
+                                                        onClick={() => { setIsViewingOriginal(false); setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); setDreComments({}); setOpenCommentKey(null); }}
                                                         style={{
                                                             fontSize: '0.7rem',
                                                             fontWeight: 500,
@@ -2707,7 +2876,7 @@ const ShopeePage: React.FC = () => {
                                                 <button
                                                     type="button"
                                                     className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
-                                                    onClick={() => setIsCorrectionMode(prev => !prev)}
+                                                    onClick={() => { setIsViewingOriginal(false); setIsCorrectionMode(prev => !prev); }}
                                                     style={{
                                                         fontSize: isCorrectionMode ? '0.72rem' : '0.7rem',
                                                         fontWeight: isCorrectionMode ? 700 : 500,
@@ -2796,7 +2965,7 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN') && i.valor > 0)) && (
+                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN') && i.valor > 0)))) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
@@ -2805,15 +2974,15 @@ const ShopeePage: React.FC = () => {
                                                         <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
                                                     </div>
                                                 </div>
-                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)) && (
+                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)))) && (
                                                     <>
-                                                        <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.DR ? { opacity: 0.6 } : undefined}>
+                                                        <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.DR ? { opacity: 0.6 } : undefined}>
                                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                 {renderAbsentToggle('DR')}
-                                                                <span style={dreAbsent.DR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                <span style={!isViewingOriginal && dreAbsent.DR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                                     Desconto de Rebate {s('DR')}:
                                                                 </span>
-                                                                {dreAbsent.DR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {!isViewingOriginal && dreAbsent.DR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                                 {renderDetailToggle('DR', activeResults.rebateValor)}
                                                                 {renderCommentControl('DR')}
                                                             </span>
@@ -2824,13 +2993,13 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc(((dreAbsent.DR ? (baseResults?.rebateValor ?? 0) : activeResults.rebateValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc((((!isViewingOriginal && dreAbsent.DR) ? (baseResults?.rebateValor ?? 0) : activeResults.rebateValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
                                                         {renderCommentInputRow('DR')}
                                                         {renderDreDetailsList('DR', activeResults.precoVenda, activeResults.rebateValor)}
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
-                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0)) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && (isViewingOriginal || !customDreItems.some(i => i.section === 'VN' && i.valor > 0))) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
                                                             <div
                                                                 className="detail-values"
@@ -2844,15 +3013,15 @@ const ShopeePage: React.FC = () => {
                                                         </div>
                                                     </>
                                                 )}
-                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
+                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.cupomValor ?? 0) > 0)) && (
                                                     <>
-                                                        <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CD ? { opacity: 0.6 } : undefined}>
+                                                        <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CD ? { opacity: 0.6 } : undefined}>
                                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                 {renderAbsentToggle('CD')}
-                                                                <span style={dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                <span style={!isViewingOriginal && dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                                     Desconto aplicado {s('CD')}:
                                                                 </span>
-                                                                {dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {!isViewingOriginal && dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                                 {renderDetailToggle('CD', activeResults.cupomValor)}
                                                                 {renderCommentControl('CD')}
                                                             </span>
@@ -2863,7 +3032,7 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc(((dreAbsent.CD ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc((((!isViewingOriginal && dreAbsent.CD) ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
                                                         {renderCommentInputRow('CD')}
@@ -2918,13 +3087,13 @@ const ShopeePage: React.FC = () => {
                                         </div>
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
-                                        <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CS ? { opacity: 0.6 } : undefined}>
+                                        <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CS ? { opacity: 0.6 } : undefined}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                 {renderAbsentToggle('CS')}
-                                                <span style={dreAbsent.CS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                <span style={!isViewingOriginal && dreAbsent.CS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                     Comissão Shopee {s('CS')}:
                                                 </span>
-                                                {dreAbsent.CS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                {!isViewingOriginal && dreAbsent.CS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                 {renderDetailToggle('CS', activeResults.comissaoValor)}
                                                 {renderCommentControl('CS')}
                                             </span>
@@ -2935,18 +3104,18 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc(((dreAbsent.CS ? (baseResults?.comissaoValor ?? 0) : activeResults.comissaoValor) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
+                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc((((!isViewingOriginal && dreAbsent.CS) ? (baseResults?.comissaoValor ?? 0) : activeResults.comissaoValor) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
                                         {renderCommentInputRow('CS')}
                                         {renderDreDetailsList('CS', activeResults.baseCalculo, activeResults.comissaoValor)}
-                                        <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
+                                        <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                 {renderAbsentToggle('TFS')}
-                                                <span style={dreAbsent.TFS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                <span style={!isViewingOriginal && dreAbsent.TFS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                     Tarifa Fixa Shopee {s('TFS')}:
                                                 </span>
-                                                {dreAbsent.TFS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                {!isViewingOriginal && dreAbsent.TFS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                 {renderDetailToggle('TFS', activeResults.tarifaFixa)}
                                                 {renderCommentControl('TFS')}
                                             </span>
@@ -2957,20 +3126,20 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc(((dreAbsent.TFS ? (baseResults?.tarifaFixa ?? 0) : activeResults.tarifaFixa) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
+                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc((((!isViewingOriginal && dreAbsent.TFS) ? (baseResults?.tarifaFixa ?? 0) : activeResults.tarifaFixa) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
                                         {renderCommentInputRow('TFS')}
                                         {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
-                                        {(isCorrectionMode || (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0) && (
+                                        {(isCorrectionMode || (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.freteValor ?? 0) > 0)) && (
                                             <>
-                                                <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
+                                                <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                         {renderAbsentToggle('FPC')}
-                                                        <span style={dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                        <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                             Frete pago pelo cliente {s('FPC')}:
                                                         </span>
-                                                        {dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                         {renderDetailToggle('FPC', activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
                                                         {renderCommentControl('FPC')}
                                                     </span>
@@ -2981,22 +3150,22 @@ const ShopeePage: React.FC = () => {
                                                         onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
-                                                        {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0, '- ', 'val text-red', 'FPC', false, `${porc(((dreAbsent.FPC ? (baseResults?.freteValor ?? 0) : (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                        {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? (baseResults?.freteValor ?? 0) : (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                     </div>
                                                 </div>
                                                 {renderCommentInputRow('FPC')}
                                                 {renderDreDetailsList('FPC', activeResults.precoVenda, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
                                             </>
                                         )}
-                                        {(isCorrectionMode || (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0) && (
+                                        {(isCorrectionMode || (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.rebateValor ?? 0) > 0)) && (
                                             <>
-                                                <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CR ? { opacity: 0.6 } : undefined}>
+                                                <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CR ? { opacity: 0.6 } : undefined}>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                         {renderAbsentToggle('CR')}
-                                                        <span style={dreAbsent.CR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                        <span style={!isViewingOriginal && dreAbsent.CR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
                                                             Crédito de Rebate {s('CR')}:
                                                         </span>
-                                                        {dreAbsent.CR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        {!isViewingOriginal && dreAbsent.CR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                         {renderDetailToggle('CR', activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
                                                         {renderCommentControl('CR')}
                                                     </span>
@@ -3007,7 +3176,7 @@ const ShopeePage: React.FC = () => {
                                                         onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
-                                                        {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0, '+ ', 'val text-green', 'CR', false, `${porc(((dreAbsent.CR ? (baseResults?.rebateValor ?? 0) : (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                        {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0, '+ ', 'val text-green', 'CR', false, `${porc((((!isViewingOriginal && dreAbsent.CR) ? (baseResults?.rebateValor ?? 0) : (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                     </div>
                                                 </div>
                                                 {renderCommentInputRow('CR')}
@@ -3020,7 +3189,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3272,7 +3441,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '860px',
+                            maxWidth: '940px',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3499,6 +3668,12 @@ const ShopeePage: React.FC = () => {
                                                         {group.items.map((item) => {
                                                             const vnVal = item.vn ?? item.resultsSnapshot?.valorNota;
                                                             const repasseVal = item.repasse ?? item.resultsSnapshot?.repasse;
+                                                            const origVn = item.originalVn ?? item.resultsSnapshot?.valorNota;
+                                                            const origRepasse = item.originalRepasse ?? item.resultsSnapshot?.repasse;
+                                                            const origLucro = item.originalLucro ?? item.resultsSnapshot?.lucroLiquido;
+                                                            const hasVnCorr = origVn !== undefined && vnVal !== undefined && Math.abs(origVn - vnVal) >= 0.005;
+                                                            const hasRepasseCorr = origRepasse !== undefined && repasseVal !== undefined && Math.abs(origRepasse - repasseVal) >= 0.005;
+                                                            const hasLucroCorr = origLucro !== undefined && Math.abs(origLucro - item.lucro) >= 0.005;
                                                             const dt = new Date(item.createdAt);
                                                             const timeStr = !isNaN(dt.getTime())
                                                                 ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
@@ -3515,63 +3690,35 @@ const ShopeePage: React.FC = () => {
                                                                     </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                        {hasVnCorr && (
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', marginRight: '6px' }}>
+                                                                                R$ {moeda(origVn)}
+                                                                            </span>
+                                                                        )}
                                                                         {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
                                                                     </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                        {hasRepasseCorr && (
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', marginRight: '6px' }}>
+                                                                                R$ {moeda(origRepasse)}
+                                                                            </span>
+                                                                        )}
                                                                         {repasseVal !== undefined ? `R$ ${moeda(repasseVal)}` : 'N/A'}
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>
+                                                                        {hasLucroCorr && (
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, marginRight: '6px' }}>
+                                                                                R$ {moeda(origLucro)}
+                                                                            </span>
+                                                                        )}
+                                                                        R$ {moeda(item.lucro)}
+                                                                    </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                                                             {item.resultsSnapshot && (
                                                                                 <button
                                                                                     type="button"
-                                                                                    onClick={() => {
-                                                                                        skipNextStaleRef.current = true;
-                                                                                        const resolvedQtd = item.qtdMultiplier || '1';
-                                                                                        setQtdMultiplier(resolvedQtd);
-
-                                                                                        if (item.formInputsSnapshot) {
-                                                                                            setInputs({ ...defaultInputs, ...item.formInputsSnapshot });
-                                                                                        } else if (item.inputsSnapshot) {
-                                                                                            const mult = Number(resolvedQtd) || 1;
-                                                                                            setInputs({
-                                                                                                ...defaultInputs,
-                                                                                                ...item.inputsSnapshot,
-                                                                                                custoProduto: item.inputsSnapshot.custoProduto !== undefined ? item.inputsSnapshot.custoProduto / mult : undefined,
-                                                                                                precoVenda: item.inputsSnapshot.precoVenda ?? item.pa
-                                                                                            });
-                                                                                        }
-
-                                                                                        if (item.catalogProductSnapshot !== undefined) {
-                                                                                            setSelectedCatalogProduct(item.catalogProductSnapshot);
-                                                                                        } else if (item.sku && item.sku !== 'Avulso') {
-                                                                                            const foundProd = catalogProducts.find((p: any) => p.sku === item.sku);
-                                                                                            setSelectedCatalogProduct(
-                                                                                                foundProd
-                                                                                                    ? { sku: foundProd.sku || item.sku, descricao: foundProd.descricao || '', _wh: foundProd._wh || 'SP' }
-                                                                                                    : { sku: item.sku, descricao: '', _wh: 'SP' }
-                                                                                            );
-                                                                                        } else {
-                                                                                            setSelectedCatalogProduct(null);
-                                                                                        }
-
-                                                                                        if (item.abaSnapshot) setAba(item.abaSnapshot);
-                                                                                        if (item.tipoMargemIdealSnapshot) setTipoMargemIdeal(item.tipoMargemIdealSnapshot);
-                                                                                        if (item.margemDesejadaSnapshot !== undefined) setMargemDesejada(item.margemDesejadaSnapshot);
-
-                                                                                        setResults(item.resultsSnapshot!);
-                                                                                        if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
-                                                                                        setDreOverrides({});
-                                                                                        setDreAbsent({});
-                                                                                        setDreDetails({});
-                                                                                        setCustomDreItems([]);
-                                                                                        setDreComments({});
-                                                                                        setOpenCommentKey(null);
-                                                                                        setIsCorrectionMode(false);
-                                                                                        setIsResultStale(false);
-                                                                                        setIsHistoryModalOpen(false);
-                                                                                    }}
+                                                                                    onClick={() => loadHistoryItem(item, false)}
                                                                                     style={{
                                                                                         display: 'inline-flex',
                                                                                         alignItems: 'center',
@@ -3585,9 +3732,31 @@ const ShopeePage: React.FC = () => {
                                                                                         color: '#7c3aed',
                                                                                         cursor: 'pointer'
                                                                                     }}
-                                                                                    title="Carregar DRE deste cálculo"
+                                                                                    title={item.correctionsSnapshot ? 'Carregar DRE corrigida com comentários e ajustes' : 'Carregar DRE deste cálculo'}
                                                                                 >
                                                                                     <Eye size={13} /> Ver DRE
+                                                                                </button>
+                                                                            )}
+                                                                            {item.resultsSnapshot && item.correctionsSnapshot && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => loadHistoryItem(item, true)}
+                                                                                    style={{
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '4px',
+                                                                                        padding: '3px 8px',
+                                                                                        fontSize: '0.74rem',
+                                                                                        fontWeight: 600,
+                                                                                        borderRadius: '6px',
+                                                                                        border: '1px solid #fde68a',
+                                                                                        background: '#fffbeb',
+                                                                                        color: '#b45309',
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                    title="Ver cálculo original sem as correções"
+                                                                                >
+                                                                                    Original
                                                                                 </button>
                                                                             )}
                                                                             <button
