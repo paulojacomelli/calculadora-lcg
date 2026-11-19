@@ -3746,28 +3746,6 @@ const ShopeePage: React.FC = () => {
                                                                     </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                                            {item.resultsSnapshot && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => loadHistoryItem(item, false)}
-                                                                                    style={{
-                                                                                        display: 'inline-flex',
-                                                                                        alignItems: 'center',
-                                                                                        gap: '4px',
-                                                                                        padding: '3px 8px',
-                                                                                        fontSize: '0.74rem',
-                                                                                        fontWeight: 600,
-                                                                                        borderRadius: '6px',
-                                                                                        border: '1px solid #c4b5fd',
-                                                                                        background: '#f5f3ff',
-                                                                                        color: '#7c3aed',
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                    title={item.correctionsSnapshot ? 'Carregar DRE corrigida com comentários e ajustes' : 'Carregar DRE deste cálculo'}
-                                                                                >
-                                                                                    <Eye size={13} /> Ver DRE
-                                                                                </button>
-                                                                            )}
                                                                             {item.resultsSnapshot && item.correctionsSnapshot && (
                                                                                 <button
                                                                                     type="button"
@@ -3788,6 +3766,28 @@ const ShopeePage: React.FC = () => {
                                                                                     title="Ver cálculo original sem as correções"
                                                                                 >
                                                                                     Original
+                                                                                </button>
+                                                                            )}
+                                                                            {item.resultsSnapshot && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => loadHistoryItem(item, false)}
+                                                                                    style={{
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '4px',
+                                                                                        padding: '3px 8px',
+                                                                                        fontSize: '0.74rem',
+                                                                                        fontWeight: 600,
+                                                                                        borderRadius: '6px',
+                                                                                        border: '1px solid #c4b5fd',
+                                                                                        background: '#f5f3ff',
+                                                                                        color: '#7c3aed',
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                    title={item.correctionsSnapshot ? 'Carregar DRE corrigida com comentários e ajustes' : 'Carregar DRE deste cálculo'}
+                                                                                >
+                                                                                    <Eye size={13} /> Ver DRE
                                                                                 </button>
                                                                             )}
                                                                             <button
