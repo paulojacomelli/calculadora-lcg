@@ -120,9 +120,9 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', number>>>({});
-    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', boolean>>>({});
-    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', number>>>({});
+    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', boolean>>>({});
+    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     type CalcHistoryEntry = {
         id: string;
@@ -640,7 +640,7 @@ const ShopeePage: React.FC = () => {
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const resolveKeyVal = (key: 'DR' | 'CD' | 'CS' | 'TFS', baseVal: number) => {
+        const resolveKeyVal = (key: 'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', baseVal: number) => {
             if (dreAbsent[key]) return 0;
             const det = dreDetails[key];
             if (det?.mode === 'sum') {
@@ -656,13 +656,15 @@ const ShopeePage: React.FC = () => {
         const precoComCupom = arredondar(valorNota + (baseResults.freteValor || 0), 2);
         const comissaoValor = resolveKeyVal('CS', baseResults.comissaoValor);
         const tarifaFixa = resolveKeyVal('TFS', baseResults.tarifaFixa);
+        const freteDebitoValor = resolveKeyVal('FPC', baseResults.freteValor || 0);
+        const creditoRebateValor = resolveKeyVal('CR', rebateValor);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
         const despesaFixaValor = baseResults.despesaFixaValor;
         const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
-            precoComCupom - comissaoValor - tarifaFixa - (baseResults.freteValor || 0) - (baseResults.freteVendedorValor || 0) + rebateValor + sumSection('PDS'),
+            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor - (baseResults.freteVendedorValor || 0) + creditoRebateValor + sumSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
@@ -681,6 +683,8 @@ const ShopeePage: React.FC = () => {
             precoComCupom,
             comissaoValor,
             tarifaFixa,
+            freteDebitoValor,
+            creditoRebateValor,
             impostoValor,
             custoAds,
             despesaFixaValor,
@@ -695,7 +699,7 @@ const ShopeePage: React.FC = () => {
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS';
+    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR';
 
     const renderAbsentToggle = (key: DreOverrideKey) => {
         if (!isCorrectionMode) return null;
@@ -2775,34 +2779,53 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                         </div>
                                         {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
-                                        {(activeResults.freteValor ?? 0) > 0 && (
-                                            <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Frete pago pelo cliente {s('FPC')}:</span>
-                                                <div
-                                                    className="detail-values"
-                                                    style={{ cursor: 'help' }}
-                                                    title="Ref.: Valor fixo informado no campo [FPC]"
-                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
-                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                >
-                                                    <span className="perc">({porc((activeResults.freteValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.freteValor)}</span>
+                                        {(isCorrectionMode || (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0) && (
+                                            <>
+                                                <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderAbsentToggle('FPC')}
+                                                        <span style={dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                            Frete pago pelo cliente {s('FPC')}:
+                                                        </span>
+                                                        {dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        {renderDetailToggle('FPC', activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
+                                                    </span>
+                                                    <div
+                                                        className="detail-values"
+                                                        style={{ cursor: 'help' }}
+                                                        title="Ref.: Valor fixo informado no campo [FPC]"
+                                                        onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                        onMouseLeave={() => setHighlightedRefs([])}
+                                                    >
+                                                        {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0, '- ', 'val text-red', 'FPC', false, `${porc(((dreAbsent.FPC ? (baseResults?.freteValor ?? 0) : (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                {renderDreDetailsList('FPC', activeResults.precoVenda, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
+                                            </>
                                         )}
-                                        {(activeResults.rebateValor ?? 0) > 0 && (
-                                            <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Crédito de Rebate {s('CR')}:</span>
-                                                <div
-                                                    className="detail-values"
-                                                    style={{ cursor: 'help' }}
-                                                    title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]'}
-                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
-                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                >
-                                                    {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '+ ', 'val text-green', undefined, false, `${porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                        {(isCorrectionMode || (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0) && (
+                                            <>
+                                                <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CR ? { opacity: 0.6 } : undefined}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                        {renderAbsentToggle('CR')}
+                                                        <span style={dreAbsent.CR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                            Crédito de Rebate {s('CR')}:
+                                                        </span>
+                                                        {dreAbsent.CR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        {renderDetailToggle('CR', activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
+                                                    </span>
+                                                    <div
+                                                        className="detail-values"
+                                                        style={{ cursor: 'help' }}
+                                                        title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]'}
+                                                        onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
+                                                        onMouseLeave={() => setHighlightedRefs([])}
+                                                    >
+                                                        {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0, '+ ', 'val text-green', 'CR', false, `${porc(((dreAbsent.CR ? (baseResults?.rebateValor ?? 0) : (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                {renderDreDetailsList('CR', activeResults.precoVenda, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
+                                            </>
                                         )}
                                         {renderCustomDreSection('PDS', activeResults.baseCalculo)}
                                         <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
@@ -2810,7 +2833,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >

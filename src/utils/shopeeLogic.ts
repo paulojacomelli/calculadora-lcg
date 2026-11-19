@@ -62,6 +62,8 @@ export interface ShopeeOutput {
   margem: number;             // Subtotal conforme fórmula do usuário
   cupomValor: number;
   freteValor: number;
+  freteDebitoValor?: number;
+  creditoRebateValor?: number;
   freteVendedorValor: number;
   baseCalculo: number;        // STP = PA - DR
   valorNota: number;          // VN = STP - CD
