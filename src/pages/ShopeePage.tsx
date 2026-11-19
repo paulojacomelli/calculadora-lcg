@@ -72,7 +72,6 @@ const defaultInputs: ShopeeInput = {
     cupomDesconto: undefined,
     cupomTipo: '',
     fretePagoCliente: undefined,
-    freteCobradoVendedor: undefined,
     fatorAlavancagem: undefined
 };
 
@@ -1647,30 +1646,6 @@ const ShopeePage: React.FC = () => {
                                 </div>
                             )}
 
-                            <div className={`input-group ${isRefHighlighted('INPUT_FCV') ? 'dre-ref-pulse' : ''}`}>
-                                <label><Truck size={16} /> Frete cobrado do vendedor (R$) {s('FCV')}</label>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    name="freteCobradoVendedor"
-                                    autoComplete="off"
-                                    value={getInputValue('freteCobradoVendedor', inputs.freteCobradoVendedor)}
-                                    onFocus={() => {
-                                        setFocusedInput('freteCobradoVendedor');
-                                        setFocusedValue(inputs.freteCobradoVendedor !== undefined ? inputs.freteCobradoVendedor.toFixed(2).replace('.', ',') : '');
-                                    }}
-                                    onBlur={() => {
-                                        setFocusedInput(null);
-                                        setFocusedValue('');
-                                        triggerCalculation();
-                                    }}
-                                    onChange={handleChange}
-                                    onWheel={handleWheel}
-                                    placeholder="Não informado"
-                                />
-                                <span className="input-hint">Opcional — frete cobrado de você pela Shopee</span>
-                            </div>
-
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
                             {!isLevel3 && (
                                 <div
@@ -2345,21 +2320,6 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        {(activeResults.freteVendedorValor ?? 0) > 0 && (
-                                            <div className={`detail-row ${isRefHighlighted('FCV') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Frete cobrado do vendedor {s('FCV')}:</span>
-                                                <div
-                                                    className="detail-values"
-                                                    style={{ cursor: 'help' }}
-                                                    title="Ref.: Valor fixo informado no campo [FCV]"
-                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FCV'])}
-                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                >
-                                                    <span className="perc">({porc((activeResults.freteVendedorValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                    <span className="val text-red">- R$ {moeda(activeResults.freteVendedorValor)}</span>
-                                                </div>
-                                            </div>
-                                        )}
                                         {(activeResults.rebateValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Crédito de Rebate {s('CR')}:</span>
@@ -2380,8 +2340,8 @@ const ShopeePage: React.FC = () => {
                                             <span style={{ fontWeight: 700 }}>Repasse:</span>
                                             <div
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'FCV', 'CR'])}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true)}
