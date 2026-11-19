@@ -928,6 +928,37 @@ const ShopeePage: React.FC = () => {
 
     const activeResults: ShopeeOutput | null = isViewingOriginal ? baseResults : correctedResults;
 
+    // expectedResults incorpora itens customizados marcados como "Esperado" na linha de base das diferenças
+    const expectedResults: ShopeeOutput | null = (() => {
+        if (!baseResults) return null;
+        if (isViewingOriginal || !customDreItems.some(i => i.isExpected)) return baseResults;
+        const sumExpectedSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS') =>
+            customDreItems
+                .filter(i => i.section === sec && i.isExpected)
+                .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
+
+        const baseCalculo = arredondar(baseResults.precoVenda - baseResults.rebateValor + sumExpectedSection('STP'), 2);
+        const valorNota = arredondar(baseCalculo - baseResults.cupomValor + sumExpectedSection('VN'), 2);
+        const freteVal = baseResults.freteValor || 0;
+        const precoComCupom = arredondar(valorNota + freteVal + sumExpectedSection('PDV'), 2);
+        const repasse = arredondar(
+            precoComCupom - baseResults.comissaoValor - baseResults.tarifaFixa - freteVal + baseResults.rebateValor + sumExpectedSection('PDS'),
+            2
+        );
+        const lucroLiquido = arredondar(
+            repasse - baseResults.custoProdutoValor - baseResults.impostoValor - baseResults.custoAds - baseResults.despesaFixaValor - baseResults.despesaAdicionalValor,
+            2
+        );
+        return {
+            ...baseResults,
+            baseCalculo,
+            valorNota,
+            precoComCupom,
+            repasse,
+            lucroLiquido
+        };
+    })();
+
     // Mantém correções, comentários e valores corrigidos sincronizados no registro do histórico atual
     useEffect(() => {
         if (!baseResults || !correctedResults) return;
@@ -3225,10 +3256,10 @@ const ShopeePage: React.FC = () => {
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lucro Líquido Final</div>
-                                                {baseResults && Math.abs(activeResults.lucroLiquido - baseResults.lucroLiquido) >= 0.005 ? (
+                                                {expectedResults && Math.abs(activeResults.lucroLiquido - expectedResults.lucroLiquido) >= 0.005 ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                                                         <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.95rem', fontWeight: 700 }}>
-                                                            R$ {moeda(baseResults.lucroLiquido)}
+                                                            R$ {moeda(expectedResults.lucroLiquido)}
                                                         </span>
                                                         <div style={{ fontSize: '2.1rem', fontWeight: 900, color: '#1e3a8a', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
                                                             R$ {moeda(activeResults.lucroLiquido)}
@@ -3236,12 +3267,12 @@ const ShopeePage: React.FC = () => {
                                                         <span style={{
                                                             fontSize: '0.75rem',
                                                             fontWeight: 700,
-                                                            color: activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '#047857' : '#b45309',
-                                                            background: activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '#d1fae5' : '#fef3c7',
+                                                            color: activeResults.lucroLiquido - expectedResults.lucroLiquido > 0 ? '#047857' : '#b45309',
+                                                            background: activeResults.lucroLiquido - expectedResults.lucroLiquido > 0 ? '#d1fae5' : '#fef3c7',
                                                             padding: '1px 6px',
                                                             borderRadius: '4px'
                                                         }}>
-                                                            {activeResults.lucroLiquido - baseResults.lucroLiquido > 0 ? '+' : '-'}R$ {moeda(Math.abs(activeResults.lucroLiquido - baseResults.lucroLiquido))}
+                                                            {activeResults.lucroLiquido - expectedResults.lucroLiquido > 0 ? '+' : '-'}R$ {moeda(Math.abs(activeResults.lucroLiquido - expectedResults.lucroLiquido))}
                                                         </span>
                                                     </div>
                                                 ) : (
@@ -3294,7 +3325,7 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseEnter={() => setHighlightedRefs(['PA', 'DR', 'CUSTOM_STP'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                {renderDreValor(baseResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
+                                                                {renderDreValor(expectedResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
                                                             </div>
                                                         </div>
                                                     </>
@@ -3357,7 +3388,7 @@ const ShopeePage: React.FC = () => {
                                                                     onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
                                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                                 >
-                                                                    {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
+                                                                    {renderDreValor(expectedResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
                                                                 </div>
                                                             </div>
                                                             {showTopFreteBlock && (
@@ -3442,7 +3473,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED', 'CUSTOM_PDV'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
+                                                {renderDreValor(expectedResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
                                             </div>
                                         </div>
 
@@ -3604,7 +3635,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
+                                                {renderDreValor(expectedResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
                                             </div>
                                         </div>
 
