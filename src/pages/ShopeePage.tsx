@@ -667,13 +667,30 @@ const ShopeePage: React.FC = () => {
     };
 
     const confirmReset = () => {
+        skipNextStaleRef.current = true;
+        resultsRef.current = null;
         setInputs(defaultInputs);
+        setQtdMultiplier(1);
         setMargemDesejada(undefined);
         setResults(null);
         setLastCalculatedInputs(null);
         setSimulacao(null);
         setOtimizacaoIdeal(null);
-        setSelectedCatalogProduct(null); // Limpa o chip de produto ao reiniciar
+        setSelectedCatalogProduct(null);
+        setSearchQuery('');
+        setShowSearchDropdown(false);
+        setFocusedInput(null);
+        setFocusedValue('');
+        setHighlightedRefs([]);
+        setIsResultStale(false);
+        setIsCorrectionMode(false);
+        setCorrectionEditing(null);
+        setDreOverrides({});
+        setDreAbsent({});
+        setDreDetails({});
+        setCustomDreItems([]);
+        setDreComments({});
+        setOpenCommentKey(null);
         setActiveHistoryId(null);
         setIsViewingOriginal(false);
         setIsResetModalOpen(false);
@@ -736,12 +753,10 @@ const ShopeePage: React.FC = () => {
     // --- ESTADO DERIVADO PARA RENDERIZAÇÃO ---
     // resultsRef mantém o último cálculo realizado para evitar "flashing" ou retorno ao tempo real indesejado
     const resultsRef = useRef<ShopeeOutput | null>(null);
-    if (results) resultsRef.current = results;
-
-
+    resultsRef.current = results;
 
     // baseResults mantém o cálculo original da fórmula; correctedResults aplica correções manuais da sessão
-    const baseResults: ShopeeOutput | null = results || resultsRef.current;
+    const baseResults: ShopeeOutput | null = results;
 
     const hasAnyCorrection =
         Object.keys(dreOverrides).length > 0 ||
