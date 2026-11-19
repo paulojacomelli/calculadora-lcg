@@ -739,7 +739,7 @@ const ShopeePage: React.FC = () => {
         if (item.tipoMargemIdealSnapshot) setTipoMargemIdeal(item.tipoMargemIdealSnapshot);
         if (item.margemDesejadaSnapshot !== undefined) setMargemDesejada(item.margemDesejadaSnapshot);
 
-        setResults(item.resultsSnapshot);
+        setResults(normalizeLegacyShopeeOutput(item.resultsSnapshot));
         if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
 
         const snap = item.correctionsSnapshot;
@@ -765,8 +765,29 @@ const ShopeePage: React.FC = () => {
     const resultsRef = useRef<ShopeeOutput | null>(null);
     resultsRef.current = results;
 
+    const normalizeLegacyShopeeOutput = (res: ShopeeOutput): ShopeeOutput => {
+        const fps = res.freteVendedorValor || 0;
+        if (fps <= 0) return res;
+        const expectedRepasse = arredondar(
+            res.precoComCupom - res.comissaoValor - res.tarifaFixa - (res.outrasDespesasShopeeValor || 0) - (res.freteValor || 0) + (res.rebateValor || 0),
+            2
+        );
+        if (Math.abs(arredondar(res.repasse + fps, 2) - expectedRepasse) < 0.02 && Math.abs(res.repasse - expectedRepasse) >= 0.02) {
+            const nextRepasse = expectedRepasse;
+            const nextLucro = arredondar(res.lucroLiquido + fps, 2);
+            return {
+                ...res,
+                repasse: nextRepasse,
+                lucroLiquido: nextLucro,
+                margemSobreVenda: res.precoComCupom > 0 ? arredondar((nextLucro / res.precoComCupom) * 100, 2) : 0,
+                margemLiquidaSobreCusto: res.custoProdutoValor > 0 ? arredondar((nextLucro / res.custoProdutoValor) * 100, 2) : 0
+            };
+        }
+        return res;
+    };
+
     // baseResults mantém o cálculo original da fórmula; correctedResults aplica correções manuais da sessão
-    const baseResults: ShopeeOutput | null = results;
+    const baseResults: ShopeeOutput | null = results ? normalizeLegacyShopeeOutput(results) : null;
 
     const hasAnyCorrection =
         Object.keys(dreOverrides).length > 0 ||
@@ -875,9 +896,9 @@ const ShopeePage: React.FC = () => {
                 vn: nextVn,
                 repasse: nextRepasse,
                 lucro: nextLucro,
-                originalVn: cur.originalVn ?? arredondar(baseResults.valorNota, 2),
-                originalRepasse: cur.originalRepasse ?? arredondar(baseResults.repasse, 2),
-                originalLucro: cur.originalLucro ?? arredondar(baseResults.lucroLiquido, 2),
+                originalVn: arredondar(baseResults.valorNota, 2),
+                originalRepasse: arredondar(baseResults.repasse, 2),
+                originalLucro: arredondar(baseResults.lucroLiquido, 2),
                 correctionsSnapshot: nextCorrections ? JSON.parse(JSON.stringify(nextCorrections)) : undefined
             };
             const next = [...prev];
