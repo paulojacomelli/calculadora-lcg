@@ -3201,16 +3201,22 @@ const ShopeePage: React.FC = () => {
                                                         <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
                                                     </div>
                                                     <div className="dre-print-params-grid">
-                                                        <div><span>Custo Unit. [CDP]:</span><strong>{hideSensitiveData ? '••••••' : `R$ ${moeda(printUnitCdp)}${printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}`}</strong></div>
+                                                        {!hideSensitiveData && (
+                                                            <div><span>Custo Unit. [CDP]:</span><strong>{`R$ ${moeda(printUnitCdp)}${printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}`}</strong></div>
+                                                        )}
                                                         <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
                                                         <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
                                                         <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
                                                         <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
                                                         <div><span>Frete Shopee [FPS]:</span><strong>R$ {moeda(activeInputs.freteCobradoVendedor ?? activeResults.freteVendedorValor ?? 0)}</strong></div>
-                                                        <div><span>Imposto [IMP]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Despesa Fixa [DF]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Outras Despesas [OD]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Shopee Ads [ADS]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                        {!hideSensitiveData && (
+                                                            <>
+                                                                <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
+                                                                <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
+                                                                <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
+                                                                <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
