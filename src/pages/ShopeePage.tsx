@@ -1364,7 +1364,7 @@ const ShopeePage: React.FC = () => {
                                     ...prev,
                                     [key]: {
                                         ...cur,
-                                        items: [...cur.items, { id: String(Date.now() + Math.random()), label: key === 'CR' ? `Ajuste de ação comercial ${cur.items.length + 1}` : `Parte ${cur.items.length + 1}`, valor: 0 }]
+                                        items: [...cur.items, { id: String(Date.now() + Math.random()), label: key === 'CR' ? 'Ajuste de ação comercial' : `Parte ${cur.items.length + 1}`, valor: 0 }]
                                     }
                                 };
                             });
