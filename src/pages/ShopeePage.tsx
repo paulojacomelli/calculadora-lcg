@@ -121,7 +121,7 @@ const ShopeePage: React.FC = () => {
     const [focusedValue, setFocusedValue] = useState<string>('');
     const [highlightedRefs, setHighlightedRefs] = useState<string[]>([]);
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
-    const [isResultStale, setIsResultStale] = useState(false);
+    const [lastCalcFingerprint, setLastCalcFingerprint] = useState<string | null>(null);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
     const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
@@ -402,18 +402,41 @@ const ShopeePage: React.FC = () => {
         return () => clearTimeout(timer);
     }, [aba, tipoMargemIdeal, isAdvancedOpen, user]);
 
-    const skipNextStaleRef = useRef(false);
+    const buildParamsFingerprint = (
+        inp: ShopeeInput,
+        qtd: number | string,
+        currentAba: 'margem' | 'ideal',
+        currentTipoMargem: 'venda' | 'custo' | 'reais',
+        currentMargem: number | undefined
+    ) => JSON.stringify({
+        custoProduto: inp.custoProduto ?? null,
+        precoVenda: currentAba === 'margem' ? (inp.precoVenda ?? null) : null,
+        despesaFixa: inp.despesaFixa ?? null,
+        despesaFixaTipo: inp.despesaFixaTipo,
+        despesaAdicional: inp.despesaAdicional ?? null,
+        despesaAdicionalTipo: inp.despesaAdicionalTipo,
+        impostoPorcentagem: inp.impostoPorcentagem ?? null,
+        impostoTipo: inp.impostoTipo,
+        adsValor: inp.adsValor ?? null,
+        adsTipo: inp.adsTipo,
+        rebatePorcentagem: inp.rebatePorcentagem ?? null,
+        rebateTipo: inp.rebateTipo || '',
+        cupomDesconto: inp.cupomDesconto ?? null,
+        cupomTipo: inp.cupomTipo || '',
+        fretePagoCliente: currentAba === 'margem' ? (inp.fretePagoCliente ?? null) : null,
+        freteCobradoVendedor: currentAba === 'margem' ? (inp.freteCobradoVendedor ?? null) : null,
+        fatorAlavancagem: inp.fatorAlavancagem ?? null,
+        qtd: Number(qtd) || 1,
+        aba: currentAba,
+        tipoMargemIdeal: currentAba === 'ideal' ? currentTipoMargem : null,
+        margemDesejada: currentAba === 'ideal' ? (currentMargem ?? null) : null
+    });
 
-    // Marca o resultado exibido como desatualizado sempre que algum parâmetro mudar
-    useEffect(() => {
-        if (skipNextStaleRef.current) {
-            skipNextStaleRef.current = false;
-            return;
-        }
-        if (results) {
-            setIsResultStale(true);
-        }
-    }, [inputs, margemDesejada, qtdMultiplier, aba, tipoMargemIdeal]);
+    const isResultStale = Boolean(
+        results &&
+        lastCalcFingerprint !== null &&
+        buildParamsFingerprint(inputs, qtdMultiplier, aba, tipoMargemIdeal, margemDesejada) !== lastCalcFingerprint
+    );
 
     // Função mantida por compatibilidade com onBlur de inputs, mas sem ação em modo manual
     const triggerCalculation = () => {
@@ -521,7 +544,7 @@ const ShopeePage: React.FC = () => {
     };
 
     const executarCalculo = () => {
-        setIsResultStale(false);
+        setLastCalcFingerprint(buildParamsFingerprint(inputs, qtdMultiplier, aba, tipoMargemIdeal, margemDesejada));
         setIsViewingOriginal(false);
         setDreOverrides({});
         setDreAbsent({});
@@ -673,8 +696,8 @@ const ShopeePage: React.FC = () => {
     };
 
     const confirmReset = () => {
-        skipNextStaleRef.current = true;
         resultsRef.current = null;
+        setLastCalcFingerprint(null);
         setInputs(defaultInputs);
         setQtdMultiplier(1);
         setMargemDesejada(undefined);
@@ -688,7 +711,6 @@ const ShopeePage: React.FC = () => {
         setFocusedInput(null);
         setFocusedValue('');
         setHighlightedRefs([]);
-        setIsResultStale(false);
         setIsCorrectionMode(false);
         setCorrectionEditing(null);
         setDreOverrides({});
@@ -706,20 +728,22 @@ const ShopeePage: React.FC = () => {
 
     const loadHistoryItem = (item: CalcHistoryEntry, viewOriginal: boolean) => {
         if (!item.resultsSnapshot) return;
-        skipNextStaleRef.current = true;
         const resolvedQtd = item.qtdMultiplier || '1';
         setQtdMultiplier(resolvedQtd);
 
+        let loadedInputs: ShopeeInput = inputs;
         if (item.formInputsSnapshot) {
-            setInputs({ ...defaultInputs, ...item.formInputsSnapshot });
+            loadedInputs = { ...defaultInputs, ...item.formInputsSnapshot };
+            setInputs(loadedInputs);
         } else if (item.inputsSnapshot) {
             const mult = Number(resolvedQtd) || 1;
-            setInputs({
+            loadedInputs = {
                 ...defaultInputs,
                 ...item.inputsSnapshot,
                 custoProduto: item.inputsSnapshot.custoProduto !== undefined ? item.inputsSnapshot.custoProduto / mult : undefined,
                 precoVenda: item.inputsSnapshot.precoVenda ?? item.pa
-            });
+            };
+            setInputs(loadedInputs);
         }
 
         if (item.catalogProductSnapshot !== undefined) {
@@ -735,6 +759,9 @@ const ShopeePage: React.FC = () => {
             setSelectedCatalogProduct(null);
         }
 
+        const loadedAba = item.abaSnapshot ?? aba;
+        const loadedTipoMargem = item.tipoMargemIdealSnapshot ?? tipoMargemIdeal;
+        const loadedMargem = item.margemDesejadaSnapshot !== undefined ? item.margemDesejadaSnapshot : margemDesejada;
         if (item.abaSnapshot) setAba(item.abaSnapshot);
         if (item.tipoMargemIdealSnapshot) setTipoMargemIdeal(item.tipoMargemIdealSnapshot);
         if (item.margemDesejadaSnapshot !== undefined) setMargemDesejada(item.margemDesejadaSnapshot);
@@ -754,7 +781,7 @@ const ShopeePage: React.FC = () => {
         setIsEditingOrderNumber(false);
         setIsViewingOriginal(viewOriginal);
         setIsCorrectionMode(false);
-        setIsResultStale(false);
+        setLastCalcFingerprint(buildParamsFingerprint(loadedInputs, resolvedQtd, loadedAba, loadedTipoMargem, loadedMargem));
         setIsHistoryModalOpen(false);
     };
 
