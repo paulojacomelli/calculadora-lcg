@@ -131,6 +131,7 @@ const ShopeePage: React.FC = () => {
     const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
     const [isViewingOriginal, setIsViewingOriginal] = useState(false);
     const [orderNumber, setOrderNumber] = useState<string>('');
+    const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -697,6 +698,7 @@ const ShopeePage: React.FC = () => {
         setActiveHistoryId(null);
         setIsViewingOriginal(false);
         setOrderNumber('');
+        setIsEditingOrderNumber(false);
         setIsResetModalOpen(false);
     };
 
@@ -747,6 +749,7 @@ const ShopeePage: React.FC = () => {
         setOpenCommentKey(null);
         setActiveHistoryId(item.id);
         setOrderNumber(item.orderNumber ?? '');
+        setIsEditingOrderNumber(false);
         setIsViewingOriginal(viewOriginal);
         setIsCorrectionMode(false);
         setIsResultStale(false);
@@ -2843,6 +2846,58 @@ const ShopeePage: React.FC = () => {
                                                         Restaurar
                                                     </button>
                                                 )}
+                                                {isEditingOrderNumber ? (
+                                                    <input
+                                                        type="text"
+                                                        autoFocus
+                                                        className="no-print"
+                                                        value={orderNumber}
+                                                        onChange={(e) => setOrderNumber(e.target.value)}
+                                                        onBlur={() => {
+                                                            setOrderNumber(prev => prev.trim());
+                                                            setIsEditingOrderNumber(false);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' || e.key === 'Escape') {
+                                                                e.currentTarget.blur();
+                                                            }
+                                                        }}
+                                                        placeholder="Nº do pedido"
+                                                        style={{
+                                                            width: '130px',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 600,
+                                                            padding: '2px 7px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #c4b5fd',
+                                                            background: '#f5f3ff',
+                                                            color: '#1e293b',
+                                                            outline: 'none'
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        className={`dre-correction-btn ${orderNumber.trim() ? 'active' : ''}`}
+                                                        onClick={() => setIsEditingOrderNumber(true)}
+                                                        style={{
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: orderNumber.trim() ? 600 : 500,
+                                                            background: orderNumber.trim() ? '#f1f5f9' : 'transparent',
+                                                            color: orderNumber.trim() ? '#334155' : '#94a3b8',
+                                                            border: orderNumber.trim() ? '1px solid #cbd5e1' : 'none',
+                                                            padding: orderNumber.trim() ? '2px 7px' : '2px 4px',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                        title={orderNumber.trim() ? 'Editar número do pedido' : 'Inserir número do pedido'}
+                                                    >
+                                                        {orderNumber.trim() ? `Pedido: ${orderNumber.trim()}` : 'Nº Pedido'}
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
@@ -2917,72 +2972,32 @@ const ShopeePage: React.FC = () => {
                                                 : `Preço Ideal (${tipoMargemIdeal === 'custo' ? 'Sobre o Custo' : tipoMargemIdeal === 'venda' ? 'Sobre a Venda' : 'Valor R$'}${margemDesejada !== undefined ? ` • ${tipoMargemIdeal === 'reais' ? `R$ ${moeda(margemDesejada)}` : `${porc(margemDesejada)}%`}` : ''})`;
 
                                             return (
-                                                <>
-                                                    <div
-                                                        className="no-print"
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '8px',
-                                                            marginBottom: '0.75rem'
-                                                        }}
-                                                    >
-                                                        <label
-                                                            htmlFor="dre-order-number"
-                                                            style={{
-                                                                fontSize: '0.78rem',
-                                                                fontWeight: 600,
-                                                                color: '#64748b',
-                                                                whiteSpace: 'nowrap'
-                                                            }}
-                                                        >
-                                                            Nº do Pedido:
-                                                        </label>
-                                                        <input
-                                                            id="dre-order-number"
-                                                            type="text"
-                                                            value={orderNumber}
-                                                            onChange={(e) => setOrderNumber(e.target.value)}
-                                                            placeholder="Inserir número do pedido (opcional)"
-                                                            style={{
-                                                                maxWidth: '260px',
-                                                                flex: 1,
-                                                                padding: '4px 9px',
-                                                                fontSize: '0.8rem',
-                                                                borderRadius: '6px',
-                                                                border: '1px solid #cbd5e1',
-                                                                background: '#f8fafc',
-                                                                color: '#1e293b'
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className="dre-print-only dre-print-block dre-print-params">
-                                                        <div className="dre-print-params-top">
-                                                            <div>
-                                                                <strong>Produto / SKU:</strong>{' '}
-                                                                {selectedCatalogProduct
-                                                                    ? `[${selectedCatalogProduct._wh}] ${selectedCatalogProduct.sku} — ${selectedCatalogProduct.descricao || 'Sem descrição'}`
-                                                                    : 'Avulso'}
-                                                            </div>
-                                                            {orderNumber.trim() && (
-                                                                <div><strong>Nº Pedido:</strong> {orderNumber.trim()}</div>
-                                                            )}
-                                                            <div><strong>Modo:</strong> {modoLabel}</div>
-                                                            <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
+                                                <div className="dre-print-only dre-print-block dre-print-params">
+                                                    <div className="dre-print-params-top">
+                                                        <div>
+                                                            <strong>Produto / SKU:</strong>{' '}
+                                                            {selectedCatalogProduct
+                                                                ? `[${selectedCatalogProduct._wh}] ${selectedCatalogProduct.sku} — ${selectedCatalogProduct.descricao || 'Sem descrição'}`
+                                                                : 'Avulso'}
                                                         </div>
-                                                        <div className="dre-print-params-grid">
-                                                            <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
-                                                            <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
-                                                            <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
-                                                            <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
-                                                            <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
-                                                            <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
-                                                            <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
-                                                            <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
-                                                            <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
-                                                        </div>
+                                                        {orderNumber.trim() && (
+                                                            <div><strong>Nº Pedido:</strong> {orderNumber.trim()}</div>
+                                                        )}
+                                                        <div><strong>Modo:</strong> {modoLabel}</div>
+                                                        <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
                                                     </div>
-                                                </>
+                                                    <div className="dre-print-params-grid">
+                                                        <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
+                                                        <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
+                                                        <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
+                                                        <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
+                                                        <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
+                                                        <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                    </div>
+                                                </div>
                                             );
                                         })()}
                                         <div className="dre-summary-box" style={{
