@@ -1513,6 +1513,11 @@ body {
   text-align: right;
 }
 
+.detail-row .val.text-muted {
+  color: #64748b;
+  font-weight: 500;
+}
+
 .detail-row.total .val {
   font-size: 1.1rem;
   font-weight: 800;

@@ -3240,7 +3240,7 @@ const ShopeePage: React.FC = () => {
                                                                                             onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
                                                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                                                         >
-                                                                                            {renderDreValor(baseFpcTopVal, fpcTopVal, '+ ', 'val text-green', 'FPC_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPC_CRED) ? baseFpcTopVal : fpcTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                                            {renderDreValor(baseFpcTopVal, fpcTopVal, '+ ', 'val text-muted', 'FPC_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPC_CRED) ? baseFpcTopVal : fpcTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                                                         </div>
                                                                                     </div>
                                                                                     {renderCommentInputRow('FPC_CRED')}
@@ -3266,7 +3266,7 @@ const ShopeePage: React.FC = () => {
                                                                                             onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
                                                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                                                         >
-                                                                                            {renderDreValor(baseFpsTopVal, fpsTopVal, '- ', 'val text-red', 'FPS_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPS_CRED) ? baseFpsTopVal : fpsTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                                            {renderDreValor(baseFpsTopVal, fpsTopVal, '- ', 'val text-muted', 'FPS_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPS_CRED) ? baseFpsTopVal : fpsTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                                                         </div>
                                                                                     </div>
                                                                                     {renderCommentInputRow('FPS_CRED')}
@@ -3392,7 +3392,7 @@ const ShopeePage: React.FC = () => {
                                                                             onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
                                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                                         >
-                                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-muted', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                                         </div>
                                                                     </div>
                                                                     {renderCommentInputRow('FPC')}
@@ -3418,7 +3418,7 @@ const ShopeePage: React.FC = () => {
                                                                             onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
                                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                                         >
-                                                                            {renderDreValor(baseFpsDebVal, fpsDebVal, '- ', 'val text-red', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                            {renderDreValor(baseFpsDebVal, fpsDebVal, '- ', 'val text-muted', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                                         </div>
                                                                     </div>
                                                                     {renderCommentInputRow('FPS')}
