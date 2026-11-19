@@ -29,7 +29,8 @@ import {
     History,
     Trash2,
     X,
-    Eye
+    Eye,
+    MessageSquare
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -124,6 +125,8 @@ const ShopeePage: React.FC = () => {
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', boolean>>>({});
     const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
+    const [dreComments, setDreComments] = useState<Record<string, string>>({});
+    const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -495,6 +498,8 @@ const ShopeePage: React.FC = () => {
         setDreAbsent({});
         setDreDetails({});
         setCustomDreItems([]);
+        setDreComments({});
+        setOpenCommentKey(null);
         setIsCorrectionMode(false);
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
@@ -778,6 +783,124 @@ const ShopeePage: React.FC = () => {
         );
     };
 
+    const withCommentTitle = (baseTitle: string, commentKey: string) => {
+        const comment = (dreComments[commentKey] ?? '').trim();
+        return comment ? `${baseTitle}\n💬 Comentário: ${comment}` : baseTitle;
+    };
+
+    const renderCommentControl = (commentKey: string) => {
+        const trimmed = (dreComments[commentKey] ?? '').trim();
+        const isInputOpen = openCommentKey === commentKey;
+        const hasComment = trimmed.length > 0;
+        if (!isCorrectionMode && !hasComment) return null;
+
+        return (
+            <>
+                {isCorrectionMode && (
+                    <button
+                        type="button"
+                        title={hasComment ? 'Editar comentário' : 'Adicionar comentário'}
+                        onClick={() => setOpenCommentKey(prev => prev === commentKey ? null : commentKey)}
+                        style={{
+                            marginLeft: '6px',
+                            border: isInputOpen || hasComment ? '1px solid #c4b5fd' : 'none',
+                            background: isInputOpen || hasComment ? '#f5f3ff' : 'transparent',
+                            color: isInputOpen || hasComment ? '#7c3aed' : '#94a3b8',
+                            padding: isInputOpen || hasComment ? '1px 6px' : '1px 4px',
+                            borderRadius: '4px',
+                            fontSize: '0.68rem',
+                            fontWeight: isInputOpen || hasComment ? 700 : 500,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <MessageSquare size={11} /> Comentário
+                    </button>
+                )}
+                {hasComment && (
+                    <span className="dre-comment-indicator">
+                        <MessageSquare size={12} />
+                        <span className="dre-comment-tooltip">{trimmed}</span>
+                    </span>
+                )}
+            </>
+        );
+    };
+
+    const renderCommentInputRow = (commentKey: string) => {
+        const raw = dreComments[commentKey] ?? '';
+        if (!isCorrectionMode || (openCommentKey !== commentKey && raw === '')) return null;
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px 0 6px 26px' }}>
+                <MessageSquare size={12} color="#7c3aed" style={{ flexShrink: 0 }} />
+                <input
+                    type="text"
+                    value={raw}
+                    placeholder="Escreva um comentário para exibir no tooltip..."
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        setDreComments(prev => {
+                            if (val === '') {
+                                const next = { ...prev };
+                                delete next[commentKey];
+                                return next;
+                            }
+                            return { ...prev, [commentKey]: val };
+                        });
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                            e.currentTarget.blur();
+                            if (e.key === 'Enter' && raw.trim() === '') {
+                                setOpenCommentKey(null);
+                            }
+                        }
+                    }}
+                    style={{
+                        flex: 1,
+                        padding: '3px 8px',
+                        fontSize: '0.76rem',
+                        border: '1px solid #d8b4fe',
+                        borderRadius: '6px',
+                        background: '#faf5ff',
+                        color: '#1e293b'
+                    }}
+                />
+                <button
+                    type="button"
+                    title="Remover comentário"
+                    onClick={() => {
+                        setDreComments(prev => {
+                            const next = { ...prev };
+                            delete next[commentKey];
+                            return next;
+                        });
+                        if (openCommentKey === commentKey) setOpenCommentKey(null);
+                    }}
+                    style={{
+                        border: 'none',
+                        background: '#f1f5f9',
+                        color: '#64748b',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        lineHeight: 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    ×
+                </button>
+            </div>
+        );
+    };
+
     const renderDreDetailsList = (key: DreOverrideKey, baseRefVal: number, parentTargetVal: number) => {
         if (dreAbsent[key]) return null;
         const group = dreDetails[key];
@@ -857,115 +980,123 @@ const ShopeePage: React.FC = () => {
                     };
 
                     const pct = baseRefVal > 0 ? porc((sub.valor / baseRefVal) * 100) : '0,00';
+                    const subCommentKey = `DETAIL_${key}_${sub.id}`;
 
                     return (
-                        <div key={sub.id} className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
-                            {isCorrectionMode ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
-                                    <button
-                                        type="button"
-                                        title="Remover parte"
-                                        onClick={() => {
-                                            setDreDetails(prev => {
-                                                const cur = prev[key];
-                                                if (!cur) return prev;
-                                                const nextItems = cur.items.filter(it => it.id !== sub.id);
-                                                if (nextItems.length === 0) {
-                                                    const next = { ...prev };
-                                                    delete next[key];
-                                                    return next;
-                                                }
-                                                return { ...prev, [key]: { ...cur, items: nextItems } };
-                                            });
-                                        }}
-                                        style={{
-                                            border: 'none',
-                                            background: '#fee2e2',
-                                            color: '#dc2626',
-                                            width: '18px',
-                                            height: '18px',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: 700,
-                                            fontSize: '0.78rem',
-                                            lineHeight: 1,
-                                            flexShrink: 0,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                    <input
-                                        type="text"
-                                        value={sub.label}
-                                        placeholder="Descrição da parte"
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setDreDetails(prev => {
-                                                const cur = prev[key];
-                                                if (!cur) return prev;
-                                                return { ...prev, [key]: { ...cur, items: cur.items.map(it => it.id === sub.id ? { ...it, label: val } : it) } };
-                                            });
-                                        }}
-                                        style={{
-                                            flex: 1,
-                                            minWidth: '90px',
-                                            padding: '2px 6px',
-                                            fontSize: '0.8rem',
-                                            border: '1px solid #d8b4fe',
-                                            borderRadius: '5px',
-                                            background: '#ffffff',
-                                            color: '#1e293b'
-                                        }}
-                                    />
-                                </div>
-                            ) : (
-                                <span style={{ color: '#64748b' }}>└ {sub.label || 'Parte'}</span>
-                            )}
-                            <div className="detail-values">
-                                <span className="perc">({pct}%)</span>
+                        <React.Fragment key={sub.id}>
+                            <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }} title={withCommentTitle(sub.label || 'Parte', subCommentKey)}>
                                 {isCorrectionMode ? (
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={displayValue}
-                                        onFocus={(e) => {
-                                            setCorrectionEditing({
-                                                key: editKey,
-                                                text: Number.isFinite(sub.valor) ? sub.valor.toFixed(2).replace('.', ',') : ''
-                                            });
-                                            e.currentTarget.select();
-                                        }}
-                                        onChange={(e) => setCorrectionEditing({ key: editKey, text: e.target.value })}
-                                        onBlur={(e) => commitSubVal(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') e.currentTarget.blur();
-                                            else if (e.key === 'Escape') {
-                                                setCorrectionEditing(null);
-                                                e.currentTarget.blur();
-                                            }
-                                        }}
-                                        style={{
-                                            width: '100px',
-                                            padding: '2px 6px',
-                                            fontSize: '0.82rem',
-                                            fontWeight: 700,
-                                            textAlign: 'right',
-                                            border: '1px solid #d8b4fe',
-                                            borderRadius: '6px',
-                                            background: '#ffffff',
-                                            color: '#1e293b'
-                                        }}
-                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
+                                        <button
+                                            type="button"
+                                            title="Remover parte"
+                                            onClick={() => {
+                                                setDreDetails(prev => {
+                                                    const cur = prev[key];
+                                                    if (!cur) return prev;
+                                                    const nextItems = cur.items.filter(it => it.id !== sub.id);
+                                                    if (nextItems.length === 0) {
+                                                        const next = { ...prev };
+                                                        delete next[key];
+                                                        return next;
+                                                    }
+                                                    return { ...prev, [key]: { ...cur, items: nextItems } };
+                                                });
+                                            }}
+                                            style={{
+                                                border: 'none',
+                                                background: '#fee2e2',
+                                                color: '#dc2626',
+                                                width: '18px',
+                                                height: '18px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                fontWeight: 700,
+                                                fontSize: '0.78rem',
+                                                lineHeight: 1,
+                                                flexShrink: 0,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            ×
+                                        </button>
+                                        <input
+                                            type="text"
+                                            value={sub.label}
+                                            placeholder="Descrição da parte"
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setDreDetails(prev => {
+                                                    const cur = prev[key];
+                                                    if (!cur) return prev;
+                                                    return { ...prev, [key]: { ...cur, items: cur.items.map(it => it.id === sub.id ? { ...it, label: val } : it) } };
+                                                });
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                minWidth: '90px',
+                                                padding: '2px 6px',
+                                                fontSize: '0.8rem',
+                                                border: '1px solid #d8b4fe',
+                                                borderRadius: '5px',
+                                                background: '#ffffff',
+                                                color: '#1e293b'
+                                            }}
+                                        />
+                                        {renderCommentControl(subCommentKey)}
+                                    </div>
                                 ) : (
-                                    <span className="val" style={{ color: '#64748b', fontWeight: 500 }}>
-                                        R$ {moeda(sub.valor)}
+                                    <span style={{ color: '#64748b', display: 'inline-flex', alignItems: 'center' }}>
+                                        └ {sub.label || 'Parte'}
+                                        {renderCommentControl(subCommentKey)}
                                     </span>
                                 )}
+                                <div className="detail-values">
+                                    <span className="perc">({pct}%)</span>
+                                    {isCorrectionMode ? (
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={displayValue}
+                                            onFocus={(e) => {
+                                                setCorrectionEditing({
+                                                    key: editKey,
+                                                    text: Number.isFinite(sub.valor) ? sub.valor.toFixed(2).replace('.', ',') : ''
+                                                });
+                                                e.currentTarget.select();
+                                            }}
+                                            onChange={(e) => setCorrectionEditing({ key: editKey, text: e.target.value })}
+                                            onBlur={(e) => commitSubVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                else if (e.key === 'Escape') {
+                                                    setCorrectionEditing(null);
+                                                    e.currentTarget.blur();
+                                                }
+                                            }}
+                                            style={{
+                                                width: '100px',
+                                                padding: '2px 6px',
+                                                fontSize: '0.82rem',
+                                                fontWeight: 700,
+                                                textAlign: 'right',
+                                                border: '1px solid #d8b4fe',
+                                                borderRadius: '6px',
+                                                background: '#ffffff',
+                                                color: '#1e293b'
+                                            }}
+                                        />
+                                    ) : (
+                                        <span className="val" style={{ color: '#64748b', fontWeight: 500 }}>
+                                            R$ {moeda(sub.valor)}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                            {renderCommentInputRow(subCommentKey)}
+                        </React.Fragment>
                     );
                 })}
 
@@ -1172,127 +1303,135 @@ const ShopeePage: React.FC = () => {
                     };
 
                     const pct = baseRefVal > 0 ? porc((item.valor / baseRefVal) * 100) : '0,00';
+                    const customCommentKey = `CUSTOM_${item.id}`;
 
                     return (
-                        <div key={item.id} className="detail-row" style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined}>
-                            {isCorrectionMode ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
-                                    <button
-                                        type="button"
-                                        title="Remover campo"
-                                        onClick={() => setCustomDreItems(prev => prev.filter(c => c.id !== item.id))}
-                                        style={{
-                                            border: 'none',
-                                            background: '#fee2e2',
-                                            color: '#dc2626',
-                                            width: '20px',
-                                            height: '20px',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: 700,
-                                            fontSize: '0.85rem',
-                                            lineHeight: 1,
-                                            flexShrink: 0,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                    <input
-                                        type="text"
-                                        value={item.label}
-                                        placeholder="Nome da taxa ou ajuste"
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: val } : c));
-                                        }}
-                                        style={{
-                                            flex: 1,
-                                            minWidth: '100px',
-                                            padding: '2px 6px',
-                                            fontSize: '0.82rem',
-                                            border: '1px solid #d8b4fe',
-                                            borderRadius: '5px',
-                                            background: '#ffffff',
-                                            color: '#1e293b'
-                                        }}
-                                    />
-                                </div>
-                            ) : (
-                                <span>{item.label || 'Taxa/ajuste extra'}</span>
-                            )}
-
-                            <div className="detail-values">
-                                <span className="perc">({pct}%)</span>
+                        <React.Fragment key={item.id}>
+                            <div className="detail-row" style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} title={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
                                 {isCorrectionMode ? (
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
                                         <button
                                             type="button"
-                                            title={item.sign === '-' ? 'Desconto/taxa (subtrai). Clique para alternar para crédito (+)' : 'Crédito/acréscimo (soma). Clique para alternar para desconto (-)'}
-                                            onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, sign: c.sign === '-' ? '+' : '-' } : c))}
+                                            title="Remover campo"
+                                            onClick={() => setCustomDreItems(prev => prev.filter(c => c.id !== item.id))}
                                             style={{
-                                                border: '1px solid #d8b4fe',
-                                                background: item.sign === '-' ? '#fef2f2' : '#ecfdf5',
-                                                color: item.sign === '-' ? '#dc2626' : '#059669',
-                                                width: '24px',
-                                                height: '24px',
-                                                borderRadius: '5px',
+                                                border: 'none',
+                                                background: '#fee2e2',
+                                                color: '#dc2626',
+                                                width: '20px',
+                                                height: '20px',
+                                                borderRadius: '4px',
                                                 cursor: 'pointer',
-                                                fontWeight: 800,
-                                                fontSize: '0.9rem',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
                                                 lineHeight: 1,
+                                                flexShrink: 0,
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}
                                         >
-                                            {item.sign}
+                                            ×
                                         </button>
                                         <input
                                             type="text"
-                                            inputMode="decimal"
-                                            value={displayValue}
-                                            onFocus={(e) => {
-                                                setCorrectionEditing({
-                                                    key: editKey,
-                                                    text: Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : ''
-                                                });
-                                                e.currentTarget.select();
-                                            }}
+                                            value={item.label}
+                                            placeholder="Nome da taxa ou ajuste"
                                             onChange={(e) => {
-                                                setCorrectionEditing({ key: editKey, text: e.target.value });
-                                            }}
-                                            onBlur={(e) => commitCustomVal(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.currentTarget.blur();
-                                                } else if (e.key === 'Escape') {
-                                                    setCorrectionEditing(null);
-                                                    e.currentTarget.blur();
-                                                }
+                                                const val = e.target.value;
+                                                setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: val } : c));
                                             }}
                                             style={{
-                                                width: '72px',
+                                                flex: 1,
+                                                minWidth: '100px',
                                                 padding: '2px 6px',
-                                                fontSize: '0.85rem',
-                                                fontWeight: 700,
-                                                textAlign: 'right',
-                                                border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
-                                                borderRadius: '6px',
-                                                background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
+                                                fontSize: '0.82rem',
+                                                border: '1px solid #d8b4fe',
+                                                borderRadius: '5px',
+                                                background: '#ffffff',
                                                 color: '#1e293b'
                                             }}
                                         />
+                                        {renderCommentControl(customCommentKey)}
                                     </div>
                                 ) : (
-                                    <span className={`val ${item.sign === '-' ? 'text-red' : 'text-green'}`}>
-                                        {item.sign} R$ {moeda(item.valor)}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                        {item.label || 'Taxa/ajuste extra'}
+                                        {renderCommentControl(customCommentKey)}
                                     </span>
                                 )}
+
+                                <div className="detail-values">
+                                    <span className="perc">({pct}%)</span>
+                                    {isCorrectionMode ? (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <button
+                                                type="button"
+                                                title={item.sign === '-' ? 'Desconto/taxa (subtrai). Clique para alternar para crédito (+)' : 'Crédito/acréscimo (soma). Clique para alternar para desconto (-)'}
+                                                onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, sign: c.sign === '-' ? '+' : '-' } : c))}
+                                                style={{
+                                                    border: '1px solid #d8b4fe',
+                                                    background: item.sign === '-' ? '#fef2f2' : '#ecfdf5',
+                                                    color: item.sign === '-' ? '#dc2626' : '#059669',
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '5px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 800,
+                                                    fontSize: '0.9rem',
+                                                    lineHeight: 1,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                            >
+                                                {item.sign}
+                                            </button>
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={displayValue}
+                                                onFocus={(e) => {
+                                                    setCorrectionEditing({
+                                                        key: editKey,
+                                                        text: Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : ''
+                                                    });
+                                                    e.currentTarget.select();
+                                                }}
+                                                onChange={(e) => {
+                                                    setCorrectionEditing({ key: editKey, text: e.target.value });
+                                                }}
+                                                onBlur={(e) => commitCustomVal(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.currentTarget.blur();
+                                                    } else if (e.key === 'Escape') {
+                                                        setCorrectionEditing(null);
+                                                        e.currentTarget.blur();
+                                                    }
+                                                }}
+                                                style={{
+                                                    width: '72px',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 700,
+                                                    textAlign: 'right',
+                                                    border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                                                    borderRadius: '6px',
+                                                    background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
+                                                    color: '#1e293b'
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <span className={`val ${item.sign === '-' ? 'text-red' : 'text-green'}`}>
+                                            {item.sign} R$ {moeda(item.valor)}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                            {renderCommentInputRow(customCommentKey)}
+                        </React.Fragment>
                     );
                 })}
                 {isCorrectionMode && (
@@ -2515,11 +2654,11 @@ const ShopeePage: React.FC = () => {
                                                         Resultado desatualizado
                                                     </span>
                                                 )}
-                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean) || Object.keys(dreDetails).length > 0) && (
+                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean) || Object.keys(dreDetails).length > 0 || Object.values(dreComments).some(c => c.trim().length > 0)) && (
                                                     <button
                                                         type="button"
                                                         className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
-                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); }}
+                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); setDreComments({}); setOpenCommentKey(null); }}
                                                         style={{
                                                             fontSize: '0.7rem',
                                                             fontWeight: 500,
@@ -2641,17 +2780,19 @@ const ShopeePage: React.FC = () => {
                                                                 </span>
                                                                 {dreAbsent.DR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                                 {renderDetailToggle('DR', activeResults.rebateValor)}
+                                                                {renderCommentControl('DR')}
                                                             </span>
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
-                                                                title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [DR]'}
+                                                                title={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [DR]', 'DR')}
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
                                                                 {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc(((dreAbsent.DR ? (baseResults?.rebateValor ?? 0) : activeResults.rebateValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
+                                                        {renderCommentInputRow('DR')}
                                                         {renderDreDetailsList('DR', activeResults.precoVenda, activeResults.rebateValor)}
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
                                                         <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0)) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
@@ -2678,17 +2819,19 @@ const ShopeePage: React.FC = () => {
                                                                 </span>
                                                                 {dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                                 {renderDetailToggle('CD', activeResults.cupomValor)}
+                                                                {renderCommentControl('CD')}
                                                             </span>
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
-                                                                title={activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]'}
+                                                                title={withCommentTitle(activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]', 'CD')}
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
                                                                 {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc(((dreAbsent.CD ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
+                                                        {renderCommentInputRow('CD')}
                                                         {renderDreDetailsList('CD', activeResults.precoVenda, activeResults.cupomValor)}
                                                     </>
                                                 )}
@@ -2748,17 +2891,19 @@ const ShopeePage: React.FC = () => {
                                                 </span>
                                                 {dreAbsent.CS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                 {renderDetailToggle('CS', activeResults.comissaoValor)}
+                                                {renderCommentControl('CS')}
                                             </span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: Calculada sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`}
+                                                title={withCommentTitle(`Ref.: Calculada sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`, 'CS')}
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc(((dreAbsent.CS ? (baseResults?.comissaoValor ?? 0) : activeResults.comissaoValor) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
+                                        {renderCommentInputRow('CS')}
                                         {renderDreDetailsList('CS', activeResults.baseCalculo, activeResults.comissaoValor)}
                                         <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -2768,17 +2913,19 @@ const ShopeePage: React.FC = () => {
                                                 </span>
                                                 {dreAbsent.TFS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                 {renderDetailToggle('TFS', activeResults.tarifaFixa)}
+                                                {renderCommentControl('TFS')}
                                             </span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})${(Number(qtdMultiplier) || 1) > 1 ? ` × ${Number(qtdMultiplier) || 1} un.` : ''}`}
+                                                title={withCommentTitle(`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})${(Number(qtdMultiplier) || 1) > 1 ? ` × ${Number(qtdMultiplier) || 1} un.` : ''}`, 'TFS')}
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc(((dreAbsent.TFS ? (baseResults?.tarifaFixa ?? 0) : activeResults.tarifaFixa) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
+                                        {renderCommentInputRow('TFS')}
                                         {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
                                         {(isCorrectionMode || (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0) && (
                                             <>
@@ -2790,17 +2937,19 @@ const ShopeePage: React.FC = () => {
                                                         </span>
                                                         {dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                         {renderDetailToggle('FPC', activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
+                                                        {renderCommentControl('FPC')}
                                                     </span>
                                                     <div
                                                         className="detail-values"
                                                         style={{ cursor: 'help' }}
-                                                        title="Ref.: Valor fixo informado no campo [FPC]"
+                                                        title={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
                                                         onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
                                                         {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0, '- ', 'val text-red', 'FPC', false, `${porc(((dreAbsent.FPC ? (baseResults?.freteValor ?? 0) : (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                     </div>
                                                 </div>
+                                                {renderCommentInputRow('FPC')}
                                                 {renderDreDetailsList('FPC', activeResults.precoVenda, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
                                             </>
                                         )}
@@ -2814,17 +2963,19 @@ const ShopeePage: React.FC = () => {
                                                         </span>
                                                         {dreAbsent.CR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                         {renderDetailToggle('CR', activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
+                                                        {renderCommentControl('CR')}
                                                     </span>
                                                     <div
                                                         className="detail-values"
                                                         style={{ cursor: 'help' }}
-                                                        title={activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]'}
+                                                        title={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]', 'CR')}
                                                         onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
                                                         {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0, '+ ', 'val text-green', 'CR', false, `${porc(((dreAbsent.CR ? (baseResults?.rebateValor ?? 0) : (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                     </div>
                                                 </div>
+                                                {renderCommentInputRow('CR')}
                                                 {renderDreDetailsList('CR', activeResults.precoVenda, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
                                             </>
                                         )}
@@ -3347,6 +3498,8 @@ const ShopeePage: React.FC = () => {
                                                                                         setDreAbsent({});
                                                                                         setDreDetails({});
                                                                                         setCustomDreItems([]);
+                                                                                        setDreComments({});
+                                                                                        setOpenCommentKey(null);
                                                                                         setIsCorrectionMode(false);
                                                                                         setIsResultStale(false);
                                                                                         setIsHistoryModalOpen(false);
