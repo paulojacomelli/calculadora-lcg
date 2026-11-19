@@ -25,7 +25,10 @@ import {
     ChevronLeft,
     ChevronRight,
     Truck,
-    Edit3
+    Edit3,
+    History,
+    Trash2,
+    X
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -120,6 +123,17 @@ const ShopeePage: React.FC = () => {
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', boolean>>>({});
     const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
+    const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [calcHistory, setCalcHistory] = useState<Array<{ id: string; sku: string; pa: number; lucro: number; createdAt: string }>>(() => {
+        try {
+            const raw = localStorage.getItem('shopee_calc_history_v1');
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    });
     const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
@@ -494,6 +508,23 @@ const ShopeePage: React.FC = () => {
 
         setResults(resultado);
         setLastCalculatedInputs(inputsCalc);
+
+        const newHistoryEntry = {
+            id: String(Date.now() + Math.random()),
+            sku: selectedCatalogProduct?.sku || 'Avulso',
+            pa: arredondar(resultado.precoVenda, 2),
+            lucro: arredondar(resultado.lucroLiquido, 2),
+            createdAt: new Date().toISOString()
+        };
+        setCalcHistory(prev => {
+            const next = [newHistoryEntry, ...prev].slice(0, 50);
+            try {
+                localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
+            } catch {
+                // ignore storage quota errors
+            }
+            return next;
+        });
 
         logCalculo(parseFloat(precoFinalStr), resultado.margemSobreVenda, "CNPJ");
     };
@@ -2894,6 +2925,168 @@ const ShopeePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Botão Flutuante de Histórico */}
+            <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(true)}
+                title="Histórico de cálculos"
+                style={{
+                    position: 'fixed',
+                    bottom: '1.5rem',
+                    right: '1.5rem',
+                    zIndex: 9990,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.65rem 1rem',
+                    borderRadius: '999px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#1e293b',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.14)',
+                    cursor: 'pointer'
+                }}
+            >
+                <History size={16} />
+                <span>Histórico</span>
+                {calcHistory.length > 0 && (
+                    <span style={{
+                        background: '#7c3aed',
+                        color: '#ffffff',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        lineHeight: 1.3
+                    }}>
+                        {calcHistory.length}
+                    </span>
+                )}
+            </button>
+
+            {/* Modal de Histórico de Cálculos */}
+            {isHistoryModalOpen && (
+                <div
+                    onClick={() => setIsHistoryModalOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        zIndex: 10000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1rem'
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            maxWidth: '520px',
+                            maxHeight: '80vh',
+                            background: '#ffffff',
+                            borderRadius: '14px',
+                            boxShadow: '0 20px 45px rgba(15, 23, 42, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.9rem 1.15rem',
+                            borderBottom: '1px solid #e2e8f0'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>
+                                <History size={17} color="#7c3aed" />
+                                <span>Histórico de Cálculos</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {calcHistory.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCalcHistory([]);
+                                            try {
+                                                localStorage.removeItem(SHOPEE_HISTORY_KEY);
+                                            } catch {
+                                                // ignore
+                                            }
+                                        }}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            borderRadius: '6px',
+                                            border: '1px solid #fecaca',
+                                            background: '#fef2f2',
+                                            color: '#dc2626',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Trash2 size={13} /> Limpar
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHistoryModalOpen(false)}
+                                    style={{
+                                        border: 'none',
+                                        background: '#f1f5f9',
+                                        color: '#475569',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '6px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer'
+                                    }}
+                                    title="Fechar"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem' }}>
+                            {calcHistory.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
+                                    Nenhum cálculo registrado ainda nesta máquina.
+                                </div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
+                                            <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
+                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
+                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {calcHistory.map((item) => (
+                                            <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={new Date(item.createdAt).toLocaleString('pt-BR')}>
+                                                <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>{item.sku}</td>
+                                                <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
+                                                <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Sistema de Notificações Toast */}
             {notification?.show && (
