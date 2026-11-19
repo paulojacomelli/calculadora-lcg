@@ -117,6 +117,7 @@ const ShopeePage: React.FC = () => {
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
     const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', number>>>({});
+    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', boolean>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
@@ -406,6 +407,7 @@ const ShopeePage: React.FC = () => {
     const executarCalculo = () => {
         setIsResultStale(false);
         setDreOverrides({});
+        setDreAbsent({});
         setCustomDreItems([]);
         setIsCorrectionMode(false);
         let resultado: ShopeeOutput;
@@ -523,20 +525,20 @@ const ShopeePage: React.FC = () => {
 
     const activeResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0) return baseResults;
+        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean)) return baseResults;
 
         const sumSection = (sec: 'STP' | 'VN' | 'PDS') =>
             customDreItems
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const rebateValor = dreOverrides.DR ?? baseResults.rebateValor;
-        const cupomValor = dreOverrides.CD ?? baseResults.cupomValor;
+        const rebateValor = dreAbsent.DR ? 0 : (dreOverrides.DR ?? baseResults.rebateValor);
+        const cupomValor = dreAbsent.CD ? 0 : (dreOverrides.CD ?? baseResults.cupomValor);
         const baseCalculo = arredondar(baseResults.precoVenda - rebateValor + sumSection('STP'), 2);
         const valorNota = arredondar(baseCalculo - cupomValor + sumSection('VN'), 2);
         const precoComCupom = arredondar(valorNota + (baseResults.freteValor || 0), 2);
-        const comissaoValor = dreOverrides.CS ?? baseResults.comissaoValor;
-        const tarifaFixa = dreOverrides.TFS ?? baseResults.tarifaFixa;
+        const comissaoValor = dreAbsent.CS ? 0 : (dreOverrides.CS ?? baseResults.comissaoValor);
+        const tarifaFixa = dreAbsent.TFS ? 0 : (dreOverrides.TFS ?? baseResults.tarifaFixa);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
         const despesaFixaValor = baseResults.despesaFixaValor;
@@ -578,6 +580,45 @@ const ShopeePage: React.FC = () => {
 
     type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS';
 
+    const renderAbsentToggle = (key: DreOverrideKey) => {
+        if (!isCorrectionMode) return null;
+        const isAbsent = !!dreAbsent[key];
+        return (
+            <button
+                type="button"
+                title={isAbsent ? 'Reativar tarifa prevista' : 'Marcar tarifa como ausente (não contabilizar)'}
+                onClick={() => {
+                    if (correctionEditing?.key === key) setCorrectionEditing(null);
+                    setDreAbsent(prev => {
+                        const next = { ...prev };
+                        if (next[key]) delete next[key];
+                        else next[key] = true;
+                        return next;
+                    });
+                }}
+                style={{
+                    border: 'none',
+                    background: isAbsent ? '#ede9fe' : '#f1f5f9',
+                    color: isAbsent ? '#7c3aed' : '#64748b',
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    lineHeight: 1,
+                    flexShrink: 0,
+                    marginRight: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+            >
+                {isAbsent ? '↺' : '×'}
+            </button>
+        );
+    };
+
     const renderDreValor = (
         originalVal: number,
         correctedVal: number,
@@ -587,6 +628,19 @@ const ShopeePage: React.FC = () => {
         bold?: boolean,
         percText?: string
     ) => {
+        if (overrideKey && dreAbsent[overrideKey]) {
+            return (
+                <>
+                    <span className="perc" style={{ textDecoration: 'line-through', color: '#94a3b8' }}>
+                        {percText ? `(${percText})` : ''}
+                    </span>
+                    <span className="val" style={{ textDecoration: 'line-through', color: '#94a3b8' }}>
+                        {prefix}R$ {moeda(originalVal)}
+                    </span>
+                </>
+            );
+        }
+
         const diff = arredondar(correctedVal - originalVal, 2);
         const hasDiff = Math.abs(diff) >= 0.005;
 
@@ -2072,10 +2126,10 @@ const ShopeePage: React.FC = () => {
                                                         Resultado desatualizado
                                                     </span>
                                                 )}
-                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0) && (
+                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean)) && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); }}
+                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); }}
                                                         style={{
                                                             fontSize: '0.72rem',
                                                             fontWeight: 700,
@@ -2188,8 +2242,14 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                                 {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)) && (
                                                     <>
-                                                        <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`}>
-                                                            <span>Desconto de Rebate {s('DR')}:</span>
+                                                        <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.DR ? { opacity: 0.6 } : undefined}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                {renderAbsentToggle('DR')}
+                                                                <span style={dreAbsent.DR ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                    Desconto de Rebate {s('DR')}:
+                                                                </span>
+                                                                {dreAbsent.DR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                            </span>
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
@@ -2197,7 +2257,7 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc(((dreAbsent.DR ? (baseResults?.rebateValor ?? 0) : activeResults.rebateValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
@@ -2216,8 +2276,14 @@ const ShopeePage: React.FC = () => {
                                                     </>
                                                 )}
                                                 {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
-                                                    <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`}>
-                                                        <span>Desconto aplicado {s('CD')}:</span>
+                                                    <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CD ? { opacity: 0.6 } : undefined}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                            {renderAbsentToggle('CD')}
+                                                            <span style={dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                Desconto aplicado {s('CD')}:
+                                                            </span>
+                                                            {dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        </span>
                                                         <div
                                                             className="detail-values"
                                                             style={{ cursor: 'help' }}
@@ -2225,7 +2291,7 @@ const ShopeePage: React.FC = () => {
                                                             onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
-                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc(((dreAbsent.CD ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                         </div>
                                                     </div>
                                                 )}
@@ -2277,8 +2343,14 @@ const ShopeePage: React.FC = () => {
                                         </div>
 
                                         <div className="details-group-header">Política da Shopee {s('PDS')} <HelpCircle size={14} style={{ display: 'inline', marginLeft: '4px', verticalAlign: 'middle', opacity: 0.6 }} /></div>
-                                        <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`}>
-                                            <span>Comissão Shopee {s('CS')}:</span>
+                                        <div className={`detail-row ${isRefHighlighted('CS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CS ? { opacity: 0.6 } : undefined}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                {renderAbsentToggle('CS')}
+                                                <span style={dreAbsent.CS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                    Comissão Shopee {s('CS')}:
+                                                </span>
+                                                {dreAbsent.CS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                            </span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
@@ -2286,11 +2358,17 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc((activeResults.comissaoValor || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
+                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc(((dreAbsent.CS ? (baseResults?.comissaoValor ?? 0) : activeResults.comissaoValor) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
-                                        <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`}>
-                                            <span>Tarifa Fixa Shopee {s('TFS')}:</span>
+                                        <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                {renderAbsentToggle('TFS')}
+                                                <span style={dreAbsent.TFS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                    Tarifa Fixa Shopee {s('TFS')}:
+                                                </span>
+                                                {dreAbsent.TFS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                            </span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
@@ -2298,7 +2376,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc((activeResults.tarifaFixa || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
+                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc(((dreAbsent.TFS ? (baseResults?.tarifaFixa ?? 0) : activeResults.tarifaFixa) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
                                         {(activeResults.freteValor ?? 0) > 0 && (
