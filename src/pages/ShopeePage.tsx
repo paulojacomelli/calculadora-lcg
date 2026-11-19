@@ -130,9 +130,11 @@ const ShopeePage: React.FC = () => {
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
     const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
     const [isViewingOriginal, setIsViewingOriginal] = useState(false);
+    const [orderNumber, setOrderNumber] = useState<string>('');
     type CalcHistoryEntry = {
         id: string;
         sku: string;
+        orderNumber?: string;
         pa: number;
         vn?: number;
         repasse?: number;
@@ -625,6 +627,7 @@ const ShopeePage: React.FC = () => {
         const newHistoryEntry: CalcHistoryEntry = {
             id: existingMatch ? existingMatch.id : String(Date.now() + Math.random()),
             sku: entrySku,
+            orderNumber: orderNumber.trim() || existingMatch?.orderNumber || undefined,
             pa: entryPa,
             vn: originalVnVal,
             repasse: originalRepasseVal,
@@ -693,6 +696,7 @@ const ShopeePage: React.FC = () => {
         setOpenCommentKey(null);
         setActiveHistoryId(null);
         setIsViewingOriginal(false);
+        setOrderNumber('');
         setIsResetModalOpen(false);
     };
 
@@ -742,6 +746,7 @@ const ShopeePage: React.FC = () => {
         setDreComments(snap?.dreComments ?? {});
         setOpenCommentKey(null);
         setActiveHistoryId(item.id);
+        setOrderNumber(item.orderNumber ?? '');
         setIsViewingOriginal(viewOriginal);
         setIsCorrectionMode(false);
         setIsResultStale(false);
@@ -844,7 +849,8 @@ const ShopeePage: React.FC = () => {
         const nextCorrections = hasAnyCorrection
             ? { dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments }
             : undefined;
-        const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, c: nextCorrections });
+        const nextOrderNumber = orderNumber.trim() || undefined;
+        const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, on: nextOrderNumber, c: nextCorrections });
 
         setCalcHistory(prev => {
             const targetId = activeHistoryId ?? prev[0]?.id;
@@ -852,10 +858,11 @@ const ShopeePage: React.FC = () => {
             const idx = prev.findIndex(h => h.id === targetId);
             if (idx === -1) return prev;
             const cur = prev[idx];
-            const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, c: cur.correctionsSnapshot });
+            const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, on: cur.orderNumber, c: cur.correctionsSnapshot });
             if (curFingerprint === nextFingerprint) return prev;
             const updated: CalcHistoryEntry = {
                 ...cur,
+                orderNumber: nextOrderNumber,
                 vn: nextVn,
                 repasse: nextRepasse,
                 lucro: nextLucro,
@@ -869,7 +876,7 @@ const ShopeePage: React.FC = () => {
             syncHistoryToFirestore(next);
             return next;
         });
-    }, [dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments, correctedResults, baseResults, activeHistoryId, hasAnyCorrection]);
+    }, [dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments, orderNumber, correctedResults, baseResults, activeHistoryId, hasAnyCorrection]);
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
@@ -2910,29 +2917,72 @@ const ShopeePage: React.FC = () => {
                                                 : `Preço Ideal (${tipoMargemIdeal === 'custo' ? 'Sobre o Custo' : tipoMargemIdeal === 'venda' ? 'Sobre a Venda' : 'Valor R$'}${margemDesejada !== undefined ? ` • ${tipoMargemIdeal === 'reais' ? `R$ ${moeda(margemDesejada)}` : `${porc(margemDesejada)}%`}` : ''})`;
 
                                             return (
-                                                <div className="dre-print-only dre-print-block dre-print-params">
-                                                    <div className="dre-print-params-top">
-                                                        <div>
-                                                            <strong>Produto / SKU:</strong>{' '}
-                                                            {selectedCatalogProduct
-                                                                ? `[${selectedCatalogProduct._wh}] ${selectedCatalogProduct.sku} — ${selectedCatalogProduct.descricao || 'Sem descrição'}`
-                                                                : 'Avulso'}
+                                                <>
+                                                    <div
+                                                        className="no-print"
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            marginBottom: '0.75rem'
+                                                        }}
+                                                    >
+                                                        <label
+                                                            htmlFor="dre-order-number"
+                                                            style={{
+                                                                fontSize: '0.78rem',
+                                                                fontWeight: 600,
+                                                                color: '#64748b',
+                                                                whiteSpace: 'nowrap'
+                                                            }}
+                                                        >
+                                                            Nº do Pedido:
+                                                        </label>
+                                                        <input
+                                                            id="dre-order-number"
+                                                            type="text"
+                                                            value={orderNumber}
+                                                            onChange={(e) => setOrderNumber(e.target.value)}
+                                                            placeholder="Inserir número do pedido (opcional)"
+                                                            style={{
+                                                                maxWidth: '260px',
+                                                                flex: 1,
+                                                                padding: '4px 9px',
+                                                                fontSize: '0.8rem',
+                                                                borderRadius: '6px',
+                                                                border: '1px solid #cbd5e1',
+                                                                background: '#f8fafc',
+                                                                color: '#1e293b'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="dre-print-only dre-print-block dre-print-params">
+                                                        <div className="dre-print-params-top">
+                                                            <div>
+                                                                <strong>Produto / SKU:</strong>{' '}
+                                                                {selectedCatalogProduct
+                                                                    ? `[${selectedCatalogProduct._wh}] ${selectedCatalogProduct.sku} — ${selectedCatalogProduct.descricao || 'Sem descrição'}`
+                                                                    : 'Avulso'}
+                                                            </div>
+                                                            {orderNumber.trim() && (
+                                                                <div><strong>Nº Pedido:</strong> {orderNumber.trim()}</div>
+                                                            )}
+                                                            <div><strong>Modo:</strong> {modoLabel}</div>
+                                                            <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
                                                         </div>
-                                                        <div><strong>Modo:</strong> {modoLabel}</div>
-                                                        <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
+                                                        <div className="dre-print-params-grid">
+                                                            <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
+                                                            <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
+                                                            <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
+                                                            <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
+                                                            <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
+                                                            <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
+                                                            <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
+                                                            <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
+                                                            <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="dre-print-params-grid">
-                                                        <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
-                                                        <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
-                                                        <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
-                                                        <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
-                                                        <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
-                                                        <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
-                                                    </div>
-                                                </div>
+                                                </>
                                             );
                                         })()}
                                         <div className="dre-summary-box" style={{
@@ -3499,7 +3549,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '940px',
+                            maxWidth: '1040px',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3592,6 +3642,7 @@ const ShopeePage: React.FC = () => {
                                       const repasseRaw = item.repasse ?? item.resultsSnapshot?.repasse ?? 0;
                                       return (
                                           item.sku.toLowerCase().includes(q) ||
+                                          (item.orderNumber ?? '').toLowerCase().includes(q) ||
                                           moeda(item.pa).toLowerCase().includes(q) ||
                                           moeda(vnRaw).toLowerCase().includes(q) ||
                                           moeda(repasseRaw).toLowerCase().includes(q) ||
@@ -3651,7 +3702,7 @@ const ShopeePage: React.FC = () => {
                                                     setHistorySearch(e.target.value);
                                                     setHistoryPage(1);
                                                 }}
-                                                placeholder="Buscar por SKU, PA, VN, Repasse, Lucro ou data (DD/MM/AAAA)..."
+                                                placeholder="Buscar por SKU, Pedido, PA, VN, Repasse, Lucro ou data (DD/MM/AAAA)..."
                                                 style={{
                                                     flex: 1,
                                                     border: 'none',
@@ -3697,6 +3748,7 @@ const ShopeePage: React.FC = () => {
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem' }}>
                                                     <th style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>SKU</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>Pedido</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço Anunciado {s('PA')}</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Repasse</th>
@@ -3709,7 +3761,7 @@ const ShopeePage: React.FC = () => {
                                                     <React.Fragment key={group.dayKey}>
                                                         <tr>
                                                             <td
-                                                                colSpan={6}
+                                                                colSpan={7}
                                                                 style={{
                                                                     padding: '0.55rem 0.4rem 0.35rem',
                                                                     fontSize: '0.74rem',
@@ -3745,6 +3797,55 @@ const ShopeePage: React.FC = () => {
                                                                                 {timeStr}
                                                                             </span>
                                                                         )}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem' }}>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={item.orderNumber ?? ''}
+                                                                            placeholder="Nº pedido"
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                if (activeHistoryId === item.id) {
+                                                                                    setOrderNumber(val);
+                                                                                }
+                                                                                setCalcHistory(prev => {
+                                                                                    const next = prev.map(h =>
+                                                                                        h.id === item.id ? { ...h, orderNumber: val || undefined } : h
+                                                                                    );
+                                                                                    try {
+                                                                                        localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
+                                                                                    } catch {
+                                                                                        // ignore storage quota errors
+                                                                                    }
+                                                                                    return next;
+                                                                                });
+                                                                            }}
+                                                                            onBlur={(e) => {
+                                                                                const trimmed = e.target.value.trim();
+                                                                                if (activeHistoryId === item.id) {
+                                                                                    setOrderNumber(trimmed);
+                                                                                }
+                                                                                setCalcHistory(prev => {
+                                                                                    const next = prev.map(h =>
+                                                                                        h.id === item.id ? { ...h, orderNumber: trimmed || undefined } : h
+                                                                                    );
+                                                                                    syncHistoryToFirestore(next);
+                                                                                    return next;
+                                                                                });
+                                                                            }}
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') e.currentTarget.blur();
+                                                                            }}
+                                                                            style={{
+                                                                                width: '128px',
+                                                                                padding: '3px 7px',
+                                                                                fontSize: '0.78rem',
+                                                                                borderRadius: '6px',
+                                                                                border: '1px solid #cbd5e1',
+                                                                                background: item.orderNumber ? '#ffffff' : '#f8fafc',
+                                                                                color: '#1e293b'
+                                                                            }}
+                                                                        />
                                                                     </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>

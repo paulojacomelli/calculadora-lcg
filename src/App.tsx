@@ -135,7 +135,7 @@ const Footer: React.FC = () => {
           </div>
 
           <p className="footer-copyright">
-            © {new Date().getFullYear()} Calculadora LCG. Todos os direitos reservados. | Versão {APP_VERSION} • {APP_VERSION_DATE}
+            © {new Date().getFullYear()} Calculadora LCG • Todos os direitos reservados • Versão {APP_VERSION} • {APP_VERSION_DATE}
           </p>
         </div>
       </div>
