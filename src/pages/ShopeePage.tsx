@@ -124,12 +124,7 @@ const ShopeePage: React.FC = () => {
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', boolean>>>({});
     const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
-    const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-    const [historyPage, setHistoryPage] = useState(1);
-    const [historySearch, setHistorySearch] = useState('');
-    const HISTORY_PAGE_SIZE = 10;
-    const [calcHistory, setCalcHistory] = useState<Array<{
+    type CalcHistoryEntry = {
         id: string;
         sku: string;
         pa: number;
@@ -139,18 +134,29 @@ const ShopeePage: React.FC = () => {
         qtdMultiplier?: string;
         inputsSnapshot?: ShopeeInput;
         resultsSnapshot?: ShopeeOutput;
-    }>>(() => {
+    };
+
+    const dedupeHistoryItems = (items: CalcHistoryEntry[]): CalcHistoryEntry[] => {
+        const seen = new Set<string>();
+        return items.filter((item) => {
+            const key = `${item.sku}|${item.pa}|${item.vn ?? item.resultsSnapshot?.valorNota ?? ''}|${item.lucro}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    };
+
+    const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historySearch, setHistorySearch] = useState('');
+    const HISTORY_PAGE_SIZE = 10;
+    const [calcHistory, setCalcHistory] = useState<CalcHistoryEntry[]>(() => {
         try {
             const raw = localStorage.getItem('shopee_calc_history_v1');
             const parsed = raw ? JSON.parse(raw) : [];
             if (!Array.isArray(parsed)) return [];
-            const seen = new Set<string>();
-            return parsed.filter((item: any) => {
-                const key = `${item.sku}|${item.pa}|${item.vn ?? item.resultsSnapshot?.valorNota ?? ''}|${item.lucro}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
+            return dedupeHistoryItems(parsed);
         } catch {
             return [];
         }
@@ -170,6 +176,30 @@ const ShopeePage: React.FC = () => {
     const [passwordError, setPasswordError] = useState<boolean>(false);
     const [passwordErrorMessage, setPasswordErrorMessage] = useState<string | null>(null);
 
+    const syncHistoryToFirestore = (nextHistory: CalcHistoryEntry[]) => {
+        try {
+            if (nextHistory.length === 0) {
+                localStorage.removeItem(SHOPEE_HISTORY_KEY);
+            } else {
+                localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(nextHistory));
+            }
+        } catch {
+            // ignore storage quota errors
+        }
+
+        if (user) {
+            try {
+                const sanitized = JSON.parse(JSON.stringify(nextHistory));
+                setDoc(doc(db, 'users', user.uid, 'settings', 'shopee_history'), {
+                    items: sanitized,
+                    updatedAt: new Date().toISOString()
+                }).catch((err) => console.error('Erro ao salvar histórico no Firestore:', err));
+            } catch (err) {
+                console.error('Erro ao serializar histórico para o Firestore:', err);
+            }
+        }
+    };
+
     useEffect(() => {
         if (user) {
             const loadUserData = async () => {
@@ -183,6 +213,24 @@ const ShopeePage: React.FC = () => {
                         if (data.tipoMargemIdeal) setTipoMargemIdeal(data.tipoMargemIdeal);
                         if (data.isAdvancedOpen !== undefined) setIsAdvancedOpen(data.isAdvancedOpen);
                         isInitialLoadDone.current = true;
+                    }
+
+                    const historyRef = doc(db, 'users', user.uid, 'settings', 'shopee_history');
+                    const historySnap = await getDoc(historyRef);
+                    if (historySnap.exists()) {
+                        const cloudItems = Array.isArray(historySnap.data()?.items) ? historySnap.data().items : [];
+                        const deduped = dedupeHistoryItems(cloudItems);
+                        setCalcHistory(deduped);
+                        try {
+                            localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(deduped));
+                        } catch {
+                            // ignore storage quota errors
+                        }
+                    } else if (calcHistory.length > 0) {
+                        await setDoc(historyRef, {
+                            items: JSON.parse(JSON.stringify(calcHistory)),
+                            updatedAt: new Date().toISOString()
+                        });
                     }
 
                     const [cloudSP, cloudSC] = await Promise.all([
@@ -546,11 +594,7 @@ const ShopeePage: React.FC = () => {
                 h => !(h.sku === newHistoryEntry.sku && h.pa === newHistoryEntry.pa && (h.vn ?? h.resultsSnapshot?.valorNota) === newHistoryEntry.vn && h.lucro === newHistoryEntry.lucro)
             );
             const next = [newHistoryEntry, ...filtered].slice(0, 50);
-            try {
-                localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
-            } catch {
-                // ignore storage quota errors
-            }
+            syncHistoryToFirestore(next);
             return next;
         });
 
@@ -3041,11 +3085,7 @@ const ShopeePage: React.FC = () => {
                                         type="button"
                                         onClick={() => {
                                             setCalcHistory([]);
-                                            try {
-                                                localStorage.removeItem(SHOPEE_HISTORY_KEY);
-                                            } catch {
-                                                // ignore
-                                            }
+                                            syncHistoryToFirestore([]);
                                         }}
                                         style={{
                                             display: 'inline-flex',
@@ -3091,7 +3131,7 @@ const ShopeePage: React.FC = () => {
                                 return (
                                     <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem' }}>
                                         <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
-                                            Nenhum cálculo registrado ainda nesta máquina.
+                                            Nenhum cálculo registrado no histórico.
                                         </div>
                                     </div>
                                 );
@@ -3300,11 +3340,7 @@ const ShopeePage: React.FC = () => {
                                                                                 onClick={() => {
                                                                                     setCalcHistory(prev => {
                                                                                         const next = prev.filter(h => h.id !== item.id);
-                                                                                        try {
-                                                                                            localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
-                                                                                        } catch {
-                                                                                            // ignore
-                                                                                        }
+                                                                                        syncHistoryToFirestore(next);
                                                                                         return next;
                                                                                     });
                                                                                 }}
