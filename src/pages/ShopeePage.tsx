@@ -2878,7 +2878,7 @@ const ShopeePage: React.FC = () => {
                                                 ) : (
                                                     <button
                                                         type="button"
-                                                        className={`dre-correction-btn ${orderNumber.trim() ? 'active' : ''}`}
+                                                        className="dre-correction-btn"
                                                         onClick={() => setIsEditingOrderNumber(true)}
                                                         style={{
                                                             fontSize: '0.7rem',
