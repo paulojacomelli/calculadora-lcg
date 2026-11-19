@@ -78,6 +78,7 @@ const defaultInputs: ShopeeInput = {
     cupomDesconto: undefined,
     cupomTipo: '',
     fretePagoCliente: undefined,
+    freteCobradoVendedor: undefined,
     fatorAlavancagem: undefined
 };
 
@@ -122,9 +123,9 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', number>>>({});
-    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', boolean>>>({});
-    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
+    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
+    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [dreComments, setDreComments] = useState<Record<string, string>>({});
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
@@ -153,9 +154,9 @@ const ShopeePage: React.FC = () => {
         margemDesejadaSnapshot?: number;
         resultsSnapshot?: ShopeeOutput;
         correctionsSnapshot?: {
-            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', number>>;
-            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', boolean>>;
-            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
+            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>;
+            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>;
+            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
             customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>;
             dreComments?: Record<string, string>;
         };
@@ -536,7 +537,8 @@ const ShopeePage: React.FC = () => {
             ...inputs,
             custoProduto: inputs.custoProduto !== undefined ? inputs.custoProduto * (Number(qtdMultiplier) || 1) : undefined,
             qtdAnuncio: Number(qtdMultiplier) || 1,
-            fretePagoCliente: aba === 'margem' ? inputs.fretePagoCliente : undefined
+            fretePagoCliente: aba === 'margem' ? inputs.fretePagoCliente : undefined,
+            freteCobradoVendedor: aba === 'margem' ? inputs.freteCobradoVendedor : undefined
         };
 
         // 1. Determina o resultado principal (DRE) - Sempre baseado no PA manual do usuário
@@ -783,7 +785,7 @@ const ShopeePage: React.FC = () => {
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR', baseVal: number) => {
+        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', baseVal: number) => {
             if (dreAbsent[key]) return 0;
             const det = dreDetails[key];
             if (det && det.items.length > 0) {
@@ -801,6 +803,7 @@ const ShopeePage: React.FC = () => {
         const comissaoValor = resolveKeyVal('CS', baseResults.comissaoValor);
         const tarifaFixa = resolveKeyVal('TFS', baseResults.tarifaFixa);
         const freteDebitoValor = resolveKeyVal('FPC', freteValor);
+        const freteVendedorValor = resolveKeyVal('FPS', baseResults.freteVendedorValor || 0);
         const creditoRebateValor = resolveKeyVal('CR', rebateValor);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
@@ -808,7 +811,7 @@ const ShopeePage: React.FC = () => {
         const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
-            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor - (baseResults.freteVendedorValor || 0) + creditoRebateValor + sumSection('PDS'),
+            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor - freteVendedorValor + creditoRebateValor + sumSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
@@ -823,6 +826,7 @@ const ShopeePage: React.FC = () => {
             rebateValor,
             cupomValor,
             freteValor,
+            freteVendedorValor,
             baseCalculo,
             valorNota,
             precoComCupom,
@@ -884,7 +888,7 @@ const ShopeePage: React.FC = () => {
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'CR';
+    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR';
 
     const renderAbsentToggle = (key: DreOverrideKey) => {
         if (!isCorrectionMode) return null;
@@ -2339,29 +2343,55 @@ const ShopeePage: React.FC = () => {
                             </div>
 
                             {aba === 'margem' && (
-                                <div className={`input-group ${isRefHighlighted('INPUT_FPC') ? 'dre-ref-pulse' : ''}`}>
-                                    <label><Truck size={16} /> Frete pago pelo cliente (R$) {s('FPC')}</label>
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="fretePagoCliente"
-                                        autoComplete="off"
-                                        value={getInputValue('fretePagoCliente', inputs.fretePagoCliente)}
-                                        onFocus={() => {
-                                            setFocusedInput('fretePagoCliente');
-                                            setFocusedValue(inputs.fretePagoCliente !== undefined ? inputs.fretePagoCliente.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                            triggerCalculation();
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        placeholder="Não informado"
-                                    />
-                                    <span className="input-hint">Não altera o lucro. Informe o frete que o cliente paga</span>
-                                </div>
+                                <>
+                                    <div className={`input-group ${isRefHighlighted('INPUT_FPC') ? 'dre-ref-pulse' : ''}`}>
+                                        <label><Truck size={16} /> Frete pago pelo cliente (R$) {s('FPC')}</label>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="fretePagoCliente"
+                                            autoComplete="off"
+                                            value={getInputValue('fretePagoCliente', inputs.fretePagoCliente)}
+                                            onFocus={() => {
+                                                setFocusedInput('fretePagoCliente');
+                                                setFocusedValue(inputs.fretePagoCliente !== undefined ? inputs.fretePagoCliente.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            placeholder="Não informado"
+                                        />
+                                        <span className="input-hint">Não altera o lucro. Informe o frete que o cliente paga</span>
+                                    </div>
+                                    <div className={`input-group ${isRefHighlighted('INPUT_FPS') ? 'dre-ref-pulse' : ''}`}>
+                                        <label><Truck size={16} /> Frete pago pela Shopee (R$) {s('FPS')}</label>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="freteCobradoVendedor"
+                                            autoComplete="off"
+                                            value={getInputValue('freteCobradoVendedor', inputs.freteCobradoVendedor)}
+                                            onFocus={() => {
+                                                setFocusedInput('freteCobradoVendedor');
+                                                setFocusedValue(inputs.freteCobradoVendedor !== undefined ? inputs.freteCobradoVendedor.toFixed(2).replace('.', ',') : '');
+                                            }}
+                                            onBlur={() => {
+                                                setFocusedInput(null);
+                                                setFocusedValue('');
+                                                triggerCalculation();
+                                            }}
+                                            onChange={handleChange}
+                                            onWheel={handleWheel}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="Não informado"
+                                        />
+                                        <span className="input-hint">Descontado pela Shopee no repasse</span>
+                                    </div>
+                                </>
                             )}
 
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
@@ -2992,6 +3022,7 @@ const ShopeePage: React.FC = () => {
                                                         <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
                                                         <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
                                                         <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
+                                                        <div><span>Frete Shopee [FPS]:</span><strong>R$ {moeda(activeInputs.freteCobradoVendedor ?? activeResults.freteVendedorValor ?? 0)}</strong></div>
                                                         <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
                                                         <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
                                                         <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
@@ -3244,32 +3275,92 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         {renderCommentInputRow('TFS')}
                                         {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
-                                        {(isCorrectionMode || (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.freteValor ?? 0) > 0)) && (
-                                            <>
-                                                <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                        {renderAbsentToggle('FPC')}
-                                                        <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                            Frete pago pelo cliente {s('FPC')}:
-                                                        </span>
-                                                        {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                        {renderDetailToggle('FPC', activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
-                                                        {renderCommentControl('FPC')}
-                                                    </span>
-                                                    <div
-                                                        className="detail-values"
-                                                        style={{ cursor: 'help' }}
-                                                        title={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
-                                                        onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
-                                                        onMouseLeave={() => setHighlightedRefs([])}
-                                                    >
-                                                        {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? (baseResults?.freteValor ?? 0) : (activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                        {(() => {
+                                            const fpcDebVal = activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0;
+                                            const fpsDebVal = activeResults.freteVendedorValor ?? 0;
+                                            const baseFpcDebVal = baseResults?.freteValor ?? 0;
+                                            const baseFpsDebVal = baseResults?.freteVendedorValor ?? 0;
+                                            const totalFreteVal = arredondar(fpcDebVal + fpsDebVal, 2);
+                                            const baseTotalFreteVal = arredondar(baseFpcDebVal + baseFpsDebVal, 2);
+                                            const showTotalFrete = isCorrectionMode || totalFreteVal > 0 || (!isViewingOriginal && baseTotalFreteVal > 0);
+                                            const showFpcSub = isCorrectionMode || fpcDebVal > 0 || (!isViewingOriginal && baseFpcDebVal > 0);
+                                            const showFpsSub = isCorrectionMode || fpsDebVal > 0 || (!isViewingOriginal && baseFpsDebVal > 0);
+
+                                            if (!showTotalFrete) return null;
+
+                                            return (
+                                                <>
+                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') || isRefHighlighted('FPS') ? 'dre-ref-pulse' : ''}`}>
+                                                        <span style={{ fontWeight: 600 }}>Total de Frete:</span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            title={`Ref.: Frete pago pelo cliente [FPC] (R$ ${moeda(fpcDebVal)}) + Frete pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})`}
+                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            {renderDreValor(baseTotalFreteVal, totalFreteVal, '- ', 'val text-red', undefined, true, `${porc((totalFreteVal || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                {renderCommentInputRow('FPC')}
-                                                {renderDreDetailsList('FPC', activeResults.precoVenda, activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)}
-                                            </>
-                                        )}
+                                                    {(showFpcSub || showFpsSub) && (
+                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+                                                            {showFpcSub && (
+                                                                <>
+                                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC) ? { opacity: 0.6 } : {}) }}>
+                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                            {renderAbsentToggle('FPC')}
+                                                                            <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                                └ Frete pago pelo cliente {s('FPC')}:
+                                                                            </span>
+                                                                            {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                            {renderDetailToggle('FPC', fpcDebVal)}
+                                                                            {renderCommentControl('FPC')}
+                                                                        </span>
+                                                                        <div
+                                                                            className="detail-values"
+                                                                            style={{ cursor: 'help' }}
+                                                                            title={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
+                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                                        >
+                                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                        </div>
+                                                                    </div>
+                                                                    {renderCommentInputRow('FPC')}
+                                                                    {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
+                                                                </>
+                                                            )}
+                                                            {showFpsSub && (
+                                                                <>
+                                                                    <div className={`detail-row ${isRefHighlighted('FPS') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
+                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                            {renderAbsentToggle('FPS')}
+                                                                            <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                                └ Frete pago pela Shopee {s('FPS')}:
+                                                                            </span>
+                                                                            {!isViewingOriginal && dreAbsent.FPS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                            {renderDetailToggle('FPS', fpsDebVal)}
+                                                                            {renderCommentControl('FPS')}
+                                                                        </span>
+                                                                        <div
+                                                                            className="detail-values"
+                                                                            style={{ cursor: 'help' }}
+                                                                            title={withCommentTitle("Ref.: Valor fixo informado no campo [FPS]", 'FPS')}
+                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
+                                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                                        >
+                                                                            {renderDreValor(baseFpsDebVal, fpsDebVal, '- ', 'val text-red', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                        </div>
+                                                                    </div>
+                                                                    {renderCommentInputRow('FPS')}
+                                                                    {renderDreDetailsList('FPS', activeResults.precoVenda, fpsDebVal)}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                         {(isCorrectionMode || (activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.rebateValor ?? 0) > 0)) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('CR') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CR ? { opacity: 0.6 } : undefined}>
