@@ -1360,11 +1360,12 @@ const ShopeePage: React.FC = () => {
                                             style={{
                                                 flex: 1,
                                                 minWidth: '90px',
-                                                padding: '2px 6px',
+                                                padding: '2px 4px',
                                                 fontSize: '0.8rem',
-                                                border: '1px solid #d8b4fe',
-                                                borderRadius: '5px',
-                                                background: '#ffffff',
+                                                border: 'none',
+                                                borderBottom: '1px solid #d8b4fe',
+                                                borderRadius: 0,
+                                                background: 'transparent',
                                                 color: '#1e293b',
                                                 outline: 'none'
                                             }}
@@ -1678,11 +1679,12 @@ const ShopeePage: React.FC = () => {
                                                 style={{
                                                     width: '100%',
                                                     boxSizing: 'border-box',
-                                                    padding: '2px 6px',
+                                                    padding: '2px 4px',
                                                     fontSize: '0.82rem',
-                                                    border: '1px solid #d8b4fe',
-                                                    borderRadius: '5px',
-                                                    background: '#ffffff',
+                                                    border: 'none',
+                                                    borderBottom: '1px solid #d8b4fe',
+                                                    borderRadius: 0,
+                                                    background: 'transparent',
                                                     color: '#1e293b',
                                                     outline: 'none'
                                                 }}
