@@ -126,7 +126,7 @@ const ShopeePage: React.FC = () => {
     const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
     const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
-    const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
+    const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>>([]);
     const [dreComments, setDreComments] = useState<Record<string, string>>({});
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
     const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
@@ -157,7 +157,7 @@ const ShopeePage: React.FC = () => {
             dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>;
             dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>;
             dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
-            customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>;
+            customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>;
             dreComments?: Record<string, string>;
         };
     };
@@ -1549,6 +1549,25 @@ const ShopeePage: React.FC = () => {
                                             }}
                                         />
                                         {renderCommentControl(customCommentKey)}
+                                        <button
+                                            type="button"
+                                            title={item.isExpected ? 'Marcado como esperado (sem tag de diferença). Clique para marcar como não previsto' : 'Marcar como taxa/ajuste esperado (ocultar tag de diferença)'}
+                                            onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, isExpected: !c.isExpected } : c))}
+                                            style={{
+                                                marginLeft: '4px',
+                                                border: item.isExpected ? '1px solid #c4b5fd' : 'none',
+                                                background: item.isExpected ? '#f5f3ff' : 'transparent',
+                                                color: item.isExpected ? '#7c3aed' : '#94a3b8',
+                                                padding: item.isExpected ? '1px 6px' : '1px 4px',
+                                                borderRadius: '4px',
+                                                fontSize: '0.68rem',
+                                                fontWeight: item.isExpected ? 700 : 500,
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            {item.isExpected ? 'Esperado ✓' : 'Esperado'}
+                                        </button>
                                     </div>
                                 ) : (
                                     <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -1560,7 +1579,7 @@ const ShopeePage: React.FC = () => {
                                 <div className="detail-values">
                                     {isCorrectionMode ? (
                                         <>
-                                            {item.valor >= 0.005 && (
+                                            {!item.isExpected && item.valor >= 0.005 && (
                                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                                     <span style={{
                                                         fontSize: '0.72rem',
@@ -1638,6 +1657,13 @@ const ShopeePage: React.FC = () => {
                                                     }}
                                                 />
                                             </div>
+                                        </>
+                                    ) : item.isExpected ? (
+                                        <>
+                                            <span className="perc">({pct}%)</span>
+                                            <span className={`val ${item.sign === '-' ? 'text-red' : 'text-green'}`}>
+                                                {item.sign} R$ {moeda(item.valor)}
+                                            </span>
                                         </>
                                     ) : (
                                         renderDreValor(
