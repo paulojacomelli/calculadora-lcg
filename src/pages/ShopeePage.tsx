@@ -4046,17 +4046,18 @@ const ShopeePage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '1rem'
+                        padding: isHistoryTableView ? 0 : '1rem'
                     }}
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: 'min(1160px, 96vw)',
-                            maxHeight: '80vh',
+                            maxWidth: isHistoryTableView ? '100vw' : 'min(1160px, 96vw)',
+                            height: isHistoryTableView ? '100vh' : undefined,
+                            maxHeight: isHistoryTableView ? '100vh' : '80vh',
                             background: '#ffffff',
-                            borderRadius: '14px',
+                            borderRadius: isHistoryTableView ? 0 : '14px',
                             boxShadow: '0 20px 45px rgba(15, 23, 42, 0.25)',
                             display: 'flex',
                             flexDirection: 'column',
