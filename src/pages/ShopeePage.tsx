@@ -2772,7 +2772,7 @@ const ShopeePage: React.FC = () => {
                                             <span>Demonstração do Resultado do Exercício (DRE)</span>
                                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textTransform: 'none', letterSpacing: 0 }}>
                                                 {isResultStale && (
-                                                    <span style={{
+                                                    <span className="no-print" style={{
                                                         fontSize: '0.72rem',
                                                         fontWeight: 700,
                                                         background: '#fffbeb',
@@ -2887,12 +2887,53 @@ const ShopeePage: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        {selectedCatalogProduct && (
-                                            <div className="dre-print-only dre-print-block" style={{ marginBottom: '0.75rem', fontSize: '0.82rem', color: '#475569' }}>
-                                                <strong>Produto:</strong> [{selectedCatalogProduct._wh}] {selectedCatalogProduct.sku} — {selectedCatalogProduct.descricao || 'Sem descrição'}
-                                            </div>
-                                        )}
-                                        <div style={{
+                                        {(() => {
+                                            const printQtd = Number(activeInputs.qtdAnuncio ?? qtdMultiplier) || 1;
+                                            const printTotalCdp = activeResults.custoProdutoValor ?? activeInputs.custoProduto ?? 0;
+                                            const printUnitCdp = printQtd > 0 ? printTotalCdp / printQtd : printTotalCdp;
+                                            const fmtParam = (val: number | undefined, tipo?: string) => {
+                                                const v = val ?? 0;
+                                                if (v <= 0) {
+                                                    if (tipo === 'fixo') return 'R$ 0,00';
+                                                    if (tipo === 'porcentagem') return '0,00%';
+                                                    return '—';
+                                                }
+                                                if (tipo === 'fixo') return `R$ ${moeda(v)}`;
+                                                if (tipo === 'roas') return `ROAS ${moeda(v)}`;
+                                                if (tipo === 'porcentagem') return `${porc(v)}%`;
+                                                return `R$ ${moeda(v)}`;
+                                            };
+                                            const modoLabel = aba === 'margem'
+                                                ? 'Calcular Margem'
+                                                : `Preço Ideal (${tipoMargemIdeal === 'custo' ? 'Sobre o Custo' : tipoMargemIdeal === 'venda' ? 'Sobre a Venda' : 'Valor R$'}${margemDesejada !== undefined ? ` • ${tipoMargemIdeal === 'reais' ? `R$ ${moeda(margemDesejada)}` : `${porc(margemDesejada)}%`}` : ''})`;
+
+                                            return (
+                                                <div className="dre-print-only dre-print-block dre-print-params">
+                                                    <div className="dre-print-params-top">
+                                                        <div>
+                                                            <strong>Produto / SKU:</strong>{' '}
+                                                            {selectedCatalogProduct
+                                                                ? `[${selectedCatalogProduct._wh}] ${selectedCatalogProduct.sku} — ${selectedCatalogProduct.descricao || 'Sem descrição'}`
+                                                                : 'Avulso'}
+                                                        </div>
+                                                        <div><strong>Modo:</strong> {modoLabel}</div>
+                                                        <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
+                                                    </div>
+                                                    <div className="dre-print-params-grid">
+                                                        <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
+                                                        <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
+                                                        <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
+                                                        <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
+                                                        <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
+                                                        <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        <div className="dre-summary-box" style={{
                                             marginBottom: '1rem',
                                             padding: '1.5rem',
                                             background: '#f8fafc',
@@ -3197,8 +3238,8 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['INPUT_CDP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                <span className="perc">({porc((activeInputs.custoProduto || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                <span className="val text-red">- R$ {moeda(activeInputs.custoProduto)}</span>
+                                                <span className="perc">({porc((activeResults.custoProdutoValor ?? activeInputs.custoProduto ?? 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
+                                                <span className="val text-red">- R$ {moeda(activeResults.custoProdutoValor ?? activeInputs.custoProduto ?? 0)}</span>
                                             </div>
                                         </div>
                                         {(activeResults.impostoValor ?? 0) > 0 && (
