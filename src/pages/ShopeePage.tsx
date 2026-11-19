@@ -3469,8 +3469,14 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: VN (R$ ${moeda(activeResults.valorNota)})${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED', 'CUSTOM_PDV'])}
+                                                title={hideSensitiveData
+                                                    ? `Ref.: ${(activeResults.rebateValor ?? 0) > 0 ? `STP (R$ ${moeda(activeResults.baseCalculo)})` : `PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`
+                                                    : `Ref.: VN (R$ ${moeda(activeResults.valorNota)})${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(
+                                                    hideSensitiveData
+                                                        ? [(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'FPC_CRED', 'CUSTOM_VN', 'CUSTOM_PDV']
+                                                        : ['VN', 'FPC_CRED', 'CUSTOM_PDV']
+                                                )}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(expectedResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
