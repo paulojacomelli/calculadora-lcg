@@ -126,6 +126,8 @@ const ShopeePage: React.FC = () => {
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [historyPage, setHistoryPage] = useState(1);
+    const HISTORY_PAGE_SIZE = 10;
     const [calcHistory, setCalcHistory] = useState<Array<{
         id: string;
         sku: string;
@@ -2954,7 +2956,7 @@ const ShopeePage: React.FC = () => {
             {/* Botão Flutuante de Histórico */}
             <button
                 type="button"
-                onClick={() => setIsHistoryModalOpen(true)}
+                onClick={() => { setHistoryPage(1); setIsHistoryModalOpen(true); }}
                 title="Histórico de cálculos"
                 style={{
                     position: 'fixed',
@@ -3083,105 +3085,238 @@ const ShopeePage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem' }}>
-                            {calcHistory.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
-                                    Nenhum cálculo registrado ainda nesta máquina.
-                                </div>
-                            ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
-                                            <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
-                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
-                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>VN</th>
-                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
-                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {calcHistory.map((item) => {
-                                            const vnVal = item.vn ?? item.resultsSnapshot?.valorNota;
-                                            return (
-                                                <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={new Date(item.createdAt).toLocaleString('pt-BR')}>
-                                                    <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>{item.sku}</td>
-                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
-                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
-                                                        {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
-                                                    </td>
-                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
-                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                            {item.resultsSnapshot && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setResults(item.resultsSnapshot!);
-                                                                        if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
-                                                                        if (item.qtdMultiplier) setQtdMultiplier(item.qtdMultiplier);
-                                                                        setDreOverrides({});
-                                                                        setDreAbsent({});
-                                                                        setDreDetails({});
-                                                                        setCustomDreItems([]);
-                                                                        setIsCorrectionMode(false);
-                                                                        setIsResultStale(false);
-                                                                        setIsHistoryModalOpen(false);
-                                                                    }}
-                                                                    style={{
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '4px',
-                                                                        padding: '3px 8px',
-                                                                        fontSize: '0.74rem',
-                                                                        fontWeight: 600,
-                                                                        borderRadius: '6px',
-                                                                        border: '1px solid #c4b5fd',
-                                                                        background: '#f5f3ff',
-                                                                        color: '#7c3aed',
-                                                                        cursor: 'pointer'
-                                                                    }}
-                                                                    title="Carregar DRE deste cálculo"
-                                                                >
-                                                                    <Eye size={13} /> Ver DRE
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setCalcHistory(prev => {
-                                                                        const next = prev.filter(h => h.id !== item.id);
-                                                                        try {
-                                                                            localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
-                                                                        } catch {
-                                                                            // ignore
-                                                                        }
-                                                                        return next;
-                                                                    });
-                                                                }}
-                                                                style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    padding: '4px',
-                                                                    borderRadius: '6px',
-                                                                    border: '1px solid #fecaca',
-                                                                    background: '#fef2f2',
-                                                                    color: '#dc2626',
-                                                                    cursor: 'pointer'
-                                                                }}
-                                                                title="Excluir do histórico"
-                                                            >
-                                                                <Trash2 size={13} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
+                        {(() => {
+                            if (calcHistory.length === 0) {
+                                return (
+                                    <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem' }}>
+                                        <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
+                                            Nenhum cálculo registrado ainda nesta máquina.
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            const sortedHistory = [...calcHistory].sort(
+                                (a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
+                            );
+                            const totalHistoryPages = Math.max(1, Math.ceil(sortedHistory.length / HISTORY_PAGE_SIZE));
+                            const safePage = Math.min(historyPage, totalHistoryPages);
+                            const pagedHistory = sortedHistory.slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
+
+                            const toDayStr = (d: Date) =>
+                                `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                            const now = new Date();
+                            const todayKey = toDayStr(now);
+                            const yesterday = new Date(now);
+                            yesterday.setDate(now.getDate() - 1);
+                            const yesterdayKey = toDayStr(yesterday);
+
+                            const dayGroups: Array<{ dayKey: string; dayLabel: string; items: typeof pagedHistory }> = [];
+                            for (const item of pagedHistory) {
+                                const dt = new Date(item.createdAt);
+                                const dayKey = isNaN(dt.getTime()) ? 'invalid' : toDayStr(dt);
+                                const dayLabel =
+                                    dayKey === 'invalid'
+                                        ? 'Data não informada'
+                                        : dayKey === todayKey
+                                            ? `Hoje — ${dayKey}`
+                                            : dayKey === yesterdayKey
+                                                ? `Ontem — ${dayKey}`
+                                                : dayKey;
+                                const lastGroup = dayGroups[dayGroups.length - 1];
+                                if (lastGroup && lastGroup.dayKey === dayKey) {
+                                    lastGroup.items.push(item);
+                                } else {
+                                    dayGroups.push({ dayKey, dayLabel, items: [item] });
+                                }
+                            }
+
+                            return (
+                                <>
+                                    <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
+                                                    <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>VN</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Ações</th>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
+                                            </thead>
+                                            <tbody>
+                                                {dayGroups.map((group) => (
+                                                    <React.Fragment key={group.dayKey}>
+                                                        <tr>
+                                                            <td
+                                                                colSpan={5}
+                                                                style={{
+                                                                    padding: '0.55rem 0.4rem 0.35rem',
+                                                                    fontSize: '0.74rem',
+                                                                    fontWeight: 700,
+                                                                    color: '#64748b',
+                                                                    background: '#f8fafc',
+                                                                    borderBottom: '1px solid #e2e8f0',
+                                                                    letterSpacing: '0.02em'
+                                                                }}
+                                                            >
+                                                                {group.dayLabel}
+                                                            </td>
+                                                        </tr>
+                                                        {group.items.map((item) => {
+                                                            const vnVal = item.vn ?? item.resultsSnapshot?.valorNota;
+                                                            const dt = new Date(item.createdAt);
+                                                            const timeStr = !isNaN(dt.getTime())
+                                                                ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+                                                                : '';
+                                                            return (
+                                                                <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={dt.toLocaleString('pt-BR')}>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>
+                                                                        <span>{item.sku}</span>
+                                                                        {timeStr && (
+                                                                            <span style={{ marginLeft: '6px', fontSize: '0.72rem', fontWeight: 500, color: '#94a3b8' }}>
+                                                                                {timeStr}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                        {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                                            {item.resultsSnapshot && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setResults(item.resultsSnapshot!);
+                                                                                        if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
+                                                                                        if (item.qtdMultiplier) setQtdMultiplier(item.qtdMultiplier);
+                                                                                        setDreOverrides({});
+                                                                                        setDreAbsent({});
+                                                                                        setDreDetails({});
+                                                                                        setCustomDreItems([]);
+                                                                                        setIsCorrectionMode(false);
+                                                                                        setIsResultStale(false);
+                                                                                        setIsHistoryModalOpen(false);
+                                                                                    }}
+                                                                                    style={{
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '4px',
+                                                                                        padding: '3px 8px',
+                                                                                        fontSize: '0.74rem',
+                                                                                        fontWeight: 600,
+                                                                                        borderRadius: '6px',
+                                                                                        border: '1px solid #c4b5fd',
+                                                                                        background: '#f5f3ff',
+                                                                                        color: '#7c3aed',
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                    title="Carregar DRE deste cálculo"
+                                                                                >
+                                                                                    <Eye size={13} /> Ver DRE
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setCalcHistory(prev => {
+                                                                                        const next = prev.filter(h => h.id !== item.id);
+                                                                                        try {
+                                                                                            localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
+                                                                                        } catch {
+                                                                                            // ignore
+                                                                                        }
+                                                                                        return next;
+                                                                                    });
+                                                                                }}
+                                                                                style={{
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    justifyContent: 'center',
+                                                                                    padding: '4px',
+                                                                                    borderRadius: '6px',
+                                                                                    border: '1px solid #fecaca',
+                                                                                    background: '#fef2f2',
+                                                                                    color: '#dc2626',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                title="Excluir do histórico"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '0.75rem',
+                                        padding: '0.7rem 1.15rem',
+                                        borderTop: '1px solid #e2e8f0',
+                                        background: '#f8fafc',
+                                        fontSize: '0.78rem',
+                                        color: '#475569'
+                                    }}>
+                                        <span>
+                                            {sortedHistory.length} {sortedHistory.length === 1 ? 'registro' : 'registros'} • Página {safePage} de {totalHistoryPages}
+                                        </span>
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                            <button
+                                                type="button"
+                                                disabled={safePage <= 1}
+                                                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    padding: '4px 9px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600,
+                                                    borderRadius: '6px',
+                                                    border: '1px solid #cbd5e1',
+                                                    background: safePage <= 1 ? '#f1f5f9' : '#ffffff',
+                                                    color: safePage <= 1 ? '#94a3b8' : '#334155',
+                                                    cursor: safePage <= 1 ? 'not-allowed' : 'pointer'
+                                                }}
+                                            >
+                                                <ChevronLeft size={14} /> Anterior
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={safePage >= totalHistoryPages}
+                                                onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    padding: '4px 9px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600,
+                                                    borderRadius: '6px',
+                                                    border: '1px solid #cbd5e1',
+                                                    background: safePage >= totalHistoryPages ? '#f1f5f9' : '#ffffff',
+                                                    color: safePage >= totalHistoryPages ? '#94a3b8' : '#334155',
+                                                    cursor: safePage >= totalHistoryPages ? 'not-allowed' : 'pointer'
+                                                }}
+                                            >
+                                                Próxima <ChevronRight size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
