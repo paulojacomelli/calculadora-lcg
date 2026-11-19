@@ -1506,7 +1506,7 @@ body {
   content: attr(data-dre-tooltip);
   position: absolute;
   right: 0;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   background: #1e293b;
   color: #f8fafc;
   font-size: 0.75rem;
@@ -1521,7 +1521,7 @@ body {
   text-align: left;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(4px);
+  transform: translateY(-4px);
   transition: opacity 0.15s ease, transform 0.15s ease;
   z-index: 60;
 }
@@ -1530,12 +1530,12 @@ body {
   content: '';
   position: absolute;
   right: 14px;
-  bottom: calc(100% + 2px);
+  top: calc(100% + 2px);
   border: 6px solid transparent;
-  border-top-color: #1e293b;
+  border-bottom-color: #1e293b;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(4px);
+  transform: translateY(-4px);
   transition: opacity 0.15s ease, transform 0.15s ease;
   z-index: 60;
 }
