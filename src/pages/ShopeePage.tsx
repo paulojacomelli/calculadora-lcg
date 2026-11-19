@@ -1299,7 +1299,7 @@ const ShopeePage: React.FC = () => {
 
         const diff = arredondar(correctedVal - originalVal, 2);
         const hasDiff = Math.abs(diff) >= 0.005;
-        const isExpenseRow = prefix.trim() === '-';
+        const isExpenseRow = prefix.trim() === '-' && overrideKey !== 'DR';
         const isFavorable = isExpenseRow ? diff < 0 : diff > 0;
 
         const diffAndOldNode = hasDiff ? (
