@@ -215,7 +215,6 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(tarifaFixaValor)
     .plus(outrasDespesasShopeeValor)
     .plus(freteValor)
-    .plus(freteVendedorValor)
     .plus(custoProdutoValor)
     .plus(impostoValor)
     .plus(despesaFixaValor)
@@ -223,7 +222,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(custoAds);
 
   const custos = dCustos.toNumber();
-  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).minus(freteVendedorValor).plus(rebateValor).toNumber();
+  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).plus(rebateValor).toNumber();
 
   const LLV = dPDV.minus(dCustos).plus(rebateValor).toNumber();
 
@@ -241,7 +240,6 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .minus(comissaoValor)
     .minus(tarifaFixaValor)
     .minus(outrasDespesasShopeeValor)
-    .minus(freteVendedorValor)
     .toNumber();
 
   return {

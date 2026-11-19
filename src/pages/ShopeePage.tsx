@@ -813,7 +813,7 @@ const ShopeePage: React.FC = () => {
         const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
-            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor - freteVendedorValor + creditoRebateValor + sumSection('PDS'),
+            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor + creditoRebateValor + sumSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
@@ -2391,7 +2391,7 @@ const ShopeePage: React.FC = () => {
                                             onKeyDown={handleKeyDown}
                                             placeholder="Não informado"
                                         />
-                                        <span className="input-hint">Descontado pela Shopee no repasse</span>
+                                        <span className="input-hint">Não altera o lucro. Informe o frete pago pela Shopee</span>
                                     </div>
                                 </>
                             )}
@@ -3343,80 +3343,71 @@ const ShopeePage: React.FC = () => {
                                             const baseFpsDebVal = baseResults?.freteVendedorValor ?? 0;
                                             const totalFreteVal = arredondar(fpcDebVal + fpsDebVal, 2);
                                             const baseTotalFreteVal = arredondar(baseFpcDebVal + baseFpsDebVal, 2);
-                                            const showTotalFrete = isCorrectionMode || totalFreteVal > 0 || (!isViewingOriginal && baseTotalFreteVal > 0);
-                                            const showFpcSub = isCorrectionMode || fpcDebVal > 0 || (!isViewingOriginal && baseFpcDebVal > 0);
+                                            const showTotalFrete = isCorrectionMode || fpcDebVal > 0 || fpsDebVal > 0 || (!isViewingOriginal && (baseFpcDebVal > 0 || baseFpsDebVal > 0));
                                             const showFpsSub = isCorrectionMode || fpsDebVal > 0 || (!isViewingOriginal && baseFpsDebVal > 0);
 
                                             if (!showTotalFrete) return null;
 
                                             return (
                                                 <>
-                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') || isRefHighlighted('FPS') ? 'dre-ref-pulse' : ''}`}>
-                                                        <span style={{ fontWeight: 600 }}>Total de Frete:</span>
+                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                            {renderAbsentToggle('FPC')}
+                                                            <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                Total pago pelo cliente {s('FPC')}:
+                                                            </span>
+                                                            {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                            {renderDetailToggle('FPC', fpcDebVal)}
+                                                            {renderCommentControl('FPC')}
+                                                        </span>
                                                         <div
                                                             className="detail-values"
                                                             style={{ cursor: 'help' }}
-                                                            title={`Ref.: Frete pago pelo cliente [FPC] (R$ ${moeda(fpcDebVal)}) + Frete pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})`}
-                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
+                                                            title={withCommentTitle(fpsDebVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalFreteVal)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
+                                                            onMouseEnter={() => setHighlightedRefs(fpsDebVal > 0 ? ['INPUT_FPC', 'INPUT_FPS'] : ['INPUT_FPC'])}
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
-                                                            {renderDreValor(baseTotalFreteVal, totalFreteVal, '- ', 'val text-red', undefined, true, `${porc((totalFreteVal || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                         </div>
                                                     </div>
-                                                    {(showFpcSub || showFpsSub) && (
+                                                    {renderCommentInputRow('FPC')}
+                                                    {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
+                                                    {showFpsSub && (
                                                         <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
-                                                            {showFpcSub && (
-                                                                <>
-                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC) ? { opacity: 0.6 } : {}) }}>
-                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                                            {renderAbsentToggle('FPC')}
-                                                                            <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                                └ Frete pago pelo cliente {s('FPC')}:
-                                                                            </span>
-                                                                            {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                                            {renderDetailToggle('FPC', fpcDebVal)}
-                                                                            {renderCommentControl('FPC')}
-                                                                        </span>
-                                                                        <div
-                                                                            className="detail-values"
-                                                                            style={{ cursor: 'help' }}
-                                                                            title={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
-                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
-                                                                            onMouseLeave={() => setHighlightedRefs([])}
-                                                                        >
-                                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-muted', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
-                                                                        </div>
-                                                                    </div>
-                                                                    {renderCommentInputRow('FPC')}
-                                                                    {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
-                                                                </>
-                                                            )}
-                                                            {showFpsSub && (
-                                                                <>
-                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
-                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                                            {renderAbsentToggle('FPS')}
-                                                                            <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                                └ Frete pago pela Shopee {s('FPS')}:
-                                                                            </span>
-                                                                            {!isViewingOriginal && dreAbsent.FPS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                                            {renderDetailToggle('FPS', fpsDebVal)}
-                                                                            {renderCommentControl('FPS')}
-                                                                        </span>
-                                                                        <div
-                                                                            className="detail-values"
-                                                                            style={{ cursor: 'help' }}
-                                                                            title={withCommentTitle("Ref.: Valor fixo informado no campo [FPS]", 'FPS')}
-                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
-                                                                            onMouseLeave={() => setHighlightedRefs([])}
-                                                                        >
-                                                                            {renderDreValor(baseFpsDebVal, fpsDebVal, '- ', 'val text-muted', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
-                                                                        </div>
-                                                                    </div>
-                                                                    {renderCommentInputRow('FPS')}
-                                                                    {renderDreDetailsList('FPS', activeResults.precoVenda, fpsDebVal)}
-                                                                </>
-                                                            )}
+                                                            <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
+                                                                <span>└ Valor total do frete {s('FT')}:</span>
+                                                                <div
+                                                                    className="detail-values"
+                                                                    style={{ cursor: 'help' }}
+                                                                    title={`Ref.: FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`}
+                                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
+                                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                                >
+                                                                    {renderDreValor(baseTotalFreteVal, totalFreteVal, '- ', 'val text-muted', undefined, false, `${porc((totalFreteVal || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                </div>
+                                                            </div>
+                                                            <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                    {renderAbsentToggle('FPS')}
+                                                                    <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                        └ Total pago pela Shopee {s('FPS')}:
+                                                                    </span>
+                                                                    {!isViewingOriginal && dreAbsent.FPS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                    {renderDetailToggle('FPS', fpsDebVal)}
+                                                                    {renderCommentControl('FPS')}
+                                                                </span>
+                                                                <div
+                                                                    className="detail-values"
+                                                                    style={{ cursor: 'help' }}
+                                                                    title={withCommentTitle("Ref.: Frete subsidiado / pago pela Shopee [FPS]", 'FPS')}
+                                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
+                                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                                >
+                                                                    {renderDreValor(baseFpsDebVal, fpsDebVal, '+ ', 'val text-muted', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                </div>
+                                                            </div>
+                                                            {renderCommentInputRow('FPS')}
+                                                            {renderDreDetailsList('FPS', activeResults.precoVenda, fpsDebVal)}
                                                         </div>
                                                     )}
                                                 </>
@@ -3454,8 +3445,8 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FPS (R$ ${moeda(activeResults.freteVendedorValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'FPS', 'CR', 'CUSTOM_PDS'])}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
