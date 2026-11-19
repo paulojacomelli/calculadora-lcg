@@ -138,6 +138,11 @@ const ShopeePage: React.FC = () => {
         createdAt: string;
         qtdMultiplier?: string;
         inputsSnapshot?: ShopeeInput;
+        formInputsSnapshot?: ShopeeInput;
+        catalogProductSnapshot?: { sku: string; descricao: string; _wh: string } | null;
+        abaSnapshot?: 'margem' | 'ideal';
+        tipoMargemIdealSnapshot?: 'venda' | 'custo' | 'reais';
+        margemDesejadaSnapshot?: number;
         resultsSnapshot?: ShopeeOutput;
     };
 
@@ -381,8 +386,14 @@ const ShopeePage: React.FC = () => {
         return () => clearTimeout(timer);
     }, [aba, tipoMargemIdeal, isAdvancedOpen, user]);
 
+    const skipNextStaleRef = useRef(false);
+
     // Marca o resultado exibido como desatualizado sempre que algum parâmetro mudar
     useEffect(() => {
+        if (skipNextStaleRef.current) {
+            skipNextStaleRef.current = false;
+            return;
+        }
         if (results) {
             setIsResultStale(true);
         }
@@ -595,6 +606,11 @@ const ShopeePage: React.FC = () => {
             createdAt: new Date().toISOString(),
             qtdMultiplier,
             inputsSnapshot: inputsCalc,
+            formInputsSnapshot: inputs,
+            catalogProductSnapshot: selectedCatalogProduct,
+            abaSnapshot: aba,
+            tipoMargemIdealSnapshot: tipoMargemIdeal,
+            margemDesejadaSnapshot: margemDesejada,
             resultsSnapshot: resultado
         };
         setCalcHistory(prev => {
@@ -3511,9 +3527,41 @@ const ShopeePage: React.FC = () => {
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => {
+                                                                                        skipNextStaleRef.current = true;
+                                                                                        const resolvedQtd = item.qtdMultiplier || '1';
+                                                                                        setQtdMultiplier(resolvedQtd);
+
+                                                                                        if (item.formInputsSnapshot) {
+                                                                                            setInputs({ ...defaultInputs, ...item.formInputsSnapshot });
+                                                                                        } else if (item.inputsSnapshot) {
+                                                                                            const mult = Number(resolvedQtd) || 1;
+                                                                                            setInputs({
+                                                                                                ...defaultInputs,
+                                                                                                ...item.inputsSnapshot,
+                                                                                                custoProduto: item.inputsSnapshot.custoProduto !== undefined ? item.inputsSnapshot.custoProduto / mult : undefined,
+                                                                                                precoVenda: item.inputsSnapshot.precoVenda ?? item.pa
+                                                                                            });
+                                                                                        }
+
+                                                                                        if (item.catalogProductSnapshot !== undefined) {
+                                                                                            setSelectedCatalogProduct(item.catalogProductSnapshot);
+                                                                                        } else if (item.sku && item.sku !== 'Avulso') {
+                                                                                            const foundProd = catalogProducts.find((p: any) => p.sku === item.sku);
+                                                                                            setSelectedCatalogProduct(
+                                                                                                foundProd
+                                                                                                    ? { sku: foundProd.sku || item.sku, descricao: foundProd.descricao || '', _wh: foundProd._wh || 'SP' }
+                                                                                                    : { sku: item.sku, descricao: '', _wh: 'SP' }
+                                                                                            );
+                                                                                        } else {
+                                                                                            setSelectedCatalogProduct(null);
+                                                                                        }
+
+                                                                                        if (item.abaSnapshot) setAba(item.abaSnapshot);
+                                                                                        if (item.tipoMargemIdealSnapshot) setTipoMargemIdeal(item.tipoMargemIdealSnapshot);
+                                                                                        if (item.margemDesejadaSnapshot !== undefined) setMargemDesejada(item.margemDesejadaSnapshot);
+
                                                                                         setResults(item.resultsSnapshot!);
                                                                                         if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
-                                                                                        if (item.qtdMultiplier) setQtdMultiplier(item.qtdMultiplier);
                                                                                         setDreOverrides({});
                                                                                         setDreAbsent({});
                                                                                         setDreDetails({});
