@@ -1510,71 +1510,97 @@ const ShopeePage: React.FC = () => {
                                 )}
 
                                 <div className="detail-values">
-                                    <span className="perc">({pct}%)</span>
                                     {isCorrectionMode ? (
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                            <button
-                                                type="button"
-                                                title={item.sign === '-' ? 'Desconto/taxa (subtrai). Clique para alternar para crédito (+)' : 'Crédito/acréscimo (soma). Clique para alternar para desconto (-)'}
-                                                onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, sign: c.sign === '-' ? '+' : '-' } : c))}
-                                                style={{
-                                                    border: '1px solid #d8b4fe',
-                                                    background: item.sign === '-' ? '#fef2f2' : '#ecfdf5',
-                                                    color: item.sign === '-' ? '#dc2626' : '#059669',
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    borderRadius: '5px',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 800,
-                                                    fontSize: '0.9rem',
-                                                    lineHeight: 1,
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                }}
-                                            >
-                                                {item.sign}
-                                            </button>
-                                            <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={displayValue}
-                                                onFocus={(e) => {
-                                                    setCorrectionEditing({
-                                                        key: editKey,
-                                                        text: Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : ''
-                                                    });
-                                                    e.currentTarget.select();
-                                                }}
-                                                onChange={(e) => {
-                                                    setCorrectionEditing({ key: editKey, text: e.target.value });
-                                                }}
-                                                onBlur={(e) => commitCustomVal(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.currentTarget.blur();
-                                                    } else if (e.key === 'Escape') {
-                                                        setCorrectionEditing(null);
-                                                        e.currentTarget.blur();
-                                                    }
-                                                }}
-                                                style={{
-                                                    width: '72px',
-                                                    padding: '2px 6px',
-                                                    fontSize: '0.85rem',
-                                                    fontWeight: 700,
-                                                    textAlign: 'right',
-                                                    border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
-                                                    borderRadius: '6px',
-                                                    background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
-                                                    color: '#1e293b'
-                                                }}
-                                            />
-                                        </div>
+                                        <>
+                                            {item.valor >= 0.005 && (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 700,
+                                                        color: item.sign === '+' ? '#047857' : '#b45309',
+                                                        background: item.sign === '+' ? '#d1fae5' : '#fef3c7',
+                                                        padding: '1px 5px',
+                                                        borderRadius: '4px',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        +R$ {moeda(item.valor)}
+                                                    </span>
+                                                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                                        {item.sign} R$ 0,00
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <span className="perc">({pct}%)</span>
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                <button
+                                                    type="button"
+                                                    title={item.sign === '-' ? 'Desconto/taxa (subtrai). Clique para alternar para crédito (+)' : 'Crédito/acréscimo (soma). Clique para alternar para desconto (-)'}
+                                                    onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, sign: c.sign === '-' ? '+' : '-' } : c))}
+                                                    style={{
+                                                        border: '1px solid #d8b4fe',
+                                                        background: item.sign === '-' ? '#fef2f2' : '#ecfdf5',
+                                                        color: item.sign === '-' ? '#dc2626' : '#059669',
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        borderRadius: '5px',
+                                                        cursor: 'pointer',
+                                                        fontWeight: 800,
+                                                        fontSize: '0.9rem',
+                                                        lineHeight: 1,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    {item.sign}
+                                                </button>
+                                                <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={displayValue}
+                                                    onFocus={(e) => {
+                                                        setCorrectionEditing({
+                                                            key: editKey,
+                                                            text: Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : ''
+                                                        });
+                                                        e.currentTarget.select();
+                                                    }}
+                                                    onChange={(e) => {
+                                                        setCorrectionEditing({ key: editKey, text: e.target.value });
+                                                    }}
+                                                    onBlur={(e) => commitCustomVal(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.currentTarget.blur();
+                                                        } else if (e.key === 'Escape') {
+                                                            setCorrectionEditing(null);
+                                                            e.currentTarget.blur();
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        width: '72px',
+                                                        padding: '2px 6px',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: 700,
+                                                        textAlign: 'right',
+                                                        border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                                                        borderRadius: '6px',
+                                                        background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
+                                                        color: '#1e293b'
+                                                    }}
+                                                />
+                                            </div>
+                                        </>
                                     ) : (
-                                        <span className={`val ${item.sign === '-' ? 'text-red' : 'text-green'}`}>
-                                            {item.sign} R$ {moeda(item.valor)}
-                                        </span>
+                                        renderDreValor(
+                                            0,
+                                            item.valor,
+                                            `${item.sign} `,
+                                            `val ${item.sign === '-' ? 'text-red' : 'text-green'}`,
+                                            undefined,
+                                            false,
+                                            `${pct}%`
+                                        )
                                     )}
                                 </div>
                             </div>
