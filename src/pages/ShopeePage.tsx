@@ -30,7 +30,8 @@ import {
     Trash2,
     X,
     Eye,
-    MessageSquare
+    MessageSquare,
+    Printer
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -820,10 +821,15 @@ const ShopeePage: React.FC = () => {
                     </button>
                 )}
                 {hasComment && (
-                    <span className="dre-comment-indicator">
-                        <MessageSquare size={12} />
-                        <span className="dre-comment-tooltip">{trimmed}</span>
-                    </span>
+                    <>
+                        <span className="dre-comment-indicator">
+                            <MessageSquare size={12} />
+                            <span className="dre-comment-tooltip">{trimmed}</span>
+                        </span>
+                        <span className="dre-print-only" style={{ marginLeft: '6px', fontSize: '0.74rem', color: '#475569', fontStyle: 'italic' }}>
+                            ({trimmed})
+                        </span>
+                    </>
                 )}
             </>
         );
@@ -2656,6 +2662,35 @@ const ShopeePage: React.FC = () => {
                                                 <button
                                                     type="button"
                                                     className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        if (isCorrectionMode) {
+                                                            setIsCorrectionMode(false);
+                                                            setTimeout(() => window.print(), 60);
+                                                        } else {
+                                                            window.print();
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 500,
+                                                        background: 'transparent',
+                                                        color: '#94a3b8',
+                                                        border: 'none',
+                                                        padding: '2px 4px',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="Imprimir DRE"
+                                                >
+                                                    <Printer size={11} />
+                                                    Imprimir
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
                                                     onClick={() => setIsCorrectionMode(prev => !prev)}
                                                     style={{
                                                         fontSize: isCorrectionMode ? '0.72rem' : '0.7rem',
@@ -2677,6 +2712,11 @@ const ShopeePage: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
+                                        {selectedCatalogProduct && (
+                                            <div className="dre-print-only dre-print-block" style={{ marginBottom: '0.75rem', fontSize: '0.82rem', color: '#475569' }}>
+                                                <strong>Produto:</strong> [{selectedCatalogProduct._wh}] {selectedCatalogProduct.sku} — {selectedCatalogProduct.descricao || 'Sem descrição'}
+                                            </div>
+                                        )}
                                         <div style={{
                                             marginBottom: '1rem',
                                             padding: '1.5rem',
@@ -3158,6 +3198,7 @@ const ShopeePage: React.FC = () => {
             {/* Botão Flutuante de Histórico */}
             <button
                 type="button"
+                className="no-print"
                 onClick={() => { setHistoryPage(1); setHistorySearch(''); setIsHistoryModalOpen(true); }}
                 title="Histórico de cálculos"
                 style={{

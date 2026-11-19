@@ -1575,6 +1575,55 @@ body {
   color: #7c3aed !important;
 }
 
+.dre-print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .navbar,
+  .header,
+  .calculator-left,
+  .alert-box-result,
+  .sensor-inner-alert,
+  .premium-results-grid,
+  .result-card.mini,
+  .info-section,
+  .toast-notification,
+  .dre-correction-btn,
+  .no-print {
+    display: none !important;
+  }
+  .container,
+  .calculator-main,
+  .calculator-right {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  .details {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  .dre-print-only {
+    display: inline !important;
+  }
+  .dre-print-block {
+    display: block !important;
+  }
+}
+
 /* Switch e Extras */
 .checkbox-line {
   display: flex;
