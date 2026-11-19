@@ -2883,10 +2883,10 @@ const ShopeePage: React.FC = () => {
                                                         style={{
                                                             fontSize: '0.7rem',
                                                             fontWeight: orderNumber.trim() ? 600 : 500,
-                                                            background: orderNumber.trim() ? '#f1f5f9' : 'transparent',
+                                                            background: 'transparent',
                                                             color: orderNumber.trim() ? '#334155' : '#94a3b8',
-                                                            border: orderNumber.trim() ? '1px solid #cbd5e1' : 'none',
-                                                            padding: orderNumber.trim() ? '2px 7px' : '2px 4px',
+                                                            border: 'none',
+                                                            padding: '2px 4px',
                                                             borderRadius: '6px',
                                                             cursor: 'pointer',
                                                             display: 'inline-flex',
@@ -3567,7 +3567,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '1040px',
+                            maxWidth: 'min(1160px, 96vw)',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3756,22 +3756,22 @@ const ShopeePage: React.FC = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
+                                    <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
                                         {filteredHistory.length === 0 ? (
                                             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
                                                 Nenhum registro encontrado para a busca.
                                             </div>
                                         ) : (
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem' }}>
-                                                    <th style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>SKU</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>Pedido</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço Anunciado {s('PA')}</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Repasse</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Lucro</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Ações</th>
+                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.74rem' }}>
+                                                    <th style={{ padding: '0.48rem 0.3rem', whiteSpace: 'nowrap' }}>SKU</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', whiteSpace: 'nowrap' }}>Pedido</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço Anunciado {s('PA')}</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Repasse</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Lucro</th>
+                                                    <th style={{ padding: '0.48rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Ações</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -3808,15 +3808,15 @@ const ShopeePage: React.FC = () => {
                                                                 : '';
                                                             return (
                                                                 <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={dt.toLocaleString('pt-BR')}>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
                                                                         <span>{item.sku}</span>
                                                                         {timeStr && (
-                                                                            <span style={{ marginLeft: '6px', fontSize: '0.72rem', fontWeight: 500, color: '#94a3b8' }}>
+                                                                            <span style={{ marginLeft: '5px', fontSize: '0.7rem', fontWeight: 500, color: '#94a3b8' }}>
                                                                                 {timeStr}
                                                                             </span>
                                                                         )}
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem' }}>
                                                                         <input
                                                                             type="text"
                                                                             value={item.orderNumber ?? ''}
@@ -3855,43 +3855,43 @@ const ShopeePage: React.FC = () => {
                                                                                 if (e.key === 'Enter') e.currentTarget.blur();
                                                                             }}
                                                                             style={{
-                                                                                width: '128px',
-                                                                                padding: '3px 7px',
+                                                                                width: '120px',
+                                                                                padding: '2px 4px',
                                                                                 fontSize: '0.78rem',
-                                                                                borderRadius: '6px',
-                                                                                border: '1px solid #cbd5e1',
-                                                                                background: item.orderNumber ? '#ffffff' : '#f8fafc',
+                                                                                border: 'none',
+                                                                                outline: 'none',
+                                                                                background: 'transparent',
                                                                                 color: '#1e293b'
                                                                             }}
                                                                         />
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
                                                                         {hasVnCorr && (
-                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', marginRight: '6px' }}>
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', marginRight: '4px' }}>
                                                                                 R$ {moeda(origVn)}
                                                                             </span>
                                                                         )}
                                                                         {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
                                                                         {hasRepasseCorr && (
-                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', marginRight: '6px' }}>
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', marginRight: '4px' }}>
                                                                                 R$ {moeda(origRepasse)}
                                                                             </span>
                                                                         )}
                                                                         {repasseVal !== undefined ? `R$ ${moeda(repasseVal)}` : 'N/A'}
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>
                                                                         {hasLucroCorr && (
-                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, marginRight: '6px' }}>
+                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 500, marginRight: '4px' }}>
                                                                                 R$ {moeda(origLucro)}
                                                                             </span>
                                                                         )}
                                                                         R$ {moeda(item.lucro)}
                                                                     </td>
-                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                                                             {item.resultsSnapshot && item.correctionsSnapshot && (
                                                                                 <button
                                                                                     type="button"
