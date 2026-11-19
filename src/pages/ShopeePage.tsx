@@ -1326,11 +1326,11 @@ const ShopeePage: React.FC = () => {
     let statusText = 'Margem apertada';
 
     if (activeResults) {
-        if (activeResults.margemSobreVenda <= 0) {
+        if (activeResults.margemSobreVenda < 2) {
             statusClass = 'status-red';
             statusIcon = <AlertCircle size={20} />;
             statusText = 'Prejuízo!';
-        } else if (activeResults.margemSobreVenda >= 15) {
+        } else if (activeResults.margemSobreVenda > 10) {
             statusClass = 'status-green';
             statusIcon = <CheckCircle2 size={20} />;
             statusText = 'Boa margem de lucro';
@@ -1375,22 +1375,22 @@ const ShopeePage: React.FC = () => {
         return (
             <div className="premium-results-grid">
                 <div className="result-card primary" style={{
-                    backgroundColor: res.margemSobreVenda <= 0 ? '#fef2f2' : (res.margemSobreVenda < 15 ? '#fff7ed' : '#f0fdf4'),
-                    borderColor: res.margemSobreVenda <= 0 ? '#fecaca' : (res.margemSobreVenda < 15 ? '#fed7aa' : '#bbf7d0'),
+                    backgroundColor: res.margemSobreVenda < 2 ? '#fef2f2' : (res.margemSobreVenda <= 10 ? '#fff7ed' : '#f0fdf4'),
+                    borderColor: res.margemSobreVenda < 2 ? '#fecaca' : (res.margemSobreVenda <= 10 ? '#fed7aa' : '#bbf7d0'),
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                 }}>
                     <div className="result-label" style={{
-                        color: res.margemSobreVenda <= 0 ? '#991b1b' : (res.margemSobreVenda < 15 ? '#9a3412' : '#166534')
+                        color: res.margemSobreVenda < 2 ? '#991b1b' : (res.margemSobreVenda <= 10 ? '#9a3412' : '#166534')
                     }}>
                         {isIdealFull ? <>PREÇO DE VENDA IDEAL {s('PDVI')}</> : <>PREÇO DE VENDA {s('PDV')}</>}
                     </div>
                     <div className="result-value" style={{
-                        color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                        color: res.margemSobreVenda < 2 ? '#dc2626' : (res.margemSobreVenda <= 10 ? '#d97706' : '#10B981')
                     }}>
                         R$ {moeda(res.precoComCupom)}
                     </div>
                     <div className="result-sub" style={{
-                        color: res.margemSobreVenda <= 0 ? '#b91c1c' : (res.margemSobreVenda < 15 ? '#c2410c' : '#15803d'),
+                        color: res.margemSobreVenda < 2 ? '#b91c1c' : (res.margemSobreVenda <= 10 ? '#c2410c' : '#15803d'),
                         opacity: 1,
                         fontWeight: 600
                     }}>
@@ -1398,7 +1398,7 @@ const ShopeePage: React.FC = () => {
                     </div>
                     <ShoppingCart size={24} className="card-icon" style={{
                         opacity: 0.1,
-                        color: res.margemSobreVenda <= 0 ? '#dc2626' : (res.margemSobreVenda < 15 ? '#d97706' : '#10B981')
+                        color: res.margemSobreVenda < 2 ? '#dc2626' : (res.margemSobreVenda <= 10 ? '#d97706' : '#10B981')
                     }} />
                 </div>
 
