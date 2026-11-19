@@ -138,6 +138,7 @@ const ShopeePage: React.FC = () => {
     const [isOrderCalcModalOpen, setIsOrderCalcModalOpen] = useState(false);
     const [modalNewOrderNumber, setModalNewOrderNumber] = useState<string>('');
     const [isHistoryTableView, setIsHistoryTableView] = useState(false);
+    const [focusedCustomLabelId, setFocusedCustomLabelId] = useState<string | null>(null);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -1656,25 +1657,102 @@ const ShopeePage: React.FC = () => {
                                         >
                                             ×
                                         </button>
-                                        <input
-                                            type="text"
-                                            value={item.label}
-                                            placeholder="Nome da taxa ou ajuste"
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: val } : c));
-                                            }}
-                                            style={{
-                                                flex: 1,
-                                                minWidth: '100px',
-                                                padding: '2px 6px',
-                                                fontSize: '0.82rem',
-                                                border: '1px solid #d8b4fe',
-                                                borderRadius: '5px',
-                                                background: '#ffffff',
-                                                color: '#1e293b'
-                                            }}
-                                        />
+                                        <div style={{ position: 'relative', flex: 1, minWidth: '100px' }}>
+                                            <input
+                                                type="text"
+                                                value={item.label}
+                                                placeholder="Nome da taxa ou ajuste"
+                                                onFocus={() => setFocusedCustomLabelId(item.id)}
+                                                onBlur={() => setFocusedCustomLabelId(prev => prev === item.id ? null : prev)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Escape') setFocusedCustomLabelId(null);
+                                                }}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setFocusedCustomLabelId(item.id);
+                                                    setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: val } : c));
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    boxSizing: 'border-box',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.82rem',
+                                                    border: '1px solid #d8b4fe',
+                                                    borderRadius: '5px',
+                                                    background: '#ffffff',
+                                                    color: '#1e293b'
+                                                }}
+                                            />
+                                            {focusedCustomLabelId === item.id && (() => {
+                                                const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                                                const seen = new Set<string>();
+                                                const allLabels: string[] = [];
+                                                const pushLabel = (lbl?: string) => {
+                                                    const clean = (lbl ?? '').trim();
+                                                    if (!clean) return;
+                                                    const k = norm(clean);
+                                                    if (!seen.has(k)) {
+                                                        seen.add(k);
+                                                        allLabels.push(clean);
+                                                    }
+                                                };
+                                                customDreItems.forEach(c => {
+                                                    if (c.id !== item.id) pushLabel(c.label);
+                                                });
+                                                calcHistory.forEach(h => {
+                                                    h.correctionsSnapshot?.customDreItems?.forEach(c => pushLabel(c.label));
+                                                });
+                                                const q = norm(item.label);
+                                                const matches = allLabels.filter(lbl => {
+                                                    const nl = norm(lbl);
+                                                    return nl !== q && (!q || nl.includes(q));
+                                                });
+                                                if (matches.length === 0) return null;
+                                                return (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: 'calc(100% + 2px)',
+                                                        left: 0,
+                                                        right: 0,
+                                                        background: '#ffffff',
+                                                        border: '1px solid #d8b4fe',
+                                                        borderRadius: '6px',
+                                                        boxShadow: '0 8px 20px rgba(15, 23, 42, 0.14)',
+                                                        maxHeight: '160px',
+                                                        overflowY: 'auto',
+                                                        zIndex: 80
+                                                    }}>
+                                                        {matches.map((suggestion) => (
+                                                            <button
+                                                                key={suggestion}
+                                                                type="button"
+                                                                onMouseDown={(e) => {
+                                                                    e.preventDefault();
+                                                                    setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: suggestion } : c));
+                                                                    setFocusedCustomLabelId(null);
+                                                                }}
+                                                                style={{
+                                                                    display: 'block',
+                                                                    width: '100%',
+                                                                    textAlign: 'left',
+                                                                    padding: '5px 8px',
+                                                                    fontSize: '0.8rem',
+                                                                    color: '#1e293b',
+                                                                    background: 'transparent',
+                                                                    border: 'none',
+                                                                    borderBottom: '1px solid #f1f5f9',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                                onMouseEnter={(e) => { e.currentTarget.style.background = '#f5f3ff'; }}
+                                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                                            >
+                                                                {suggestion}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
                                         {renderCommentControl(customCommentKey)}
                                         <button
                                             type="button"
