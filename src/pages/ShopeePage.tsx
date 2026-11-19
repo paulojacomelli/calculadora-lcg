@@ -123,9 +123,9 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
-    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
-    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
+    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
+    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [dreComments, setDreComments] = useState<Record<string, string>>({});
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
@@ -154,9 +154,9 @@ const ShopeePage: React.FC = () => {
         margemDesejadaSnapshot?: number;
         resultsSnapshot?: ShopeeOutput;
         correctionsSnapshot?: {
-            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>;
-            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>;
-            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
+            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>;
+            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>;
+            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
             customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>;
             dreComments?: Record<string, string>;
         };
@@ -785,7 +785,7 @@ const ShopeePage: React.FC = () => {
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', baseVal: number) => {
+        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', baseVal: number) => {
             if (dreAbsent[key]) return 0;
             const det = dreDetails[key];
             if (det && det.items.length > 0) {
@@ -799,11 +799,13 @@ const ShopeePage: React.FC = () => {
         const baseCalculo = arredondar(baseResults.precoVenda - rebateValor + sumSection('STP'), 2);
         const valorNota = arredondar(baseCalculo - cupomValor + sumSection('VN'), 2);
         const freteValor = resolveKeyVal('FPC_CRED', baseResults.freteValor || 0);
-        const precoComCupom = arredondar(valorNota + freteValor + sumSection('PDV'), 2);
+        const fpsCredVal = resolveKeyVal('FPS_CRED', baseResults.freteVendedorValor || 0);
+        const totalTopFrete = arredondar(freteValor + fpsCredVal, 2);
+        const precoComCupom = arredondar(valorNota + totalTopFrete - fpsCredVal + sumSection('PDV'), 2);
         const comissaoValor = resolveKeyVal('CS', baseResults.comissaoValor);
         const tarifaFixa = resolveKeyVal('TFS', baseResults.tarifaFixa);
         const freteDebitoValor = resolveKeyVal('FPC', freteValor);
-        const freteVendedorValor = resolveKeyVal('FPS', baseResults.freteVendedorValor || 0);
+        const freteVendedorValor = resolveKeyVal('FPS', fpsCredVal);
         const creditoRebateValor = resolveKeyVal('CR', rebateValor);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
@@ -888,7 +890,7 @@ const ShopeePage: React.FC = () => {
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR';
+    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR';
 
     const renderAbsentToggle = (key: DreOverrideKey) => {
         if (!isCorrectionMode) return null;
@@ -3094,7 +3096,7 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN' || i.section === 'PDV') && i.valor > 0)))) && (
+                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (activeResults.freteVendedorValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0 || (baseResults?.freteVendedorValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN' || i.section === 'PDV') && i.valor > 0)))) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
@@ -3169,50 +3171,119 @@ const ShopeePage: React.FC = () => {
                                                     </>
                                                 )}
                                                 {renderCustomDreSection('VN', activeResults.baseCalculo)}
-                                                <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.freteValor ?? 0) <= 0 && (isViewingOriginal || ((baseResults?.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'PDV' && i.valor > 0)))) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
-                                                    <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
-                                                    <div
-                                                        className="detail-values"
-                                                        style={{ cursor: 'help' }}
-                                                        title={`${(activeResults.rebateValor ?? 0) > 0
-                                                            ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
-                                                            : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
-                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
-                                                        onMouseLeave={() => setHighlightedRefs([])}
-                                                    >
-                                                        {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
-                                                    </div>
-                                                </div>
-                                                {(isCorrectionMode || (activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.freteValor ?? 0) > 0)) && (
-                                                    <>
-                                                        <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC_CRED ? { opacity: 0.6 } : undefined}>
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                                {renderAbsentToggle('FPC_CRED')}
-                                                                <span style={!isViewingOriginal && dreAbsent.FPC_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                    Frete pago pelo cliente {s('FPC')}:
-                                                                </span>
-                                                                {!isViewingOriginal && dreAbsent.FPC_CRED && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                                {renderDetailToggle('FPC_CRED', activeResults.freteValor ?? 0)}
-                                                                {renderCommentControl('FPC_CRED')}
-                                                            </span>
-                                                            <div
-                                                                className="detail-values"
-                                                                style={{ cursor: 'help' }}
-                                                                title={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC_CRED')}
-                                                                onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
-                                                                onMouseLeave={() => setHighlightedRefs([])}
-                                                            >
-                                                                {renderDreValor(baseResults?.freteValor ?? 0, activeResults.freteValor ?? 0, '+ ', 'val text-green', 'FPC_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPC_CRED) ? (baseResults?.freteValor ?? 0) : (activeResults.freteValor ?? 0)) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                {(() => {
+                                                    const fpcTopVal = activeResults.freteValor ?? 0;
+                                                    const baseFpcTopVal = baseResults?.freteValor ?? 0;
+                                                    const baseFpsTopVal = baseResults?.freteVendedorValor ?? 0;
+                                                    const fpsTopVal = isViewingOriginal
+                                                        ? baseFpsTopVal
+                                                        : dreAbsent.FPS_CRED
+                                                            ? 0
+                                                            : (dreDetails.FPS_CRED && dreDetails.FPS_CRED.items.length > 0
+                                                                ? arredondar(dreDetails.FPS_CRED.items.reduce((acc, it) => acc + it.valor, 0), 2)
+                                                                : (dreOverrides.FPS_CRED ?? baseFpsTopVal));
+                                                    const totalTopFrete = arredondar(fpcTopVal + fpsTopVal, 2);
+                                                    const baseTotalTopFrete = arredondar(baseFpcTopVal + baseFpsTopVal, 2);
+                                                    const showTopFreteBlock = isCorrectionMode || totalTopFrete > 0 || (!isViewingOriginal && baseTotalTopFrete > 0);
+                                                    const showTopFpcSub = isCorrectionMode || fpcTopVal > 0 || (!isViewingOriginal && baseFpcTopVal > 0);
+                                                    const showTopFpsSub = isCorrectionMode || fpsTopVal > 0 || (!isViewingOriginal && baseFpsTopVal > 0);
+                                                    const showPdvCustom = !isViewingOriginal && customDreItems.some(i => i.section === 'PDV' && i.valor > 0);
+
+                                                    return (
+                                                        <>
+                                                            <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(!showTopFreteBlock && !isCorrectionMode && !showPdvCustom) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                                <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
+                                                                <div
+                                                                    className="detail-values"
+                                                                    style={{ cursor: 'help' }}
+                                                                    title={`${(activeResults.rebateValor ?? 0) > 0
+                                                                        ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
+                                                                        : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
+                                                                    onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
+                                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                                >
+                                                                    {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                        {renderCommentInputRow('FPC_CRED')}
-                                                        {renderDreDetailsList('FPC_CRED', activeResults.precoVenda, activeResults.freteValor ?? 0)}
-                                                    </>
-                                                )}
-                                                {renderCustomDreSection('PDV', activeResults.precoVenda)}
-                                                {(isCorrectionMode || (activeResults.freteValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.freteValor ?? 0) > 0 || customDreItems.some(i => i.section === 'PDV' && i.valor > 0)))) && (
-                                                    <div style={{ borderBottom: '1px solid #e2e8f0', margin: '0.35rem 0 0.5rem' }} />
-                                                )}
+                                                            {showTopFreteBlock && (
+                                                                <>
+                                                                    <div className={`detail-row ${isRefHighlighted('FPC_CRED') || isRefHighlighted('FPS_CRED') ? 'dre-ref-pulse' : ''}`}>
+                                                                        <span style={{ fontWeight: 600 }}>Total de Frete:</span>
+                                                                        <div
+                                                                            className="detail-values"
+                                                                            style={{ cursor: 'help' }}
+                                                                            title={`Ref.: Frete cobrado total = FPC (R$ ${moeda(fpcTopVal)}) + FPS (R$ ${moeda(fpsTopVal)})`}
+                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
+                                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                                        >
+                                                                            {renderDreValor(baseTotalTopFrete, totalTopFrete, '+ ', 'val text-green', undefined, true, `${porc((totalTopFrete || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                        </div>
+                                                                    </div>
+                                                                    {(showTopFpcSub || showTopFpsSub) && (
+                                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+                                                                            {showTopFpcSub && (
+                                                                                <>
+                                                                                    <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC_CRED) ? { opacity: 0.6 } : {}) }}>
+                                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                                            {renderAbsentToggle('FPC_CRED')}
+                                                                                            <span style={!isViewingOriginal && dreAbsent.FPC_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                                                └ Frete pago pelo cliente {s('FPC')}:
+                                                                                            </span>
+                                                                                            {!isViewingOriginal && dreAbsent.FPC_CRED && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                                            {renderDetailToggle('FPC_CRED', fpcTopVal)}
+                                                                                            {renderCommentControl('FPC_CRED')}
+                                                                                        </span>
+                                                                                        <div
+                                                                                            className="detail-values"
+                                                                                            style={{ cursor: 'help' }}
+                                                                                            title={withCommentTitle("Ref.: Valor pago pelo cliente [FPC]", 'FPC_CRED')}
+                                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                                                        >
+                                                                                            {renderDreValor(baseFpcTopVal, fpcTopVal, '+ ', 'val text-green', 'FPC_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPC_CRED) ? baseFpcTopVal : fpcTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {renderCommentInputRow('FPC_CRED')}
+                                                                                    {renderDreDetailsList('FPC_CRED', activeResults.precoVenda, fpcTopVal)}
+                                                                                </>
+                                                                            )}
+                                                                            {showTopFpsSub && (
+                                                                                <>
+                                                                                    <div className={`detail-row ${isRefHighlighted('FPS_CRED') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS_CRED) ? { opacity: 0.6 } : {}) }}>
+                                                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                                            {renderAbsentToggle('FPS_CRED')}
+                                                                                            <span style={!isViewingOriginal && dreAbsent.FPS_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                                                └ Frete pago pela Shopee {s('FPS')}:
+                                                                                            </span>
+                                                                                            {!isViewingOriginal && dreAbsent.FPS_CRED && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                                            {renderDetailToggle('FPS_CRED', fpsTopVal)}
+                                                                                            {renderCommentControl('FPS_CRED')}
+                                                                                        </span>
+                                                                                        <div
+                                                                                            className="detail-values"
+                                                                                            style={{ cursor: 'help' }}
+                                                                                            title={withCommentTitle("Ref.: Frete descontado / pago pela Shopee [FPS]", 'FPS_CRED')}
+                                                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
+                                                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                                                        >
+                                                                                            {renderDreValor(baseFpsTopVal, fpsTopVal, '- ', 'val text-red', 'FPS_CRED', false, `${porc((((!isViewingOriginal && dreAbsent.FPS_CRED) ? baseFpsTopVal : fpsTopVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {renderCommentInputRow('FPS_CRED')}
+                                                                                    {renderDreDetailsList('FPS_CRED', activeResults.precoVenda, fpsTopVal)}
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                            {renderCustomDreSection('PDV', activeResults.precoVenda)}
+                                                            {(showTopFreteBlock || isCorrectionMode || showPdvCustom) && (
+                                                                <div style={{ borderBottom: '1px solid #e2e8f0', margin: '0.35rem 0 0.5rem' }} />
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </>
                                         )}
                                         <div className={`detail-row ${(isRefHighlighted('PDV') || (isRefHighlighted('STP') && (activeResults.rebateValor ?? 0) <= 0) || ((isRefHighlighted('VN') || isRefHighlighted('MC')) && (activeResults.rebateValor ?? 0) <= 0 && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0)) ? 'dre-ref-pulse' : ''}`}>
@@ -3220,10 +3291,8 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`${(activeResults.rebateValor ?? 0) > 0
-                                                    ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
-                                                    : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED', 'CUSTOM_PDV'])}
+                                                title={`Ref.: VN (R$ ${moeda(activeResults.valorNota)})${((activeResults.freteValor ?? 0) + (activeResults.freteVendedorValor ?? 0)) > 0 ? ` + Total de Frete (R$ ${moeda((activeResults.freteValor ?? 0) + (activeResults.freteVendedorValor ?? 0))})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FPS (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED', 'FPS_CRED', 'CUSTOM_PDV'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
