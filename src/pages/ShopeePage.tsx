@@ -1562,7 +1562,7 @@ const ShopeePage: React.FC = () => {
 
                     return (
                         <React.Fragment key={item.id}>
-                            <div className={`detail-row ${isRefHighlighted(`CUSTOM_${section}`) ? 'dre-ref-pulse' : ''}`} style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} title={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
+                            <div className={`detail-row ${isRefHighlighted(`CUSTOM_${section}`) ? 'dre-ref-pulse' : ''}`} style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} data-dre-tooltip={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
                                 {isCorrectionMode ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
                                         <button
@@ -3236,7 +3236,7 @@ const ShopeePage: React.FC = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                 <div
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'help' }}
-                                                    title={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Custo do Produto [CDP] (R$ ${moeda(activeInputs.custoProduto)})`}
+                                                    data-dre-tooltip-pos="left" data-dre-tooltip={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Custo do Produto [CDP] (R$ ${moeda(activeInputs.custoProduto)})`}
                                                     onMouseEnter={() => setHighlightedRefs(['CDP'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3245,7 +3245,7 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                                 <div
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'help' }}
-                                                    title={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Preço de Venda [PDV] (R$ ${moeda(activeResults.precoComCupom)})`}
+                                                    data-dre-tooltip-pos="left" data-dre-tooltip={`Ref.: Lucro Líquido (R$ ${moeda(activeResults.lucroLiquido)}) ÷ Preço de Venda [PDV] (R$ ${moeda(activeResults.precoComCupom)})`}
                                                     onMouseEnter={() => setHighlightedRefs(['PDV'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3255,7 +3255,7 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                             <div
                                                 style={{ textAlign: 'right', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.5rem', cursor: 'help' }}
-                                                title={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL]`}
+                                                data-dre-tooltip={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL]`}
                                                 onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3290,7 +3290,7 @@ const ShopeePage: React.FC = () => {
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
-                                                    <div className="detail-values" style={{ cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">
+                                                    <div className="detail-values" style={{ cursor: 'help' }} data-dre-tooltip="Valor base anunciado na vitrine [PA]">
                                                         <span className="perc" />
                                                         <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
                                                     </div>
@@ -3310,7 +3310,7 @@ const ShopeePage: React.FC = () => {
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
-                                                                title={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [DR]', 'DR')}
+                                                                data-dre-tooltip={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [DR]', 'DR')}
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
@@ -3325,7 +3325,7 @@ const ShopeePage: React.FC = () => {
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
-                                                                title={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
+                                                                data-dre-tooltip={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
                                                                 onMouseEnter={() => setHighlightedRefs(['PA', 'DR', 'CUSTOM_STP'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
@@ -3349,7 +3349,7 @@ const ShopeePage: React.FC = () => {
                                                             <div
                                                                 className="detail-values"
                                                                 style={{ cursor: 'help' }}
-                                                                title={withCommentTitle(activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]', 'CD')}
+                                                                data-dre-tooltip={withCommentTitle(activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]', 'CD')}
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
@@ -3387,7 +3387,7 @@ const ShopeePage: React.FC = () => {
                                                                     <div
                                                                         className="detail-values"
                                                                         style={{ cursor: 'help' }}
-                                                                        title={`${(activeResults.rebateValor ?? 0) > 0
+                                                                        data-dre-tooltip={`${(activeResults.rebateValor ?? 0) > 0
                                                                             ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
                                                                             : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
                                                                         onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
@@ -3412,7 +3412,7 @@ const ShopeePage: React.FC = () => {
                                                                         <div
                                                                             className="detail-values"
                                                                             style={{ cursor: 'help' }}
-                                                                            title={withCommentTitle(fpsTopVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalTopFrete)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsTopVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC_CRED')}
+                                                                            data-dre-tooltip={withCommentTitle(fpsTopVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalTopFrete)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsTopVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC_CRED')}
                                                                             onMouseEnter={() => setHighlightedRefs(fpsTopVal > 0 ? ['INPUT_FPC', 'INPUT_FPS'] : ['INPUT_FPC'])}
                                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                                         >
@@ -3428,7 +3428,7 @@ const ShopeePage: React.FC = () => {
                                                                                 <div
                                                                                     className="detail-values"
                                                                                     style={{ cursor: 'help' }}
-                                                                                    title={`Ref.: FPC (R$ ${moeda(fpcTopVal)}) + FPS (R$ ${moeda(fpsTopVal)})`}
+                                                                                    data-dre-tooltip={`Ref.: FPC (R$ ${moeda(fpcTopVal)}) + FPS (R$ ${moeda(fpsTopVal)})`}
                                                                                     onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
                                                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                                                 >
@@ -3448,7 +3448,7 @@ const ShopeePage: React.FC = () => {
                                                                                 <div
                                                                                     className="detail-values"
                                                                                     style={{ cursor: 'help' }}
-                                                                                    title={withCommentTitle("Ref.: Frete descontado / pago pela Shopee [FPS]", 'FPS_CRED')}
+                                                                                    data-dre-tooltip={withCommentTitle("Ref.: Frete descontado / pago pela Shopee [FPS]", 'FPS_CRED')}
                                                                                     onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
                                                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                                                 >
@@ -3475,7 +3475,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={hideSensitiveData
+                                                data-dre-tooltip={hideSensitiveData
                                                     ? `Ref.: ${(activeResults.rebateValor ?? 0) > 0 ? `STP (R$ ${moeda(activeResults.baseCalculo)})` : `PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`
                                                     : `Ref.: VN (R$ ${moeda(activeResults.valorNota)})${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(
@@ -3503,7 +3503,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={withCommentTitle(`Ref.: Calculada sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`, 'CS')}
+                                                data-dre-tooltip={withCommentTitle(`Ref.: Calculada sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})`, 'CS')}
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3525,7 +3525,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={withCommentTitle(`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})${(Number(qtdMultiplier) || 1) > 1 ? ` × ${Number(qtdMultiplier) || 1} un.` : ''}`, 'TFS')}
+                                                data-dre-tooltip={withCommentTitle(`Ref.: Faixa e % calculados sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})${(Number(qtdMultiplier) || 1) > 1 ? ` × ${Number(qtdMultiplier) || 1} un.` : ''}`, 'TFS')}
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3561,7 +3561,7 @@ const ShopeePage: React.FC = () => {
                                                         <div
                                                             className="detail-values"
                                                             style={{ cursor: 'help' }}
-                                                            title={withCommentTitle(fpsDebVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalFreteVal)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
+                                                            data-dre-tooltip={withCommentTitle(fpsDebVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalFreteVal)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
                                                             onMouseEnter={() => setHighlightedRefs(fpsDebVal > 0 ? ['INPUT_FPC', 'INPUT_FPS'] : ['INPUT_FPC'])}
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
@@ -3577,7 +3577,7 @@ const ShopeePage: React.FC = () => {
                                                                 <div
                                                                     className="detail-values"
                                                                     style={{ cursor: 'help' }}
-                                                                    title={`Ref.: FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`}
+                                                                    data-dre-tooltip={`Ref.: FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`}
                                                                     onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
                                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                                 >
@@ -3597,7 +3597,7 @@ const ShopeePage: React.FC = () => {
                                                                 <div
                                                                     className="detail-values"
                                                                     style={{ cursor: 'help' }}
-                                                                    title={withCommentTitle("Ref.: Frete subsidiado / pago pela Shopee [FPS]", 'FPS')}
+                                                                    data-dre-tooltip={withCommentTitle("Ref.: Frete subsidiado / pago pela Shopee [FPS]", 'FPS')}
                                                                     onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
                                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                                 >
@@ -3626,7 +3626,7 @@ const ShopeePage: React.FC = () => {
                                                     <div
                                                         className="detail-values"
                                                         style={{ cursor: 'help' }}
-                                                        title={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]', 'CR')}
+                                                        data-dre-tooltip={withCommentTitle(activeInputs.rebateTipo === 'porcentagem' ? `Ref.: Reembolso do Desconto de Rebate [DR] (% sobre PA R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Reembolso do valor fixo informado no campo [DR]', 'CR')}
                                                         onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
@@ -3643,7 +3643,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0 && (!isViewingOriginal || i.isExpected)).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
+                                                data-dre-tooltip={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0 && (!isViewingOriginal || i.isExpected)).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3659,7 +3659,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title="Ref.: Valor fixo informado no campo [CDP]"
+                                                data-dre-tooltip="Ref.: Valor fixo informado no campo [CDP]"
                                                 onMouseEnter={() => setHighlightedRefs(['INPUT_CDP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3673,7 +3673,7 @@ const ShopeePage: React.FC = () => {
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
-                                                    title={activeInputs.impostoTipo === 'porcentagem' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [IMP]'}
+                                                    data-dre-tooltip={activeInputs.impostoTipo === 'porcentagem' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [IMP]'}
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.impostoTipo === 'porcentagem' ? ['VN', 'INPUT_IMP'] : ['INPUT_IMP'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3688,7 +3688,7 @@ const ShopeePage: React.FC = () => {
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
-                                                    title={activeInputs.adsTipo !== 'fixo' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [ADS]'}
+                                                    data-dre-tooltip={activeInputs.adsTipo !== 'fixo' ? `Ref.: Calculado sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [ADS]'}
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.adsTipo !== 'fixo' ? ['VN', 'INPUT_ADS'] : ['INPUT_ADS'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3703,7 +3703,7 @@ const ShopeePage: React.FC = () => {
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
-                                                    title={activeInputs.despesaFixaTipo === 'porcentagem' ? `Ref.: Calculada sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [DF]'}
+                                                    data-dre-tooltip={activeInputs.despesaFixaTipo === 'porcentagem' ? `Ref.: Calculada sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [DF]'}
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.despesaFixaTipo === 'porcentagem' ? ['VN', 'INPUT_DF'] : ['INPUT_DF'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3718,7 +3718,7 @@ const ShopeePage: React.FC = () => {
                                                 <div
                                                     className="detail-values"
                                                     style={{ cursor: 'help' }}
-                                                    title={activeInputs.despesaAdicionalTipo === 'porcentagem' ? `Ref.: Calculadas sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [OD]'}
+                                                    data-dre-tooltip={activeInputs.despesaAdicionalTipo === 'porcentagem' ? `Ref.: Calculadas sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})` : 'Ref.: Valor fixo informado no campo [OD]'}
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.despesaAdicionalTipo === 'porcentagem' ? ['VN', 'INPUT_OD'] : ['INPUT_OD'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
@@ -3732,7 +3732,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL] | % sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})`}
+                                                data-dre-tooltip={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL] | % sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})`}
                                                 onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD', 'VN'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
@@ -3756,7 +3756,7 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         <div
                                             className="result-body"
-                                            title={`Ref.: (PA R$ ${moeda(activeResults.precoVenda)} - CDP R$ ${moeda(activeResults.custoProdutoValor)}) ÷ PA R$ ${moeda(activeResults.precoVenda)}`}
+                                            data-dre-tooltip={`Ref.: (PA R$ ${moeda(activeResults.precoVenda)} - CDP R$ ${moeda(activeResults.custoProdutoValor)}) ÷ PA R$ ${moeda(activeResults.precoVenda)}`}
                                             style={{ cursor: 'help' }}
                                             onMouseEnter={() => setHighlightedRefs(['MC'])}
                                             onMouseLeave={() => setHighlightedRefs([])}
