@@ -2518,14 +2518,15 @@ const ShopeePage: React.FC = () => {
                                                 {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean) || Object.keys(dreDetails).length > 0) && (
                                                     <button
                                                         type="button"
+                                                        className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
                                                         onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); }}
                                                         style={{
-                                                            fontSize: '0.72rem',
-                                                            fontWeight: 700,
-                                                            background: '#f1f5f9',
-                                                            color: '#475569',
-                                                            border: '1px solid #cbd5e1',
-                                                            padding: '3px 8px',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 500,
+                                                            background: 'transparent',
+                                                            color: '#94a3b8',
+                                                            border: 'none',
+                                                            padding: '2px 4px',
                                                             borderRadius: '6px',
                                                             cursor: 'pointer'
                                                         }}
