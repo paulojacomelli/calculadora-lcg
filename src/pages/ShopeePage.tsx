@@ -1235,7 +1235,8 @@ const ShopeePage: React.FC = () => {
                         border: '1px solid #d8b4fe',
                         borderRadius: '6px',
                         background: '#faf5ff',
-                        color: '#1e293b'
+                        color: '#1e293b',
+                        outline: 'none'
                     }}
                 />
                 <button
@@ -1364,7 +1365,8 @@ const ShopeePage: React.FC = () => {
                                                 border: '1px solid #d8b4fe',
                                                 borderRadius: '5px',
                                                 background: '#ffffff',
-                                                color: '#1e293b'
+                                                color: '#1e293b',
+                                                outline: 'none'
                                             }}
                                         />
                                         {renderCommentControl(subCommentKey)}
@@ -1407,7 +1409,8 @@ const ShopeePage: React.FC = () => {
                                                 border: '1px solid #d8b4fe',
                                                 borderRadius: '6px',
                                                 background: '#ffffff',
-                                                color: '#1e293b'
+                                                color: '#1e293b',
+                                                outline: 'none'
                                             }}
                                         />
                                     ) : (
@@ -1680,7 +1683,8 @@ const ShopeePage: React.FC = () => {
                                                     border: '1px solid #d8b4fe',
                                                     borderRadius: '5px',
                                                     background: '#ffffff',
-                                                    color: '#1e293b'
+                                                    color: '#1e293b',
+                                                    outline: 'none'
                                                 }}
                                             />
                                             {focusedCustomLabelId === item.id && (() => {
