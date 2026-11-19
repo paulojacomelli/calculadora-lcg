@@ -507,6 +507,7 @@ const ShopeePage: React.FC = () => {
         lastCalcFingerprint !== null &&
         buildParamsFingerprint(inputs, qtdMultiplier, aba, tipoMargemIdeal, margemDesejada) !== lastCalcFingerprint
     );
+    const isCalcUnchanged = Boolean(results && lastCalcFingerprint !== null && !isResultStale);
 
     // Função mantida por compatibilidade com onBlur de inputs, mas sem ação em modo manual
     const triggerCalculation = () => {
@@ -611,6 +612,7 @@ const ShopeePage: React.FC = () => {
     };
 
     const handleCalcular = () => {
+        if (isCalcUnchanged) return;
         if (missingUnitFields.length > 0) {
             notify(`Selecione % ou R$ em: ${missingUnitFields.join(', ')}`, 'error');
             return;
@@ -2904,11 +2906,12 @@ const ShopeePage: React.FC = () => {
                                     justifyContent: 'center',
                                     gap: '8px',
                                     transition: 'all 0.3s ease',
-                                    opacity: isCalculating || missingUnitFields.length > 0 ? 0.6 : 1,
-                                    cursor: missingUnitFields.length > 0 ? 'not-allowed' : 'pointer'
+                                    opacity: isCalculating || missingUnitFields.length > 0 || isCalcUnchanged ? 0.55 : 1,
+                                    cursor: missingUnitFields.length > 0 || isCalcUnchanged ? 'not-allowed' : 'pointer'
                                 }}
                                 onClick={handleCalcular}
-                                disabled={isCalculating || missingUnitFields.length > 0}
+                                disabled={isCalculating || missingUnitFields.length > 0 || isCalcUnchanged}
+                                title={isCalcUnchanged ? 'Nenhuma alteração detectada desde o último cálculo' : undefined}
                             >
                                 {isCalculating ? (
                                     <RefreshCcw size={22} className="animate-spin" />
