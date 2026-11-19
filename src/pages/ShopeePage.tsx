@@ -1061,39 +1061,14 @@ const ShopeePage: React.FC = () => {
         );
     };
 
-    const renderDreDetailsList = (key: DreOverrideKey, baseRefVal: number, parentTargetVal: number) => {
+    const renderDreDetailsList = (key: DreOverrideKey, baseRefVal: number, _parentTargetVal?: number) => {
         if (isViewingOriginal || dreAbsent[key]) return null;
         const group = dreDetails[key];
         if (!group) return null;
         if (!isCorrectionMode && group.items.every(i => i.valor <= 0)) return null;
 
-        const sumItems = arredondar(group.items.reduce((acc, i) => acc + i.valor, 0), 2);
-        const baseMap: Record<DreOverrideKey, number | undefined> = {
-            DR: baseResults?.rebateValor,
-            CR: baseResults?.rebateValor,
-            CD: baseResults?.cupomValor,
-            CS: baseResults?.comissaoValor,
-            TFS: baseResults?.tarifaFixa,
-            FPC: baseResults?.freteValor,
-        };
-        const originalBaseVal = baseMap[key] ?? parentTargetVal;
-        const diffFromBase = arredondar(sumItems - originalBaseVal, 2);
-        const isTotalEqual = Math.abs(diffFromBase) < 0.005;
-
         return (
             <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
-                {isCorrectionMode && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', padding: '4px 8px', marginBottom: '4px', background: isTotalEqual ? '#ecfdf5' : '#fffbeb', border: `1px solid ${isTotalEqual ? '#a7f3d0' : '#fde68a'}`, borderRadius: '6px' }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isTotalEqual ? '#047857' : '#b45309' }}>
-                            {isTotalEqual ? '✓ Total igual ao previsto' : 'Total diferente do previsto (usando soma)'}
-                        </span>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: isTotalEqual ? '#047857' : '#b45309' }}>
-                            Soma: R$ {moeda(sumItems)}
-                            {!isTotalEqual ? ` (${diffFromBase > 0 ? '+' : '-'}R$ ${moeda(Math.abs(diffFromBase))})` : ''}
-                        </span>
-                    </div>
-                )}
-
                 {group.items.map(sub => {
                     if (!isCorrectionMode && sub.valor <= 0) return null;
                     const editKey = `DETAIL_${key}_${sub.id}`;
