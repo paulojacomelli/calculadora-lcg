@@ -12,7 +12,7 @@ import { inicializarTabelaFrete } from './utils/meliLogic';
 import LoginAvatar from './components/LoginAvatar';
 import LoginPage from './pages/LoginPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { APP_VERSION } from './utils/constants';
+import { APP_VERSION, APP_VERSION_DATE } from './utils/constants';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -135,7 +135,7 @@ const Footer: React.FC = () => {
           </div>
 
           <p className="footer-copyright">
-            © {new Date().getFullYear()} Calculadora LCG. Todos os direitos reservados. | Versão {APP_VERSION}
+            © {new Date().getFullYear()} Calculadora LCG. Todos os direitos reservados. | Versão {APP_VERSION} • {APP_VERSION_DATE}
           </p>
         </div>
       </div>

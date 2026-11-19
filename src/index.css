@@ -1640,10 +1640,10 @@ body {
   }
   .details {
     box-shadow: none !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 10px !important;
+    border: none !important;
+    border-radius: 0 !important;
     margin: 0 !important;
-    padding: 10px 14px !important;
+    padding: 0 !important;
     width: 100% !important;
     background: #ffffff !important;
     page-break-inside: avoid !important;
@@ -1664,10 +1664,10 @@ body {
     display: none !important;
   }
   .dre-print-params {
-    background: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    padding: 7px 10px !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 2px 0 6px 0 !important;
     margin-bottom: 8px !important;
     font-size: 0.72rem !important;
     line-height: 1.3 !important;
