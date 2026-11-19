@@ -1781,8 +1781,7 @@ const ShopeePage: React.FC = () => {
         let melhorAnteriorComp: any = null;
         let melhorLeverageComp: any = null;
 
-        const lucroAtualComp = activeResults?.lucroLiquido || 0;
-        const precoAtualSimComp = activeResults?.precoComCupom || 0; // Usando o PA como base para descida
+        const precoAtualSimComp = activeResults?.precoVenda || 0; // Usando o PA como base para descida
 
 
         if (activeResults?.precoVenda && (activeInputs.custoProduto || 0) > 0) {
@@ -1798,13 +1797,12 @@ const ShopeePage: React.FC = () => {
                 const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
 
                 // Regra do Sensor de Otimização (VERDE):
-                // 1. O lucro aumentou de verdade (> 0,5 centavo)
-                // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
-                const diffLucro = resTeste.lucroLiquido - lucroRefArredondado;
-                const isLucroMaiorOuIgual = diffLucro >= 0;
+                // Só sugere abaixar o Preço Anunciado [PA] se o lucro líquido também aumentar
+                const diffLucro = arredondar(resTeste.lucroLiquido - lucroRefArredondado, 2);
+                const isLucroMaior = diffLucro > 0;
                 const isPrecoMenor = paTeste < precoAtualSimComp - 0.01;
 
-                if (isLucroMaiorOuIgual && isPrecoMenor) {
+                if (isLucroMaior && isPrecoMenor) {
                     melhorAnteriorComp = resTeste;
                     break;
                 }
@@ -1822,11 +1820,11 @@ const ShopeePage: React.FC = () => {
                     const resTeste = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
 
                     const qPreco = precoAtualSimComp - paTeste;
-                    const qLucro = lucroAtualComp - resTeste.lucroLiquido;
+                    const qLucro = lucroRefArredondado - resTeste.lucroLiquido;
 
-                    if (qLucro > 0) {
+                    if (qLucro > 0 && lucroRefArredondado > 0) {
                         const fator = qPreco / qLucro;
-                        const pctPerdaLucro = qLucro / (lucroAtualComp || 1);
+                        const pctPerdaLucro = qLucro / lucroRefArredondado;
 
                         if (pctPerdaLucro <= MAX_LUCRO_PERDIDO_PCT && fator >= MIN_ALAVANCAGEM) {
                             const finalGiro = calcularTaxasShopee({ ...activeInputs, precoVenda: paTeste }, true);
@@ -2825,8 +2823,8 @@ const ShopeePage: React.FC = () => {
                                         }
 
                                         if (melhorLeverageComp && aba !== 'ideal') {
-                                            const qP = activeResults.precoComCupom - melhorLeverageComp.precoComCupom;
-                                            const qL = activeResults.lucroLiquido - melhorLeverageComp.lucroLiquido;
+                                            const qP = activeResults.precoVenda - melhorLeverageComp.precoVenda;
+                                            const qL = (baseResults?.lucroLiquido ?? activeResults.lucroLiquido) - melhorLeverageComp.lucroLiquido;
                                             const f = melhorLeverageComp.fator;
 
                                             return (
@@ -2837,8 +2835,8 @@ const ShopeePage: React.FC = () => {
                                                         <div className="sensor-inner-alert purple">
                                                             <RefreshCcw size={20} />
                                                             <span>
-                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(activeResults.precoComCupom)}</strong>.
-                                                                Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoComCupom)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
+                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado atual é <strong>R$ {moeda(activeResults.precoVenda)}</strong>.
+                                                                Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoVenda)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
                                                                 sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
                                                             </span>
                                                         </div>
