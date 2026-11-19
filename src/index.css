@@ -1518,6 +1518,18 @@ body {
   font-weight: 500;
 }
 
+.dre-sub-group {
+  padding-left: 1.25rem;
+  border-left: 2px solid #e9d5ff;
+  padding-right: 0.95rem;
+  border-right: 2px solid #e9d5ff;
+  margin: 2px 4px 6px 8px;
+}
+
+.dre-sub-group .detail-row .val {
+  min-width: calc(100px - 0.95rem - 6px);
+}
+
 .detail-row.total .val {
   font-size: 1.1rem;
   font-weight: 800;
@@ -1748,6 +1760,9 @@ body {
   }
   .details .detail-row .val {
     min-width: 84px !important;
+  }
+  .details .dre-sub-group .detail-row .val {
+    min-width: calc(84px - 0.95rem - 6px) !important;
   }
   .dre-print-only {
     display: inline !important;
