@@ -1403,13 +1403,14 @@ const ShopeePage: React.FC = () => {
                                             }}
                                             style={{
                                                 width: '100px',
-                                                padding: '2px 6px',
+                                                padding: '2px 4px',
                                                 fontSize: '0.82rem',
                                                 fontWeight: 700,
                                                 textAlign: 'right',
-                                                border: '1px solid #d8b4fe',
-                                                borderRadius: '6px',
-                                                background: '#ffffff',
+                                                border: 'none',
+                                                borderBottom: '1px solid #d8b4fe',
+                                                borderRadius: 0,
+                                                background: 'transparent',
                                                 color: '#1e293b',
                                                 outline: 'none'
                                             }}
@@ -1576,14 +1577,16 @@ const ShopeePage: React.FC = () => {
                         }}
                         style={{
                             width: '100px',
-                            padding: '2px 6px',
+                            padding: '2px 4px',
                             fontSize: '0.85rem',
                             fontWeight: 700,
                             textAlign: 'right',
-                            border: hasDiff ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
-                            borderRadius: '6px',
-                            background: hasDiff ? '#f5f3ff' : '#ffffff',
-                            color: '#1e293b'
+                            border: 'none',
+                            borderBottom: hasDiff ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                            borderRadius: 0,
+                            background: 'transparent',
+                            color: '#1e293b',
+                            outline: 'none'
                         }}
                     />
                 </>
@@ -1857,14 +1860,16 @@ const ShopeePage: React.FC = () => {
                                                     }}
                                                     style={{
                                                         width: '72px',
-                                                        padding: '2px 6px',
+                                                        padding: '2px 4px',
                                                         fontSize: '0.85rem',
                                                         fontWeight: 700,
                                                         textAlign: 'right',
-                                                        border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
-                                                        borderRadius: '6px',
-                                                        background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
-                                                        color: '#1e293b'
+                                                        border: 'none',
+                                                        borderBottom: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                                                        borderRadius: 0,
+                                                        background: 'transparent',
+                                                        color: '#1e293b',
+                                                        outline: 'none'
                                                     }}
                                                 />
                                             </div>
