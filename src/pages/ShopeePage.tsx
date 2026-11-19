@@ -133,6 +133,7 @@ const ShopeePage: React.FC = () => {
     const [isViewingOriginal, setIsViewingOriginal] = useState(false);
     const [orderNumber, setOrderNumber] = useState<string>('');
     const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false);
+    const [isOrderCalcModalOpen, setIsOrderCalcModalOpen] = useState(false);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -529,21 +530,30 @@ const ShopeePage: React.FC = () => {
     if ((inputs.rebatePorcentagem ?? 0) > 0 && !inputs.rebateTipo) missingUnitFields.push('Rebate Shopee [DR]');
     if ((inputs.cupomDesconto ?? 0) > 0 && !inputs.cupomTipo) missingUnitFields.push('Cupom da loja [CD]');
 
+    const runCalculoWithLoading = (mode: 'same' | 'new_order' | 'simulation' = 'same') => {
+        setIsOrderCalcModalOpen(false);
+        setIsCalculating(true);
+
+        // Simulação de processamento para feedback visual (800ms conforme solicitado)
+        setTimeout(() => {
+            executarCalculo(mode);
+            setIsCalculating(false);
+        }, 800);
+    };
+
     const handleCalcular = () => {
         if (missingUnitFields.length > 0) {
             notify(`Selecione % ou R$ em: ${missingUnitFields.join(', ')}`, 'error');
             return;
         }
-        setIsCalculating(true);
-
-        // Simulação de processamento para feedback visual (800ms conforme solicitado)
-        setTimeout(() => {
-            executarCalculo();
-            setIsCalculating(false);
-        }, 800);
+        if (orderNumber.trim() !== '') {
+            setIsOrderCalcModalOpen(true);
+            return;
+        }
+        runCalculoWithLoading('same');
     };
 
-    const executarCalculo = () => {
+    const executarCalculo = (mode: 'same' | 'new_order' | 'simulation' = 'same') => {
         setLastCalcFingerprint(buildParamsFingerprint(inputs, qtdMultiplier, aba, tipoMargemIdeal, margemDesejada));
         setIsViewingOriginal(false);
         setDreOverrides({});
@@ -637,23 +647,39 @@ const ShopeePage: React.FC = () => {
         setResults(resultado);
         setLastCalculatedInputs(inputsCalc);
 
+        if (mode === 'simulation') {
+            setOrderNumber('');
+            setIsEditingOrderNumber(false);
+            setActiveHistoryId(null);
+            logCalculo(parseFloat(precoFinalStr), resultado.margemSobreVenda, "CNPJ");
+            return;
+        }
+
+        const resolvedOrderNumber = mode === 'new_order' ? '' : orderNumber.trim();
+        if (mode === 'new_order') {
+            setOrderNumber('');
+            setIsEditingOrderNumber(false);
+        }
+
         const originalVnVal = arredondar(resultado.valorNota, 2);
         const originalRepasseVal = arredondar(resultado.repasse, 2);
         const originalLucroVal = arredondar(resultado.lucroLiquido, 2);
         const entrySku = selectedCatalogProduct?.sku || 'Avulso';
         const entryPa = arredondar(resultado.precoVenda, 2);
-        const existingMatch = calcHistory.find(
-            h =>
-                h.sku === entrySku &&
-                h.pa === entryPa &&
-                (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
-                (h.originalLucro ?? h.lucro) === originalLucroVal
-        );
+        const existingMatch = mode === 'new_order'
+            ? undefined
+            : calcHistory.find(
+                h =>
+                    h.sku === entrySku &&
+                    h.pa === entryPa &&
+                    (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
+                    (h.originalLucro ?? h.lucro) === originalLucroVal
+            );
 
         const newHistoryEntry: CalcHistoryEntry = {
             id: existingMatch ? existingMatch.id : String(Date.now() + Math.random()),
             sku: entrySku,
-            orderNumber: orderNumber.trim() || existingMatch?.orderNumber || undefined,
+            orderNumber: resolvedOrderNumber || existingMatch?.orderNumber || undefined,
             pa: entryPa,
             vn: originalVnVal,
             repasse: originalRepasseVal,
@@ -674,15 +700,17 @@ const ShopeePage: React.FC = () => {
         };
         setActiveHistoryId(newHistoryEntry.id);
         setCalcHistory(prev => {
-            const filtered = prev.filter(
-                h =>
-                    !(
-                        h.sku === newHistoryEntry.sku &&
-                        h.pa === newHistoryEntry.pa &&
-                        (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
-                        (h.originalLucro ?? h.lucro) === originalLucroVal
-                    )
-            );
+            const filtered = mode === 'new_order'
+                ? prev
+                : prev.filter(
+                    h =>
+                        !(
+                            h.sku === newHistoryEntry.sku &&
+                            h.pa === newHistoryEntry.pa &&
+                            (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
+                            (h.originalLucro ?? h.lucro) === originalLucroVal
+                        )
+                );
             const next = [newHistoryEntry, ...filtered].slice(0, 50);
             syncHistoryToFirestore(next);
             return next;
@@ -910,9 +938,8 @@ const ShopeePage: React.FC = () => {
         const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, on: nextOrderNumber, c: nextCorrections });
 
         setCalcHistory(prev => {
-            const targetId = activeHistoryId ?? prev[0]?.id;
-            if (!targetId) return prev;
-            const idx = prev.findIndex(h => h.id === targetId);
+            if (!activeHistoryId) return prev;
+            const idx = prev.findIndex(h => h.id === activeHistoryId);
             if (idx === -1) return prev;
             const cur = prev[idx];
             const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, on: cur.orderNumber, c: cur.correctionsSnapshot });
@@ -3697,6 +3724,57 @@ const ShopeePage: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Modal de Confirmação ao Calcular com Nº do Pedido preenchido */}
+            {
+                isOrderCalcModalOpen && (
+                    <div className="modal-overlay" onClick={() => setIsOrderCalcModalOpen(false)}>
+                        <div className="modal-container" style={{ maxWidth: '460px' }} onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-icon-container" style={{ backgroundColor: '#ede9fe', color: '#7c3aed' }}>
+                                <Calculator size={28} />
+                            </div>
+                            <h3 className="modal-title">Pedido {orderNumber.trim()} preenchido</h3>
+                            <p className="modal-description">
+                                Como deseja prosseguir com este cálculo?
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    className="btn-modal-confirm"
+                                    style={{ backgroundColor: '#7c3aed', boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)', padding: '11px 14px' }}
+                                    onClick={() => runCalculoWithLoading('same')}
+                                >
+                                    Mesmo pedido (atualizar este pedido)
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '11px 14px' }}
+                                    onClick={() => runCalculoWithLoading('new_order')}
+                                >
+                                    Novo / outro pedido (limpar nº do pedido)
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '11px 14px' }}
+                                    onClick={() => runCalculoWithLoading('simulation')}
+                                >
+                                    Apenas uma simulação (não salvar no histórico)
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-modal-cancel"
+                                    style={{ padding: '10px 14px' }}
+                                    onClick={() => setIsOrderCalcModalOpen(false)}
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
             {/* Modal de Confirmação de Reset */}
             {
