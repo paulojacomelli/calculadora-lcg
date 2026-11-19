@@ -127,6 +127,7 @@ const ShopeePage: React.FC = () => {
     const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [historyPage, setHistoryPage] = useState(1);
+    const [historySearch, setHistorySearch] = useState('');
     const HISTORY_PAGE_SIZE = 10;
     const [calcHistory, setCalcHistory] = useState<Array<{
         id: string;
@@ -2956,7 +2957,7 @@ const ShopeePage: React.FC = () => {
             {/* Botão Flutuante de Histórico */}
             <button
                 type="button"
-                onClick={() => { setHistoryPage(1); setIsHistoryModalOpen(true); }}
+                onClick={() => { setHistoryPage(1); setHistorySearch(''); setIsHistoryModalOpen(true); }}
                 title="Histórico de cálculos"
                 style={{
                     position: 'fixed',
@@ -3099,12 +3100,28 @@ const ShopeePage: React.FC = () => {
                             const sortedHistory = [...calcHistory].sort(
                                 (a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
                             );
-                            const totalHistoryPages = Math.max(1, Math.ceil(sortedHistory.length / HISTORY_PAGE_SIZE));
-                            const safePage = Math.min(historyPage, totalHistoryPages);
-                            const pagedHistory = sortedHistory.slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
-
                             const toDayStr = (d: Date) =>
                                 `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                            const q = historySearch.trim().toLowerCase();
+                            const filteredHistory = q
+                                ? sortedHistory.filter((item) => {
+                                      const dt = new Date(item.createdAt);
+                                      const dayStr = isNaN(dt.getTime()) ? '' : toDayStr(dt);
+                                      const vnRaw = item.vn ?? item.resultsSnapshot?.valorNota ?? 0;
+                                      return (
+                                          item.sku.toLowerCase().includes(q) ||
+                                          moeda(item.pa).toLowerCase().includes(q) ||
+                                          moeda(vnRaw).toLowerCase().includes(q) ||
+                                          moeda(item.lucro).toLowerCase().includes(q) ||
+                                          dayStr.toLowerCase().includes(q)
+                                      );
+                                  })
+                                : sortedHistory;
+
+                            const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
+                            const safePage = Math.min(historyPage, totalHistoryPages);
+                            const pagedHistory = filteredHistory.slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
+
                             const now = new Date();
                             const todayKey = toDayStr(now);
                             const yesterday = new Date(now);
@@ -3133,7 +3150,66 @@ const ShopeePage: React.FC = () => {
 
                             return (
                                 <>
+                                    <div style={{ padding: '0.65rem 1.15rem 0.5rem', borderBottom: '1px solid #f1f5f9', background: '#ffffff' }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            border: '1px solid #cbd5e1',
+                                            borderRadius: '8px',
+                                            padding: '0.42rem 0.65rem',
+                                            background: '#f8fafc'
+                                        }}>
+                                            <Search size={14} color="#64748b" />
+                                            <input
+                                                type="text"
+                                                value={historySearch}
+                                                onChange={(e) => {
+                                                    setHistorySearch(e.target.value);
+                                                    setHistoryPage(1);
+                                                }}
+                                                placeholder="Buscar por SKU, PA, VN, Lucro ou data (DD/MM/AAAA)..."
+                                                style={{
+                                                    flex: 1,
+                                                    border: 'none',
+                                                    outline: 'none',
+                                                    background: 'transparent',
+                                                    fontSize: '0.82rem',
+                                                    color: '#1e293b'
+                                                }}
+                                            />
+                                            {historySearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setHistorySearch('');
+                                                        setHistoryPage(1);
+                                                    }}
+                                                    title="Limpar busca"
+                                                    style={{
+                                                        border: 'none',
+                                                        background: '#e2e8f0',
+                                                        color: '#475569',
+                                                        width: '18px',
+                                                        height: '18px',
+                                                        borderRadius: '999px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
                                     <div style={{ overflowY: 'auto', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
+                                        {filteredHistory.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
+                                                Nenhum registro encontrado para a busca.
+                                            </div>
+                                        ) : (
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
@@ -3256,6 +3332,7 @@ const ShopeePage: React.FC = () => {
                                                 ))}
                                             </tbody>
                                         </table>
+                                        )}
                                     </div>
                                     <div style={{
                                         display: 'flex',
@@ -3269,7 +3346,7 @@ const ShopeePage: React.FC = () => {
                                         color: '#475569'
                                     }}>
                                         <span>
-                                            {sortedHistory.length} {sortedHistory.length === 1 ? 'registro' : 'registros'} • Página {safePage} de {totalHistoryPages}
+                                            {filteredHistory.length} {filteredHistory.length === 1 ? 'registro' : 'registros'} • Página {safePage} de {totalHistoryPages}
                                         </span>
                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                             <button
