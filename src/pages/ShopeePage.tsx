@@ -3236,7 +3236,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '720px',
+                            maxWidth: '860px',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3432,13 +3432,13 @@ const ShopeePage: React.FC = () => {
                                         ) : (
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
-                                                    <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>VN</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Repasse</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
-                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Ações</th>
+                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem' }}>
+                                                    <th style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>SKU</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço Anunciado {s('PA')}</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor da nota {s('VN')}</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Repasse</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Lucro</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Ações</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
