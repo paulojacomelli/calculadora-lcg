@@ -118,6 +118,7 @@ const ShopeePage: React.FC = () => {
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
     const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', number>>>({});
     const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', boolean>>>({});
+    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
@@ -408,6 +409,7 @@ const ShopeePage: React.FC = () => {
         setIsResultStale(false);
         setDreOverrides({});
         setDreAbsent({});
+        setDreDetails({});
         setCustomDreItems([]);
         setIsCorrectionMode(false);
         let resultado: ShopeeOutput;
@@ -525,20 +527,30 @@ const ShopeePage: React.FC = () => {
 
     const activeResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean)) return baseResults;
+        const hasSumDetails = Object.values(dreDetails).some(d => d?.mode === 'sum');
+        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean) && !hasSumDetails) return baseResults;
 
         const sumSection = (sec: 'STP' | 'VN' | 'PDS') =>
             customDreItems
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const rebateValor = dreAbsent.DR ? 0 : (dreOverrides.DR ?? baseResults.rebateValor);
-        const cupomValor = dreAbsent.CD ? 0 : (dreOverrides.CD ?? baseResults.cupomValor);
+        const resolveKeyVal = (key: 'DR' | 'CD' | 'CS' | 'TFS', baseVal: number) => {
+            if (dreAbsent[key]) return 0;
+            const det = dreDetails[key];
+            if (det?.mode === 'sum') {
+                return arredondar(det.items.reduce((acc, it) => acc + it.valor, 0), 2);
+            }
+            return dreOverrides[key] ?? baseVal;
+        };
+
+        const rebateValor = resolveKeyVal('DR', baseResults.rebateValor);
+        const cupomValor = resolveKeyVal('CD', baseResults.cupomValor);
         const baseCalculo = arredondar(baseResults.precoVenda - rebateValor + sumSection('STP'), 2);
         const valorNota = arredondar(baseCalculo - cupomValor + sumSection('VN'), 2);
         const precoComCupom = arredondar(valorNota + (baseResults.freteValor || 0), 2);
-        const comissaoValor = dreAbsent.CS ? 0 : (dreOverrides.CS ?? baseResults.comissaoValor);
-        const tarifaFixa = dreAbsent.TFS ? 0 : (dreOverrides.TFS ?? baseResults.tarifaFixa);
+        const comissaoValor = resolveKeyVal('CS', baseResults.comissaoValor);
+        const tarifaFixa = resolveKeyVal('TFS', baseResults.tarifaFixa);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
         const despesaFixaValor = baseResults.despesaFixaValor;
@@ -619,6 +631,273 @@ const ShopeePage: React.FC = () => {
         );
     };
 
+    const renderDetailToggle = (key: DreOverrideKey, initialVal: number) => {
+        if (!isCorrectionMode || dreAbsent[key]) return null;
+        const isOpen = !!dreDetails[key];
+        return (
+            <button
+                type="button"
+                title={isOpen ? 'Remover detalhamento desta linha' : 'Detalhar como este valor aparece dividido na DRE'}
+                onClick={() => {
+                    setDreDetails(prev => {
+                        const next = { ...prev };
+                        if (next[key]) {
+                            delete next[key];
+                        } else {
+                            next[key] = {
+                                mode: 'same',
+                                items: [{ id: String(Date.now() + Math.random()), label: 'Parte 1', valor: arredondar(initialVal, 2) }]
+                            };
+                        }
+                        return next;
+                    });
+                }}
+                style={{
+                    marginLeft: '6px',
+                    border: isOpen ? '1px solid #c4b5fd' : 'none',
+                    background: isOpen ? '#f5f3ff' : 'transparent',
+                    color: isOpen ? '#7c3aed' : '#94a3b8',
+                    padding: isOpen ? '1px 6px' : '1px 4px',
+                    borderRadius: '4px',
+                    fontSize: '0.68rem',
+                    fontWeight: isOpen ? 700 : 500,
+                    cursor: 'pointer'
+                }}
+            >
+                {isOpen ? 'Detalhando' : 'Detalhar'}
+            </button>
+        );
+    };
+
+    const renderDreDetailsList = (key: DreOverrideKey, baseRefVal: number, parentTargetVal: number) => {
+        if (dreAbsent[key]) return null;
+        const group = dreDetails[key];
+        if (!group) return null;
+        if (!isCorrectionMode && group.items.every(i => i.valor <= 0)) return null;
+
+        const sumItems = arredondar(group.items.reduce((acc, i) => acc + i.valor, 0), 2);
+        const remaining = arredondar(parentTargetVal - sumItems, 2);
+
+        return (
+            <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+                {isCorrectionMode && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', padding: '4px 6px', marginBottom: '4px', background: '#faf5ff', borderRadius: '6px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setDreDetails(prev => prev[key] ? { ...prev, [key]: { ...prev[key]!, mode: 'same' } } : prev)}
+                                style={{
+                                    border: group.mode === 'same' ? '1px solid #7c3aed' : '1px solid #e2e8f0',
+                                    background: group.mode === 'same' ? '#7c3aed' : '#ffffff',
+                                    color: group.mode === 'same' ? '#ffffff' : '#64748b',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                                title="Mantém o total da linha intacto, apenas detalhando as partes"
+                            >
+                                Total igual
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDreDetails(prev => prev[key] ? { ...prev, [key]: { ...prev[key]!, mode: 'sum' } } : prev)}
+                                style={{
+                                    border: group.mode === 'sum' ? '1px solid #7c3aed' : '1px solid #e2e8f0',
+                                    background: group.mode === 'sum' ? '#7c3aed' : '#ffffff',
+                                    color: group.mode === 'sum' ? '#ffffff' : '#64748b',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                                title="O total da linha passa a ser a soma das partes detalhadas"
+                            >
+                                Total diferente (usar soma)
+                            </button>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: group.mode === 'same' && Math.abs(remaining) >= 0.005 ? '#b45309' : '#047857' }}>
+                            Soma: R$ {moeda(sumItems)}
+                            {group.mode === 'same' && (Math.abs(remaining) < 0.005 ? ' ✓' : ` (${remaining > 0 ? 'faltam' : 'excede'} R$ ${moeda(Math.abs(remaining))})`)}
+                        </span>
+                    </div>
+                )}
+
+                {group.items.map(sub => {
+                    if (!isCorrectionMode && sub.valor <= 0) return null;
+                    const editKey = `DETAIL_${key}_${sub.id}`;
+                    const isEditingThis = correctionEditing?.key === editKey;
+                    const displayValue = isEditingThis
+                        ? correctionEditing.text
+                        : (Number.isFinite(sub.valor) ? sub.valor.toFixed(2).replace('.', ',') : '0,00');
+
+                    const commitSubVal = (rawText: string) => {
+                        const trimmed = rawText.trim();
+                        const parsed = trimmed === '' ? 0 : parseFloat(trimmed.replace(/\./g, (m, _o, str) => (str.includes(',') ? '' : m)).replace(',', '.'));
+                        if (!isNaN(parsed)) {
+                            const rounded = arredondar(Math.max(0, parsed), 2);
+                            setDreDetails(prev => {
+                                const cur = prev[key];
+                                if (!cur) return prev;
+                                return { ...prev, [key]: { ...cur, items: cur.items.map(it => it.id === sub.id ? { ...it, valor: rounded } : it) } };
+                            });
+                        }
+                        setCorrectionEditing(null);
+                    };
+
+                    const pct = baseRefVal > 0 ? porc((sub.valor / baseRefVal) * 100) : '0,00';
+
+                    return (
+                        <div key={sub.id} className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
+                            {isCorrectionMode ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
+                                    <button
+                                        type="button"
+                                        title="Remover parte"
+                                        onClick={() => {
+                                            setDreDetails(prev => {
+                                                const cur = prev[key];
+                                                if (!cur) return prev;
+                                                const nextItems = cur.items.filter(it => it.id !== sub.id);
+                                                if (nextItems.length === 0) {
+                                                    const next = { ...prev };
+                                                    delete next[key];
+                                                    return next;
+                                                }
+                                                return { ...prev, [key]: { ...cur, items: nextItems } };
+                                            });
+                                        }}
+                                        style={{
+                                            border: 'none',
+                                            background: '#fee2e2',
+                                            color: '#dc2626',
+                                            width: '18px',
+                                            height: '18px',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontWeight: 700,
+                                            fontSize: '0.78rem',
+                                            lineHeight: 1,
+                                            flexShrink: 0,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        ×
+                                    </button>
+                                    <input
+                                        type="text"
+                                        value={sub.label}
+                                        placeholder="Descrição da parte"
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setDreDetails(prev => {
+                                                const cur = prev[key];
+                                                if (!cur) return prev;
+                                                return { ...prev, [key]: { ...cur, items: cur.items.map(it => it.id === sub.id ? { ...it, label: val } : it) } };
+                                            });
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            minWidth: '90px',
+                                            padding: '2px 6px',
+                                            fontSize: '0.8rem',
+                                            border: '1px solid #d8b4fe',
+                                            borderRadius: '5px',
+                                            background: '#ffffff',
+                                            color: '#1e293b'
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <span style={{ color: '#64748b' }}>└ {sub.label || 'Parte'}</span>
+                            )}
+                            <div className="detail-values">
+                                <span className="perc">({pct}%)</span>
+                                {isCorrectionMode ? (
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={displayValue}
+                                        onFocus={(e) => {
+                                            setCorrectionEditing({
+                                                key: editKey,
+                                                text: Number.isFinite(sub.valor) ? sub.valor.toFixed(2).replace('.', ',') : ''
+                                            });
+                                            e.currentTarget.select();
+                                        }}
+                                        onChange={(e) => setCorrectionEditing({ key: editKey, text: e.target.value })}
+                                        onBlur={(e) => commitSubVal(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') e.currentTarget.blur();
+                                            else if (e.key === 'Escape') {
+                                                setCorrectionEditing(null);
+                                                e.currentTarget.blur();
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100px',
+                                            padding: '2px 6px',
+                                            fontSize: '0.82rem',
+                                            fontWeight: 700,
+                                            textAlign: 'right',
+                                            border: '1px solid #d8b4fe',
+                                            borderRadius: '6px',
+                                            background: '#ffffff',
+                                            color: '#1e293b'
+                                        }}
+                                    />
+                                ) : (
+                                    <span className="val" style={{ color: '#64748b', fontWeight: 500 }}>
+                                        R$ {moeda(sub.valor)}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {isCorrectionMode && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setDreDetails(prev => {
+                                const cur = prev[key];
+                                if (!cur) return prev;
+                                return {
+                                    ...prev,
+                                    [key]: {
+                                        ...cur,
+                                        items: [...cur.items, { id: String(Date.now() + Math.random()), label: `Parte ${cur.items.length + 1}`, valor: 0 }]
+                                    }
+                                };
+                            });
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 0',
+                            fontSize: '0.68rem',
+                            fontWeight: 500,
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#94a3b8',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Plus size={11} /> Adicionar parte
+                    </button>
+                )}
+            </div>
+        );
+    };
+
     const renderDreValor = (
         originalVal: number,
         correctedVal: number,
@@ -667,7 +946,7 @@ const ShopeePage: React.FC = () => {
             <span className="perc">{percText ? `(${percText})` : ''}</span>
         ) : null;
 
-        if (isCorrectionMode && overrideKey) {
+        if (isCorrectionMode && overrideKey && dreDetails[overrideKey]?.mode !== 'sum') {
             const currentVal = dreOverrides[overrideKey] ?? originalVal;
             const isEditingThis = correctionEditing?.key === overrideKey;
             const displayValue = isEditingThis
@@ -2126,10 +2405,10 @@ const ShopeePage: React.FC = () => {
                                                         Resultado desatualizado
                                                     </span>
                                                 )}
-                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean)) && (
+                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0 || Object.values(dreAbsent).some(Boolean) || Object.keys(dreDetails).length > 0) && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); }}
+                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); setDreAbsent({}); setDreDetails({}); }}
                                                         style={{
                                                             fontSize: '0.72rem',
                                                             fontWeight: 700,
@@ -2250,6 +2529,7 @@ const ShopeePage: React.FC = () => {
                                                                     Desconto de Rebate {s('DR')}:
                                                                 </span>
                                                                 {dreAbsent.DR && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {renderDetailToggle('DR', activeResults.rebateValor)}
                                                             </span>
                                                             <div
                                                                 className="detail-values"
@@ -2261,6 +2541,7 @@ const ShopeePage: React.FC = () => {
                                                                 {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc(((dreAbsent.DR ? (baseResults?.rebateValor ?? 0) : activeResults.rebateValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
+                                                        {renderDreDetailsList('DR', activeResults.precoVenda, activeResults.rebateValor)}
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
                                                         <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0)) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
@@ -2277,24 +2558,28 @@ const ShopeePage: React.FC = () => {
                                                     </>
                                                 )}
                                                 {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
-                                                    <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CD ? { opacity: 0.6 } : undefined}>
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                            {renderAbsentToggle('CD')}
-                                                            <span style={dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                Desconto aplicado {s('CD')}:
+                                                    <>
+                                                        <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.CD ? { opacity: 0.6 } : undefined}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                {renderAbsentToggle('CD')}
+                                                                <span style={dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                    Desconto aplicado {s('CD')}:
+                                                                </span>
+                                                                {dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {renderDetailToggle('CD', activeResults.cupomValor)}
                                                             </span>
-                                                            {dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                        </span>
-                                                        <div
-                                                            className="detail-values"
-                                                            style={{ cursor: 'help' }}
-                                                            title={activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]'}
-                                                            onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
-                                                            onMouseLeave={() => setHighlightedRefs([])}
-                                                        >
-                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc(((dreAbsent.CD ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                title={activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]'}
+                                                                onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc(((dreAbsent.CD ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                        {renderDreDetailsList('CD', activeResults.precoVenda, activeResults.cupomValor)}
+                                                    </>
                                                 )}
                                                 {renderCustomDreSection('VN', activeResults.baseCalculo)}
                                                 <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(activeResults.freteValor ?? 0) <= 0 ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
@@ -2351,6 +2636,7 @@ const ShopeePage: React.FC = () => {
                                                     Comissão Shopee {s('CS')}:
                                                 </span>
                                                 {dreAbsent.CS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                {renderDetailToggle('CS', activeResults.comissaoValor)}
                                             </span>
                                             <div
                                                 className="detail-values"
@@ -2362,6 +2648,7 @@ const ShopeePage: React.FC = () => {
                                                 {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc(((dreAbsent.CS ? (baseResults?.comissaoValor ?? 0) : activeResults.comissaoValor) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
+                                        {renderDreDetailsList('CS', activeResults.baseCalculo, activeResults.comissaoValor)}
                                         <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                 {renderAbsentToggle('TFS')}
@@ -2369,6 +2656,7 @@ const ShopeePage: React.FC = () => {
                                                     Tarifa Fixa Shopee {s('TFS')}:
                                                 </span>
                                                 {dreAbsent.TFS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                {renderDetailToggle('TFS', activeResults.tarifaFixa)}
                                             </span>
                                             <div
                                                 className="detail-values"
@@ -2380,6 +2668,7 @@ const ShopeePage: React.FC = () => {
                                                 {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc(((dreAbsent.TFS ? (baseResults?.tarifaFixa ?? 0) : activeResults.tarifaFixa) || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
+                                        {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
                                         {(activeResults.freteValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Frete pago pelo cliente {s('FPC')}:</span>
