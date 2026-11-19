@@ -4032,6 +4032,24 @@ const ShopeePage: React.FC = () => {
                                                 const customItems = corr?.customDreItems ?? [];
                                                 const isDevolucaoFacil = (lbl: string) => normalizeTxt(lbl).includes('devolucao facil') || normalizeTxt(lbl).includes('devolucao');
 
+                                                const baseEsperada = arredondar(item.resultsSnapshot?.baseCalculo ?? item.pa, 2);
+                                                let drReal = item.resultsSnapshot?.rebateValor ?? 0;
+                                                if (corr) {
+                                                    if (corr.dreAbsent?.DR) {
+                                                        drReal = 0;
+                                                    } else if (corr.dreDetails?.DR && corr.dreDetails.DR.items.length > 0) {
+                                                        drReal = arredondar(corr.dreDetails.DR.items.reduce((acc, it) => acc + it.valor, 0), 2);
+                                                    } else if (corr.dreOverrides?.DR !== undefined) {
+                                                        drReal = arredondar(corr.dreOverrides.DR, 2);
+                                                    }
+                                                }
+                                                const stpCustom = customItems
+                                                    .filter(c => c.section === 'STP')
+                                                    .reduce((acc, c) => acc + (c.sign === '+' ? c.valor : -c.valor), 0);
+                                                const valorRefComissao = arredondar((item.resultsSnapshot?.precoVenda ?? item.pa) - drReal + stpCustom, 2);
+                                                const csEsperadaPct = baseEsperada > 0 ? csEsperada / baseEsperada : 0;
+                                                const csRealPct = valorRefComissao > 0 ? csReal / valorRefComissao : 0;
+
                                                 const devolucaoFacil = arredondar(
                                                     customItems
                                                         .filter(c => isDevolucaoFacil(c.label))
@@ -4050,14 +4068,47 @@ const ShopeePage: React.FC = () => {
                                                     'Número do pedido': item.orderNumber || '',
                                                     'SKU': item.sku,
                                                     'Preço anunciado': arredondar(item.pa, 2),
-                                                    'Comissão Shopee esperada': csEsperada,
-                                                    'Comissão Shopee Real': csReal,
+                                                    'Valor de referência (STP)': valorRefComissao,
+                                                    'Comissão Shopee esperada (%)': csEsperadaPct,
+                                                    'Comissão Shopee esperada (R$)': csEsperada,
+                                                    'Comissão Shopee Real (%)': csRealPct,
+                                                    'Comissão Shopee Real (R$)': csReal,
                                                     'Taxas adicionais incluídas': taxasAdicionais,
                                                     'Valor da Devolução fácil': devolucaoFacil
                                                 };
                                             });
 
                                             const ws = XLSX.utils.json_to_sheet(rows);
+                                            const currencyCols = [2, 3, 5, 7, 8, 9];
+                                            const percentCols = [4, 6];
+                                            for (let r = 1; r <= rows.length; r++) {
+                                                for (const c of currencyCols) {
+                                                    const addr = XLSX.utils.encode_cell({ r, c });
+                                                    if (ws[addr]) {
+                                                        ws[addr].t = 'n';
+                                                        ws[addr].z = '"R$ "#,##0.00';
+                                                    }
+                                                }
+                                                for (const c of percentCols) {
+                                                    const addr = XLSX.utils.encode_cell({ r, c });
+                                                    if (ws[addr]) {
+                                                        ws[addr].t = 'n';
+                                                        ws[addr].z = '0.00%';
+                                                    }
+                                                }
+                                            }
+                                            ws['!cols'] = [
+                                                { wch: 20 },
+                                                { wch: 16 },
+                                                { wch: 16 },
+                                                { wch: 24 },
+                                                { wch: 26 },
+                                                { wch: 26 },
+                                                { wch: 24 },
+                                                { wch: 24 },
+                                                { wch: 24 },
+                                                { wch: 24 }
+                                            ];
                                             const wb = XLSX.utils.book_new();
                                             XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
                                             const dateSlug = new Date().toISOString().slice(0, 10);
