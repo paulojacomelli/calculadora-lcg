@@ -134,6 +134,7 @@ const ShopeePage: React.FC = () => {
     const [orderNumber, setOrderNumber] = useState<string>('');
     const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false);
     const [isOrderCalcModalOpen, setIsOrderCalcModalOpen] = useState(false);
+    const [modalNewOrderNumber, setModalNewOrderNumber] = useState<string>('');
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -530,13 +531,13 @@ const ShopeePage: React.FC = () => {
     if ((inputs.rebatePorcentagem ?? 0) > 0 && !inputs.rebateTipo) missingUnitFields.push('Rebate Shopee [DR]');
     if ((inputs.cupomDesconto ?? 0) > 0 && !inputs.cupomTipo) missingUnitFields.push('Cupom da loja [CD]');
 
-    const runCalculoWithLoading = (mode: 'same' | 'new_order' | 'simulation' = 'same') => {
+    const runCalculoWithLoading = (mode: 'same' | 'new_order' | 'simulation' = 'same', newOrderNum?: string) => {
         setIsOrderCalcModalOpen(false);
         setIsCalculating(true);
 
         // Simulação de processamento para feedback visual (800ms conforme solicitado)
         setTimeout(() => {
-            executarCalculo(mode);
+            executarCalculo(mode, newOrderNum);
             setIsCalculating(false);
         }, 800);
     };
@@ -547,13 +548,14 @@ const ShopeePage: React.FC = () => {
             return;
         }
         if (orderNumber.trim() !== '') {
+            setModalNewOrderNumber('');
             setIsOrderCalcModalOpen(true);
             return;
         }
         runCalculoWithLoading('same');
     };
 
-    const executarCalculo = (mode: 'same' | 'new_order' | 'simulation' = 'same') => {
+    const executarCalculo = (mode: 'same' | 'new_order' | 'simulation' = 'same', newOrderNum?: string) => {
         setLastCalcFingerprint(buildParamsFingerprint(inputs, qtdMultiplier, aba, tipoMargemIdeal, margemDesejada));
         setIsViewingOriginal(false);
         setDreOverrides({});
@@ -655,9 +657,10 @@ const ShopeePage: React.FC = () => {
             return;
         }
 
-        const resolvedOrderNumber = mode === 'new_order' ? '' : orderNumber.trim();
+        const trimmedNewOrder = (newOrderNum ?? '').trim();
+        const resolvedOrderNumber = mode === 'new_order' ? trimmedNewOrder : orderNumber.trim();
         if (mode === 'new_order') {
-            setOrderNumber('');
+            setOrderNumber(trimmedNewOrder);
             setIsEditingOrderNumber(false);
         }
 
@@ -3770,7 +3773,7 @@ const ShopeePage: React.FC = () => {
                             <p className="modal-description">
                                 Como deseja prosseguir com este cálculo?
                             </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <button
                                     type="button"
                                     className="btn-modal-confirm"
@@ -3779,22 +3782,41 @@ const ShopeePage: React.FC = () => {
                                 >
                                     Mesmo pedido (atualizar este pedido)
                                 </button>
-                                <button
-                                    type="button"
-                                    className="btn-modal-cancel"
-                                    style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '11px 14px' }}
-                                    onClick={() => runCalculoWithLoading('new_order')}
-                                >
-                                    Novo / outro pedido (limpar nº do pedido)
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn-modal-cancel"
-                                    style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '11px 14px' }}
-                                    onClick={() => runCalculoWithLoading('simulation')}
-                                >
-                                    Apenas uma simulação (não salvar no histórico)
-                                </button>
+                                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <input
+                                        type="text"
+                                        value={modalNewOrderNumber}
+                                        onChange={(e) => setModalNewOrderNumber(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const trimmed = modalNewOrderNumber.trim();
+                                                runCalculoWithLoading(trimmed ? 'new_order' : 'simulation', trimmed);
+                                            }
+                                        }}
+                                        placeholder="Nº do novo pedido (ou vazio para simulação)"
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            borderRadius: '8px',
+                                            border: '1px solid #cbd5e1',
+                                            fontSize: '0.9rem',
+                                            color: '#1e293b',
+                                            outline: 'none',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn-modal-cancel"
+                                        style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '11px 14px', fontWeight: 600 }}
+                                        onClick={() => {
+                                            const trimmed = modalNewOrderNumber.trim();
+                                            runCalculoWithLoading(trimmed ? 'new_order' : 'simulation', trimmed);
+                                        }}
+                                    >
+                                        Outro pedido / Simulação
+                                    </button>
+                                </div>
                                 <button
                                     type="button"
                                     className="btn-modal-cancel"
