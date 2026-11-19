@@ -25,6 +25,8 @@ interface AuthContextType {
   user: User | null;
   userLevel: UserLevel;
   loading: boolean;
+  hideSensitiveData: boolean;
+  toggleHideSensitiveData: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [userLevel, setUserLevel] = useState<UserLevel>(3);
   const [loading, setLoading] = useState(true);
+  const [hideSensitiveData, setHideSensitiveData] = useState(false);
+
+  const toggleHideSensitiveData = () => setHideSensitiveData(prev => !prev);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -73,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, userLevel, loading }}>
+    <AuthContext.Provider value={{ user, userLevel, loading, hideSensitiveData, toggleHideSensitiveData }}>
       {children}
     </AuthContext.Provider>
   );

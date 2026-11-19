@@ -192,7 +192,7 @@ const ShopeePage: React.FC = () => {
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
     // Sistema de Autenticação Centralizado
-    const { user, userLevel, loading } = useAuth();
+    const { user, userLevel, loading, hideSensitiveData } = useAuth();
     const isLevel3 = !loading && userLevel === 3;
 
     // Estados auxiliares de senha
@@ -2084,9 +2084,11 @@ const ShopeePage: React.FC = () => {
                                                                                 <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                                                     <span style={{ color: p._wh === 'SP' ? '#0284c7' : '#b45309', marginRight: '4px' }}>[{p._wh}]</span> {p.sku} - {p.descricao || '(Sem descrição)'}
                                                                                 </span>
-                                                                                <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
-                                                                                    Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
-                                                                                </span>
+                                                                                {!hideSensitiveData && (
+                                                                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 500 }}>
+                                                                                        Custo: R$ {(p.custoCDP || 0).toFixed(2).replace('.', ',')} | Imp: {(p.impostosIMP || 0).toFixed(2).replace('.', ',')}%
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
                                                                             <div style={{ color: '#9ca3af' }}>
                                                                                 <Plus size={14} />
@@ -2281,13 +2283,16 @@ const ShopeePage: React.FC = () => {
                                         inputMode="decimal"
                                         name="custoProduto"
                                         className="input-main"
-                                        placeholder="0,00"
-                                        value={getInputValue('custoProduto', inputs.custoProduto)}
+                                        placeholder={hideSensitiveData ? '••••••' : '0,00'}
+                                        readOnly={hideSensitiveData}
+                                        value={hideSensitiveData ? (inputs.custoProduto !== undefined ? '••••••' : '') : getInputValue('custoProduto', inputs.custoProduto)}
                                         onFocus={() => {
+                                            if (hideSensitiveData) return;
                                             setFocusedInput('custoProduto');
                                             setFocusedValue(inputs.custoProduto !== undefined ? inputs.custoProduto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 20, useGrouping: false }) : '');
                                         }}
                                         onBlur={() => {
+                                            if (hideSensitiveData) return;
                                             setFocusedInput(null);
                                             setFocusedValue('');
                                         }}
@@ -2522,7 +2527,7 @@ const ShopeePage: React.FC = () => {
                             )}
 
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
-                            {!isLevel3 && (
+                            {!isLevel3 && !hideSensitiveData && (
                                 <div
                                     className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!isAdvancedOpen && (isRefHighlighted('INPUT_IMP') || isRefHighlighted('INPUT_DF') || isRefHighlighted('INPUT_OD') || isRefHighlighted('INPUT_ADS')) ? 'dre-ref-pulse' : ''}`}
                                     onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
@@ -2537,7 +2542,7 @@ const ShopeePage: React.FC = () => {
                             )}
 
                             {/* Prompt de Senha */}
-                            {showPasswordPrompt && !user && !isPasswordAuthorized && (
+                            {!hideSensitiveData && showPasswordPrompt && !user && !isPasswordAuthorized && (
                                 <div className="password-prompt-container">
                                     <form onSubmit={handlePasswordSubmit} className={`password-form ${passwordError ? 'shake' : ''}`}>
                                         <Lock size={16} />
@@ -2563,6 +2568,7 @@ const ShopeePage: React.FC = () => {
                                 </div>
                             )}
 
+                            {!hideSensitiveData && (
                             <div className={`advanced-settings-content ${(isAdvancedOpen && (user || isPasswordAuthorized)) ? 'open' : ''}`}>
 
 
@@ -2743,6 +2749,7 @@ const ShopeePage: React.FC = () => {
 
                                 {/* Parâmetros de elasticidade removidos conforme nova lógica baseada em volume relativo */}
                             </div>
+                            )}
 
                         </div>
                         <div className="actions" style={{ flexDirection: 'column' }}>
@@ -2851,17 +2858,21 @@ const ShopeePage: React.FC = () => {
                                             if (otimizacaoIdeal.isAlavancagem) {
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        <div className={`alert-box-result ${statusClass}`}>
-                                                            {statusIcon} <span>{statusText}</span>
-                                                        </div>
-                                                        <div className="sensor-inner-alert purple">
-                                                            <RefreshCcw size={20} />
-                                                            <span>
-                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>.
-                                                                Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente,
-                                                                sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{(otimizacaoIdeal.fatorAlavancagem || 0).toFixed(1)}x</strong>).
-                                                            </span>
-                                                        </div>
+                                                        {!hideSensitiveData && (
+                                                            <>
+                                                                <div className={`alert-box-result ${statusClass}`}>
+                                                                    {statusIcon} <span>{statusText}</span>
+                                                                </div>
+                                                                <div className="sensor-inner-alert purple">
+                                                                    <RefreshCcw size={20} />
+                                                                    <span>
+                                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado ideal seria <strong>R$ {moeda(paOri)}</strong>.
+                                                                        Porém, ao reduzir para <strong>R$ {moeda(paOpt)}</strong>, você dá um super desconto de <strong>R$ {moeda(otimizacaoIdeal.quedaPreco)}</strong> para o cliente,
+                                                                        sacrificando apenas <strong>R$ {moeda(otimizacaoIdeal.quedaLucro)}</strong> de margem (Alavancagem de <strong>{(otimizacaoIdeal.fatorAlavancagem || 0).toFixed(1)}x</strong>).
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         {mainResultsContent}
                                                     </div>
                                                 );
@@ -2869,16 +2880,20 @@ const ShopeePage: React.FC = () => {
 
                                             return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        <div className={`alert-box-result ${statusClass}`}>
-                                                            {statusIcon} <span>{statusText}</span>
-                                                        </div>
-                                                        <div className="sensor-inner-alert">
-                                                            <TrendingUp size={20} />
-                                                            <span>
-                                                                <strong className="block mb-1">Sensor de Otimização Automática Ativado:</strong>
-                                                                Anunciando por <span className="font-bold underline text-green-600">R$ {moeda(paOri)}</span> voce obtem o lucro de <span className="font-bold">R$ {moeda(otimizacaoIdeal.lucroOriginal)}</span>, entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <span className="font-bold text-green-900 underline"> R$ {moeda(paOpt)}</span> você muda a faixa de impostos e seu lucro líquido final subirá para <span style={{ fontWeight: 'bold', color: '#064e3b' }}> R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</span>
-                                                            </span>
-                                                        </div>
+                                                        {!hideSensitiveData && (
+                                                            <>
+                                                                <div className={`alert-box-result ${statusClass}`}>
+                                                                    {statusIcon} <span>{statusText}</span>
+                                                                </div>
+                                                                <div className="sensor-inner-alert">
+                                                                    <TrendingUp size={20} />
+                                                                    <span>
+                                                                        <strong className="block mb-1">Sensor de Otimização Automática Ativado:</strong>
+                                                                        Anunciando por <span className="font-bold underline text-green-600">R$ {moeda(paOri)}</span> voce obtem o lucro de <span className="font-bold">R$ {moeda(otimizacaoIdeal.lucroOriginal)}</span>, entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <span className="font-bold text-green-900 underline"> R$ {moeda(paOpt)}</span> você muda a faixa de impostos e seu lucro líquido final subirá para <span style={{ fontWeight: 'bold', color: '#064e3b' }}> R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</span>
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         {mainResultsContent}
                                                     </div>
                                             );
@@ -2888,15 +2903,19 @@ const ShopeePage: React.FC = () => {
                                         if (melhorAnteriorComp && aba !== 'ideal') {
                                             return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        <div className={`alert-box-result ${statusClass}`}>
-                                                            {statusIcon} <span>{statusText}</span>
-                                                        </div>
-                                                        <div className="sensor-inner-alert">
-                                                            <TrendingUp size={20} />
-                                                            <span>
-                                                                <strong>Sensor de Otimização Ativado:</strong> Ao mudar o Preço Anunciado {s('PA')} para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong>
-                                                            </span>
-                                                        </div>
+                                                        {!hideSensitiveData && (
+                                                            <>
+                                                                <div className={`alert-box-result ${statusClass}`}>
+                                                                    {statusIcon} <span>{statusText}</span>
+                                                                </div>
+                                                                <div className="sensor-inner-alert">
+                                                                    <TrendingUp size={20} />
+                                                                    <span>
+                                                                        <strong>Sensor de Otimização Ativado:</strong> Ao mudar o Preço Anunciado {s('PA')} para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong>
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         {mainResultsContent}
                                                     </div>
                                             );
@@ -2909,17 +2928,21 @@ const ShopeePage: React.FC = () => {
 
                                             return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                        <div className={`alert-box-result ${statusClass}`}>
-                                                            {statusIcon} <span>{statusText}</span>
-                                                        </div>
-                                                        <div className="sensor-inner-alert purple">
-                                                            <RefreshCcw size={20} />
-                                                            <span>
-                                                                <strong>Estratégia de Giro Identificada:</strong> O preço anunciado atual é <strong>R$ {moeda(activeResults.precoVenda)}</strong>.
-                                                                Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoVenda)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
-                                                                sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
-                                                            </span>
-                                                        </div>
+                                                        {!hideSensitiveData && (
+                                                            <>
+                                                                <div className={`alert-box-result ${statusClass}`}>
+                                                                    {statusIcon} <span>{statusText}</span>
+                                                                </div>
+                                                                <div className="sensor-inner-alert purple">
+                                                                    <RefreshCcw size={20} />
+                                                                    <span>
+                                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado atual é <strong>R$ {moeda(activeResults.precoVenda)}</strong>.
+                                                                        Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoVenda)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
+                                                                        sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         {mainResultsContent}
                                                     </div>
                                             );
@@ -2928,9 +2951,11 @@ const ShopeePage: React.FC = () => {
                                         // 3. Resultado Padrão (Sem otimização disponível ou desativada)
                                         return (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                <div className={`alert-box-result ${statusClass}`}>
-                                                    {statusIcon} <span>{statusText}</span>
-                                                </div>
+                                                {!hideSensitiveData && (
+                                                    <div className={`alert-box-result ${statusClass}`}>
+                                                        {statusIcon} <span>{statusText}</span>
+                                                    </div>
+                                                )}
                                                 {mainResultsContent}
                                             </div>
                                         );
@@ -3144,20 +3169,21 @@ const ShopeePage: React.FC = () => {
                                                         <div><strong>Qtd. no anúncio:</strong> {printQtd}x</div>
                                                     </div>
                                                     <div className="dre-print-params-grid">
-                                                        <div><span>Custo Unit. [CDP]:</span><strong>R$ {moeda(printUnitCdp)}{printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}</strong></div>
+                                                        <div><span>Custo Unit. [CDP]:</span><strong>{hideSensitiveData ? '••••••' : `R$ ${moeda(printUnitCdp)}${printQtd > 1 ? ` (×${printQtd} = R$ ${moeda(printTotalCdp)})` : ''}`}</strong></div>
                                                         <div><span>Preço Anunciado [PA]:</span><strong>R$ {moeda(activeResults.precoVenda)}</strong></div>
                                                         <div><span>Rebate Shopee [DR]:</span><strong>{fmtParam(activeInputs.rebatePorcentagem, activeInputs.rebateTipo)}</strong></div>
                                                         <div><span>Cupom da Loja [CD]:</span><strong>{fmtParam(activeInputs.cupomDesconto, activeInputs.cupomTipo)}</strong></div>
                                                         <div><span>Frete Cliente [FPC]:</span><strong>R$ {moeda(activeInputs.fretePagoCliente ?? activeResults.freteValor ?? 0)}</strong></div>
                                                         <div><span>Frete Shopee [FPS]:</span><strong>R$ {moeda(activeInputs.freteCobradoVendedor ?? activeResults.freteVendedorValor ?? 0)}</strong></div>
-                                                        <div><span>Imposto [IMP]:</span><strong>{fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Despesa Fixa [DF]:</span><strong>{fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Outras Despesas [OD]:</span><strong>{fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
-                                                        <div><span>Shopee Ads [ADS]:</span><strong>{fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Imposto [IMP]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.impostoPorcentagem, activeInputs.impostoTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Despesa Fixa [DF]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.despesaFixa, activeInputs.despesaFixaTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Outras Despesas [OD]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.despesaAdicional, activeInputs.despesaAdicionalTipo || 'porcentagem')}</strong></div>
+                                                        <div><span>Shopee Ads [ADS]:</span><strong>{hideSensitiveData ? '••••••' : fmtParam(activeInputs.adsValor, activeInputs.adsTipo || 'porcentagem')}</strong></div>
                                                     </div>
                                                 </div>
                                             );
                                         })()}
+                                        {!hideSensitiveData && (
                                         <div className="dre-summary-box" style={{
                                             marginBottom: '1rem',
                                             padding: '1.5rem',
@@ -3220,6 +3246,7 @@ const ShopeePage: React.FC = () => {
                                                 )}
                                             </div>
                                         </div>
+                                        )}
 
                                         {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (activeResults.freteVendedorValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0 || (baseResults?.freteVendedorValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN' || i.section === 'PDV') && i.valor > 0)))) && (
                                             <>
@@ -3578,7 +3605,9 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div className="details-group-header">Política da LCG {s('PDL')}</div>
+                                        {!hideSensitiveData && (
+                                            <>
+                                                <div className="details-group-header">Política da LCG {s('PDL')}</div>
                                         <div className={`detail-row ${isRefHighlighted('CDP') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                             <span>Custo do Produto {s('CDP')}:</span>
                                             <div
@@ -3665,9 +3694,12 @@ const ShopeePage: React.FC = () => {
                                                 <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.lucroLiquido)}</span>
                                             </div>
                                         </div>
+                                            </>
+                                        )}
 
                                     </div> {/* Fecha details */}
 
+                                    {!hideSensitiveData && (
                                     <div className="result-card mini large">
                                         <div className="result-header">
                                             {activeResults.margemSobreVenda >= 15 ? (
@@ -3694,6 +3726,7 @@ const ShopeePage: React.FC = () => {
                                             <span className="nominal">R$ {arredondar((activeResults.precoVenda - activeResults.custoProdutoValor) || 0, 2).toFixed(2).replace('.', ',')}</span>
                                         </div>
                                     </div>
+                                    )}
                                 </div> {/* Fecha results-column-main */}
 
 
@@ -4201,13 +4234,19 @@ const ShopeePage: React.FC = () => {
                                                                         )}
                                                                         {repasseVal !== undefined ? `R$ ${moeda(repasseVal)}` : 'N/A'}
                                                                     </td>
-                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>
-                                                                        {hasLucroCorr && (
-                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 500, marginRight: '4px' }}>
-                                                                                R$ {moeda(origLucro)}
-                                                                            </span>
+                                                                    <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', fontWeight: 700, color: hideSensitiveData ? '#64748b' : (item.lucro >= 0 ? '#047857' : '#dc2626'), whiteSpace: 'nowrap' }}>
+                                                                        {hideSensitiveData ? (
+                                                                            '••••••'
+                                                                        ) : (
+                                                                            <>
+                                                                                {hasLucroCorr && (
+                                                                                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.72rem', fontWeight: 500, marginRight: '4px' }}>
+                                                                                        R$ {moeda(origLucro)}
+                                                                                    </span>
+                                                                                )}
+                                                                                R$ {moeda(item.lucro)}
+                                                                            </>
                                                                         )}
-                                                                        R$ {moeda(item.lucro)}
                                                                     </td>
                                                                     <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>

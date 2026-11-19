@@ -6,7 +6,7 @@ import ShopeePage from './pages/ShopeePage';
 import ShopeeLotePage from './pages/ShopeeLotePage';
 import CatalogPage from './pages/CatalogPage';
 import MeliPage from './pages/MeliPage';
-import { Database } from 'lucide-react';
+import { Database, Eye, EyeOff } from 'lucide-react';
 import { inicializarTabelaFrete } from './utils/meliLogic';
 
 import LoginAvatar from './components/LoginAvatar';
@@ -57,7 +57,7 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const Navigation: React.FC = () => {
   const location = useLocation();
-  const { user, userLevel } = useAuth();
+  const { user, userLevel, hideSensitiveData, toggleHideSensitiveData } = useAuth();
 
   // Não renderizar header na página de login
   if (location.pathname === '/login') {
@@ -104,7 +104,30 @@ const Navigation: React.FC = () => {
             <span>Catálogo</span>
           </Link>
         )}
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            onClick={toggleHideSensitiveData}
+            title={hideSensitiveData ? 'Mostrar custo, configurações avançadas e políticas LCG' : 'Ocultar visualmente custo, configurações avançadas e políticas LCG'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0.45rem 0.85rem',
+              borderRadius: '999px',
+              border: hideSensitiveData ? '1px solid #c4b5fd' : '1px solid #e2e8f0',
+              background: hideSensitiveData ? '#f5f3ff' : '#ffffff',
+              color: hideSensitiveData ? '#7c3aed' : '#475569',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {hideSensitiveData ? <EyeOff size={15} /> : <Eye size={15} />}
+            <span>{hideSensitiveData ? 'Dados ocultos' : 'Ocultar dados'}</span>
+          </button>
           <LoginAvatar />
         </div>
       </div>
