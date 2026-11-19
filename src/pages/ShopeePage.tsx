@@ -944,7 +944,7 @@ const ShopeePage: React.FC = () => {
                         } else {
                             next[key] = {
                                 mode: 'same',
-                                items: [{ id: String(Date.now() + Math.random()), label: 'Parte 1', valor: arredondar(initialVal, 2) }]
+                                items: [{ id: String(Date.now() + Math.random()), label: key === 'CR' ? 'Ajuste de ação comercial' : 'Parte 1', valor: arredondar(initialVal, 2) }]
                             };
                         }
                         return next;
@@ -1254,7 +1254,7 @@ const ShopeePage: React.FC = () => {
                                     ...prev,
                                     [key]: {
                                         ...cur,
-                                        items: [...cur.items, { id: String(Date.now() + Math.random()), label: `Parte ${cur.items.length + 1}`, valor: 0 }]
+                                        items: [...cur.items, { id: String(Date.now() + Math.random()), label: key === 'CR' ? `Ajuste de ação comercial ${cur.items.length + 1}` : `Parte ${cur.items.length + 1}`, valor: 0 }]
                                     }
                                 };
                             });
