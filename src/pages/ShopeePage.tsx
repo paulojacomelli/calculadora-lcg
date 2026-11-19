@@ -833,7 +833,7 @@ const ShopeePage: React.FC = () => {
                                     />
                                 </div>
                             ) : (
-                                <span>{item.label || 'Taxa/ajuste extra'}:</span>
+                                <span>{item.label || 'Taxa/ajuste extra'}</span>
                             )}
 
                             <div className="detail-values">
