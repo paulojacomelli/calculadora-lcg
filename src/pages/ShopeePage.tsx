@@ -3223,7 +3223,7 @@ const ShopeePage: React.FC = () => {
                                                                         <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
                                                                             {showTopFpcSub && (
                                                                                 <>
-                                                                                    <div className={`detail-row ${isRefHighlighted('FPC_CRED') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC_CRED) ? { opacity: 0.6 } : {}) }}>
+                                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC_CRED) ? { opacity: 0.6 } : {}) }}>
                                                                                         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                                             {renderAbsentToggle('FPC_CRED')}
                                                                                             <span style={!isViewingOriginal && dreAbsent.FPC_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
@@ -3249,7 +3249,7 @@ const ShopeePage: React.FC = () => {
                                                                             )}
                                                                             {showTopFpsSub && (
                                                                                 <>
-                                                                                    <div className={`detail-row ${isRefHighlighted('FPS_CRED') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS_CRED) ? { opacity: 0.6 } : {}) }}>
+                                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS_CRED) ? { opacity: 0.6 } : {}) }}>
                                                                                         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                                             {renderAbsentToggle('FPS_CRED')}
                                                                                             <span style={!isViewingOriginal && dreAbsent.FPS_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
@@ -3375,7 +3375,7 @@ const ShopeePage: React.FC = () => {
                                                         <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
                                                             {showFpcSub && (
                                                                 <>
-                                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC) ? { opacity: 0.6 } : {}) }}>
+                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC) ? { opacity: 0.6 } : {}) }}>
                                                                         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                             {renderAbsentToggle('FPC')}
                                                                             <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
@@ -3401,7 +3401,7 @@ const ShopeePage: React.FC = () => {
                                                             )}
                                                             {showFpsSub && (
                                                                 <>
-                                                                    <div className={`detail-row ${isRefHighlighted('FPS') ? 'dre-ref-pulse' : ''}`} style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
+                                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
                                                                         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                             {renderAbsentToggle('FPS')}
                                                                             <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
