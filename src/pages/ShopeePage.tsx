@@ -584,10 +584,34 @@ const ShopeePage: React.FC = () => {
         prefix: string,
         valClassName: string,
         overrideKey?: DreOverrideKey,
-        bold?: boolean
+        bold?: boolean,
+        percText?: string
     ) => {
         const diff = arredondar(correctedVal - originalVal, 2);
         const hasDiff = Math.abs(diff) >= 0.005;
+
+        const diffAndOldNode = hasDiff ? (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: diff > 0 ? (isCorrectionMode && overrideKey ? '#b45309' : '#7c3aed') : '#047857',
+                    background: diff > 0 ? (isCorrectionMode && overrideKey ? '#fef3c7' : '#f3e8ff') : '#d1fae5',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    whiteSpace: 'nowrap'
+                }}>
+                    {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
+                </span>
+                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                    {prefix}R$ {moeda(originalVal)}
+                </span>
+            </div>
+        ) : null;
+
+        const percNode = percText !== undefined ? (
+            <span className="perc">{percText ? `(${percText})` : ''}</span>
+        ) : null;
 
         if (isCorrectionMode && overrideKey) {
             const currentVal = dreOverrides[overrideKey] ?? originalVal;
@@ -623,25 +647,9 @@ const ShopeePage: React.FC = () => {
             };
 
             return (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    {hasDiff && (
-                        <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: diff > 0 ? '#b45309' : '#047857',
-                            background: diff > 0 ? '#fef3c7' : '#d1fae5',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
-                        </span>
-                    )}
-                    {hasDiff && (
-                        <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
-                            {prefix}R$ {moeda(originalVal)}
-                        </span>
-                    )}
+                <>
+                    {diffAndOldNode}
+                    {percNode}
                     <input
                         type="text"
                         inputMode="decimal"
@@ -666,7 +674,7 @@ const ShopeePage: React.FC = () => {
                             }
                         }}
                         style={{
-                            width: '84px',
+                            width: '100px',
                             padding: '2px 6px',
                             fontSize: '0.85rem',
                             fontWeight: 700,
@@ -677,38 +685,18 @@ const ShopeePage: React.FC = () => {
                             color: '#1e293b'
                         }}
                     />
-                </div>
-            );
-        }
-
-        if (hasDiff) {
-            return (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        color: diff > 0 ? '#7c3aed' : '#047857',
-                        background: diff > 0 ? '#f3e8ff' : '#d1fae5',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                        whiteSpace: 'nowrap'
-                    }}>
-                        {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
-                    </span>
-                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
-                        {prefix}R$ {moeda(originalVal)}
-                    </span>
-                    <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
-                        {prefix}R$ {moeda(correctedVal)}
-                    </span>
-                </div>
+                </>
             );
         }
 
         return (
-            <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
-                {prefix}R$ {moeda(correctedVal)}
-            </span>
+            <>
+                {diffAndOldNode}
+                {percNode}
+                <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
+                    {prefix}R$ {moeda(correctedVal)}
+                </span>
+            </>
         );
     };
 
@@ -844,7 +832,7 @@ const ShopeePage: React.FC = () => {
                                                 }
                                             }}
                                             style={{
-                                                width: '84px',
+                                                width: '72px',
                                                 padding: '2px 6px',
                                                 fontSize: '0.85rem',
                                                 fontWeight: 700,
@@ -2193,7 +2181,10 @@ const ShopeePage: React.FC = () => {
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
-                                                    <span className="val" style={{ fontWeight: 700, cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">R$ {moeda(activeResults.precoVenda)}</span>
+                                                    <div className="detail-values" style={{ cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">
+                                                        <span className="perc" />
+                                                        <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
+                                                    </div>
                                                 </div>
                                                 {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)) && (
                                                     <>
@@ -2206,20 +2197,20 @@ const ShopeePage: React.FC = () => {
                                                                 onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR')}
+                                                                {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR', false, `${porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
                                                         </div>
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
                                                         <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0)) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
                                                             <div
+                                                                className="detail-values"
                                                                 style={{ cursor: 'help' }}
                                                                 title={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
                                                                 onMouseEnter={() => setHighlightedRefs(['PA', 'DR'])}
                                                                 onMouseLeave={() => setHighlightedRefs([])}
                                                             >
-                                                                {renderDreValor(baseResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true)}
+                                                                {renderDreValor(baseResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
                                                             </div>
                                                         </div>
                                                     </>
@@ -2234,8 +2225,7 @@ const ShopeePage: React.FC = () => {
                                                             onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
-                                                            <span className="perc">({porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD')}
+                                                            {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc((activeResults.cupomValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                         </div>
                                                     </div>
                                                 )}
@@ -2243,6 +2233,7 @@ const ShopeePage: React.FC = () => {
                                                 <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(activeResults.freteValor ?? 0) <= 0 ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                     <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
                                                     <div
+                                                        className="detail-values"
                                                         style={{ cursor: 'help' }}
                                                         title={`${(activeResults.rebateValor ?? 0) > 0
                                                             ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
@@ -2250,7 +2241,7 @@ const ShopeePage: React.FC = () => {
                                                         onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : [])])}
                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                     >
-                                                        {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true)}
+                                                        {renderDreValor(baseResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
                                                     </div>
                                                 </div>
                                                 {(activeResults.freteValor ?? 0) > 0 && (
@@ -2273,6 +2264,7 @@ const ShopeePage: React.FC = () => {
                                         <div className={`detail-row ${(isRefHighlighted('PDV') || (isRefHighlighted('STP') && (activeResults.rebateValor ?? 0) <= 0) || ((isRefHighlighted('VN') || isRefHighlighted('MC')) && (activeResults.rebateValor ?? 0) <= 0 && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0)) ? 'dre-ref-pulse' : ''}`}>
                                             <span style={{ fontWeight: 700 }}>Preço de Venda {s('PDV')}:</span>
                                             <div
+                                                className="detail-values"
                                                 style={{ cursor: 'help' }}
                                                 title={`${(activeResults.rebateValor ?? 0) > 0
                                                     ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
@@ -2280,7 +2272,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['VN', 'FPC_CRED'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true)}
+                                                {renderDreValor(baseResults?.precoComCupom ?? activeResults.precoComCupom, activeResults.precoComCupom, '', 'val', undefined, true, '')}
                                             </div>
                                         </div>
 
@@ -2294,8 +2286,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                <span className="perc">({porc((activeResults.comissaoValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
-                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS')}
+                                                {renderDreValor(baseResults?.comissaoValor ?? 0, activeResults.comissaoValor, '- ', 'val text-red', 'CS', false, `${porc((activeResults.comissaoValor || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
                                         <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`}>
@@ -2307,8 +2298,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseEnter={() => setHighlightedRefs(['STP'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                <span className="perc">({porc((activeResults.tarifaFixa || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
-                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS')}
+                                                {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS', false, `${porc((activeResults.tarifaFixa || 0) / (activeResults.baseCalculo || 1) * 100)}%`)}
                                             </div>
                                         </div>
                                         {(activeResults.freteValor ?? 0) > 0 && (
@@ -2336,8 +2326,7 @@ const ShopeePage: React.FC = () => {
                                                     onMouseEnter={() => setHighlightedRefs(activeInputs.rebateTipo === 'porcentagem' ? ['PA', 'INPUT_DR'] : ['INPUT_DR'])}
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
-                                                    <span className="perc">({porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '+ ', 'val text-green')}
+                                                    {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '+ ', 'val text-green', undefined, false, `${porc((activeResults.rebateValor || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                 </div>
                                             </div>
                                         )}
@@ -2345,12 +2334,13 @@ const ShopeePage: React.FC = () => {
                                         <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
                                             <span style={{ fontWeight: 700 }}>Repasse:</span>
                                             <div
+                                                className="detail-values"
                                                 style={{ cursor: 'help' }}
                                                 title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
-                                                {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true)}
+                                                {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
                                             </div>
                                         </div>
 
