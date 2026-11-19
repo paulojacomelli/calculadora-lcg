@@ -2357,7 +2357,7 @@ const ShopeePage: React.FC = () => {
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
                             {!isLevel3 && (
                                 <div
-                                    className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''}`}
+                                    className={`advanced-settings-header ${isAdvancedOpen ? 'open' : ''} ${!isAdvancedOpen && (isRefHighlighted('INPUT_IMP') || isRefHighlighted('INPUT_DF') || isRefHighlighted('INPUT_OD') || isRefHighlighted('INPUT_ADS')) ? 'dre-ref-pulse' : ''}`}
                                     onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
                                     style={{ cursor: 'pointer' }}
                                 >

@@ -1442,7 +1442,8 @@ body {
   }
 }
 
-.detail-row.dre-ref-pulse {
+.detail-row.dre-ref-pulse,
+.advanced-settings-header.dre-ref-pulse {
   animation: dreRefPulse 1.1s ease-in-out infinite;
 }
 
