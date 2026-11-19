@@ -31,8 +31,10 @@ import {
     X,
     Eye,
     MessageSquare,
-    Printer
+    Printer,
+    Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     ComposedChart, Area, Line, ReferenceLine
@@ -3998,24 +4000,75 @@ const ShopeePage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setCalcHistory([]);
-                                            syncHistoryToFirestore([]);
+                                            const normalizeTxt = (val: string) =>
+                                                val.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                                            const sorted = [...calcHistory].sort(
+                                                (a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
+                                            );
+                                            const rows = sorted.map((item) => {
+                                                const corr = item.correctionsSnapshot;
+                                                const csEsperada = arredondar(item.resultsSnapshot?.comissaoValor ?? 0, 2);
+                                                let csReal = csEsperada;
+                                                if (corr) {
+                                                    if (corr.dreAbsent?.CS) {
+                                                        csReal = 0;
+                                                    } else if (corr.dreDetails?.CS && corr.dreDetails.CS.items.length > 0) {
+                                                        csReal = arredondar(corr.dreDetails.CS.items.reduce((acc, it) => acc + it.valor, 0), 2);
+                                                    } else if (corr.dreOverrides?.CS !== undefined) {
+                                                        csReal = arredondar(corr.dreOverrides.CS, 2);
+                                                    }
+                                                }
+
+                                                const customItems = corr?.customDreItems ?? [];
+                                                const isDevolucaoFacil = (lbl: string) => normalizeTxt(lbl).includes('devolucao facil') || normalizeTxt(lbl).includes('devolucao');
+
+                                                const devolucaoFacil = arredondar(
+                                                    customItems
+                                                        .filter(c => isDevolucaoFacil(c.label))
+                                                        .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
+                                                    2
+                                                );
+
+                                                const taxasAdicionais = arredondar(
+                                                    customItems
+                                                        .filter(c => !isDevolucaoFacil(c.label) && !c.isExpected)
+                                                        .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
+                                                    2
+                                                );
+
+                                                return {
+                                                    'Número do pedido': item.orderNumber || '',
+                                                    'SKU': item.sku,
+                                                    'Preço anunciado': arredondar(item.pa, 2),
+                                                    'Comissão Shopee esperada': csEsperada,
+                                                    'Comissão Shopee Real': csReal,
+                                                    'Taxas adicionais incluídas': taxasAdicionais,
+                                                    'Valor da Devolução fácil': devolucaoFacil
+                                                };
+                                            });
+
+                                            const ws = XLSX.utils.json_to_sheet(rows);
+                                            const wb = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
+                                            const dateSlug = new Date().toISOString().slice(0, 10);
+                                            XLSX.writeFile(wb, `historico_shopee_${dateSlug}.xlsx`);
                                         }}
                                         style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '4px 8px',
-                                            fontSize: '0.75rem',
+                                            gap: '5px',
+                                            padding: '5px 10px',
+                                            fontSize: '0.76rem',
                                             fontWeight: 600,
                                             borderRadius: '6px',
-                                            border: '1px solid #fecaca',
-                                            background: '#fef2f2',
-                                            color: '#dc2626',
+                                            border: '1px solid #bbf7d0',
+                                            background: '#f0fdf4',
+                                            color: '#15803d',
                                             cursor: 'pointer'
                                         }}
+                                        title="Baixar histórico em Excel (.xlsx)"
                                     >
-                                        <Trash2 size={13} /> Limpar
+                                        <Download size={14} /> Baixar Excel
                                     </button>
                                 )}
                                 <button
