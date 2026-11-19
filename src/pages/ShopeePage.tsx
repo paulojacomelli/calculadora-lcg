@@ -4360,28 +4360,6 @@ const ShopeePage: React.FC = () => {
                                                                     </td>
                                                                     <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                            {item.resultsSnapshot && item.correctionsSnapshot && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => loadHistoryItem(item, true)}
-                                                                                    style={{
-                                                                                        display: 'inline-flex',
-                                                                                        alignItems: 'center',
-                                                                                        gap: '4px',
-                                                                                        padding: '3px 8px',
-                                                                                        fontSize: '0.74rem',
-                                                                                        fontWeight: 600,
-                                                                                        borderRadius: '6px',
-                                                                                        border: '1px solid #fde68a',
-                                                                                        background: '#fffbeb',
-                                                                                        color: '#b45309',
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                    title="Ver cálculo original sem as correções"
-                                                                                >
-                                                                                    Original
-                                                                                </button>
-                                                                            )}
                                                                             {item.resultsSnapshot && (
                                                                                 <button
                                                                                     type="button"
