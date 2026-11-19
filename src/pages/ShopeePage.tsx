@@ -1880,7 +1880,7 @@ const ShopeePage: React.FC = () => {
                                                             <TrendingUp size={20} />
                                                             <span>
                                                                 <strong className="block mb-1">Sensor de Otimização Automática Ativado:</strong>
-                                                                Anunciando por <span className="font-bold underline text-green-600">R$ {moeda(paOri)}</span> voce obtem o lucro de <span className="font-bold">R$ {moeda(otimizacaoIdeal.lucroOriginal)}</span>, entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <span className="font-bold text-green-900 underline"> R$ {moeda(paOpt)}</span> você muda a faixa de impostos e seu lucro líquido final subirá em <span style={{ fontWeight: 'bold', color: '#064e3b' }}> R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</span>
+                                                                Anunciando por <span className="font-bold underline text-green-600">R$ {moeda(paOri)}</span> voce obtem o lucro de <span className="font-bold">R$ {moeda(otimizacaoIdeal.lucroOriginal)}</span>, entretanto, ao vasculhar as regras da Shopee eu identifiquei que reduzindo seu preço para <span className="font-bold text-green-900 underline"> R$ {moeda(paOpt)}</span> você muda a faixa de impostos e seu lucro líquido final subirá para <span style={{ fontWeight: 'bold', color: '#064e3b' }}> R$ {moeda(otimizacaoIdeal.lucroOtimizado)}!</span>
                                                             </span>
                                                         </div>
                                                         {mainResultsContent}

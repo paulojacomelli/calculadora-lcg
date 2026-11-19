@@ -333,8 +333,16 @@ export const calcularPrecoIdealDetalhado = (
     chute = (min + max) / 2;
   }
 
-  const paMatematico = arredondar(chute, 2);
-  const resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, true);
+  let paMatematico = arredondar(chute, 2);
+  let resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, true);
+
+  // Ajuste fino para compensar arredondamento ROUND_CEIL de CD/CS quando tipoBase === 'reais'
+  if (tipoBase === 'reais' && margem > 0) {
+    for (let step = 0; step < 10 && resultadoReferencia.lucroLiquido < margem - 0.001; step++) {
+      paMatematico = arredondar(paMatematico + 0.01, 2);
+      resultadoReferencia = calcularTaxasShopee({ ...input, precoVenda: paMatematico }, true);
+    }
+  }
 
   let melhorPa = paMatematico;
 
@@ -356,13 +364,11 @@ export const calcularPrecoIdealDetalhado = (
       const resTeste = calcularTaxasShopee({ ...input, precoVenda: paTeste }, true);
 
       // Regra do Sensor de Otimização (VERDE): 
-      // 1. O lucro aumentou de verdade (> 0,5 centavo)
-      // 2. O lucro se manteve, mas o preço caiu drasticamente (> R$ 5,00) ou atingiu ponto crítico
-      const diffLucro = resTeste.lucroLiquido - resultadoReferencia.lucroLiquido;
-      const isLucroMaiorOuIgual = diffLucro >= 0;
-      const isPrecoMenor = paTeste < paMatematico - 0.01;
+      // Só otimiza se o lucro SUBIU de verdade (> 0,5 centavo) OU se a faixa de tarifa fixa caiu mantendo o lucro
+      const isLucroMaior = resTeste.lucroLiquido > resultadoReferencia.lucroLiquido + 0.005;
+      const isFaixaMelhor = resTeste.tarifaFixa < resultadoReferencia.tarifaFixa && resTeste.lucroLiquido >= resultadoReferencia.lucroLiquido - 0.001;
 
-      if (isLucroMaiorOuIgual && isPrecoMenor) {
+      if (isLucroMaior || isFaixaMelhor) {
         melhorPa = paTeste;
         break;
       }
