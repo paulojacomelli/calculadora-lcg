@@ -671,15 +671,20 @@ const ShopeePage: React.FC = () => {
         const originalLucroVal = arredondar(resultado.lucroLiquido, 2);
         const entrySku = selectedCatalogProduct?.sku || 'Avulso';
         const entryPa = arredondar(resultado.precoVenda, 2);
+        const isSameOrderMatch = (h: CalcHistoryEntry) => {
+            if (resolvedOrderNumber) {
+                return (h.orderNumber ?? '').trim() === resolvedOrderNumber || (activeHistoryId !== null && h.id === activeHistoryId);
+            }
+            return (
+                h.sku === entrySku &&
+                h.pa === entryPa &&
+                (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
+                (h.originalLucro ?? h.lucro) === originalLucroVal
+            );
+        };
         const existingMatch = mode === 'new_order'
             ? undefined
-            : calcHistory.find(
-                h =>
-                    h.sku === entrySku &&
-                    h.pa === entryPa &&
-                    (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
-                    (h.originalLucro ?? h.lucro) === originalLucroVal
-            );
+            : calcHistory.find(isSameOrderMatch);
 
         const newHistoryEntry: CalcHistoryEntry = {
             id: existingMatch ? existingMatch.id : String(Date.now() + Math.random()),
@@ -707,15 +712,7 @@ const ShopeePage: React.FC = () => {
         setCalcHistory(prev => {
             const filtered = mode === 'new_order'
                 ? prev
-                : prev.filter(
-                    h =>
-                        !(
-                            h.sku === newHistoryEntry.sku &&
-                            h.pa === newHistoryEntry.pa &&
-                            (h.originalVn ?? h.vn ?? h.resultsSnapshot?.valorNota) === originalVnVal &&
-                            (h.originalLucro ?? h.lucro) === originalLucroVal
-                        )
-                );
+                : prev.filter(h => h.id !== newHistoryEntry.id && !isSameOrderMatch(h));
             const next = [newHistoryEntry, ...filtered].slice(0, 50);
             syncHistoryToFirestore(next);
             return next;
