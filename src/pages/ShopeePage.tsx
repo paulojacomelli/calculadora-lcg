@@ -1582,7 +1582,7 @@ const ShopeePage: React.FC = () => {
                                                 onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
                                                 autoComplete="off"
                                                 className="input-field"
-                                                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
+                                                style={{ width: '100%', height: '40px', padding: '0.4rem 0.75rem', boxSizing: 'border-box', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#fff' }}
                                             />
                                             {showSearchDropdown && searchQuery.trim().length > 1 && (
                                                 <div style={{
@@ -1784,9 +1784,10 @@ const ShopeePage: React.FC = () => {
                                             background: '#f9fafb',
                                             border: '1px solid #e5e7eb',
                                             borderRadius: '8px',
-                                            padding: '0.65rem 0.75rem',
+                                            padding: '0 0.75rem',
                                             width: '100%',
-                                            minHeight: '45.6px'
+                                            height: '40px',
+                                            boxSizing: 'border-box'
                                         }}>
                                             <Search size={16} style={{ color: '#6b7280', flexShrink: 0 }} />
                                             <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1883,7 +1884,7 @@ const ShopeePage: React.FC = () => {
                                             min="1"
                                             value={qtdMultiplier}
                                             onChange={(e) => setQtdMultiplier(e.target.value)}
-                                            style={{ width: '48px', border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', padding: '0.75rem 0', fontWeight: 600, color: 'inherit' }}
+                                            style={{ width: '48px', height: '100%', border: 'none', background: 'transparent', outline: 'none', textAlign: 'center', padding: 0, fontWeight: 600, color: 'inherit' }}
                                             title="Multiplicador de quantidade (Ex: Kit com 2)"
                                         />
                                     </div>
