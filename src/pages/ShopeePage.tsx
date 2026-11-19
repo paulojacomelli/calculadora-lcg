@@ -129,6 +129,7 @@ const ShopeePage: React.FC = () => {
         sku: string;
         pa: number;
         vn?: number;
+        repasse?: number;
         lucro: number;
         createdAt: string;
         qtdMultiplier?: string;
@@ -583,6 +584,7 @@ const ShopeePage: React.FC = () => {
             sku: selectedCatalogProduct?.sku || 'Avulso',
             pa: arredondar(resultado.precoVenda, 2),
             vn: arredondar(resultado.valorNota, 2),
+            repasse: arredondar(resultado.repasse, 2),
             lucro: arredondar(resultado.lucroLiquido, 2),
             createdAt: new Date().toISOString(),
             qtdMultiplier,
@@ -3059,7 +3061,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '640px',
+                            maxWidth: '720px',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3149,10 +3151,12 @@ const ShopeePage: React.FC = () => {
                                       const dt = new Date(item.createdAt);
                                       const dayStr = isNaN(dt.getTime()) ? '' : toDayStr(dt);
                                       const vnRaw = item.vn ?? item.resultsSnapshot?.valorNota ?? 0;
+                                      const repasseRaw = item.repasse ?? item.resultsSnapshot?.repasse ?? 0;
                                       return (
                                           item.sku.toLowerCase().includes(q) ||
                                           moeda(item.pa).toLowerCase().includes(q) ||
                                           moeda(vnRaw).toLowerCase().includes(q) ||
+                                          moeda(repasseRaw).toLowerCase().includes(q) ||
                                           moeda(item.lucro).toLowerCase().includes(q) ||
                                           dayStr.toLowerCase().includes(q)
                                       );
@@ -3209,7 +3213,7 @@ const ShopeePage: React.FC = () => {
                                                     setHistorySearch(e.target.value);
                                                     setHistoryPage(1);
                                                 }}
-                                                placeholder="Buscar por SKU, PA, VN, Lucro ou data (DD/MM/AAAA)..."
+                                                placeholder="Buscar por SKU, PA, VN, Repasse, Lucro ou data (DD/MM/AAAA)..."
                                                 style={{
                                                     flex: 1,
                                                     border: 'none',
@@ -3257,6 +3261,7 @@ const ShopeePage: React.FC = () => {
                                                     <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>VN</th>
+                                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Repasse</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
                                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Ações</th>
                                                 </tr>
@@ -3266,7 +3271,7 @@ const ShopeePage: React.FC = () => {
                                                     <React.Fragment key={group.dayKey}>
                                                         <tr>
                                                             <td
-                                                                colSpan={5}
+                                                                colSpan={6}
                                                                 style={{
                                                                     padding: '0.55rem 0.4rem 0.35rem',
                                                                     fontSize: '0.74rem',
@@ -3282,6 +3287,7 @@ const ShopeePage: React.FC = () => {
                                                         </tr>
                                                         {group.items.map((item) => {
                                                             const vnVal = item.vn ?? item.resultsSnapshot?.valorNota;
+                                                            const repasseVal = item.repasse ?? item.resultsSnapshot?.repasse;
                                                             const dt = new Date(item.createdAt);
                                                             const timeStr = !isNaN(dt.getTime())
                                                                 ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
@@ -3299,6 +3305,9 @@ const ShopeePage: React.FC = () => {
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
                                                                         {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                                        {repasseVal !== undefined ? `R$ ${moeda(repasseVal)}` : 'N/A'}
                                                                     </td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
                                                                     <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
