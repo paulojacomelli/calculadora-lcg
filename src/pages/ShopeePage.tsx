@@ -637,8 +637,8 @@ const ShopeePage: React.FC = () => {
 
     const activeResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        const hasSumDetails = Object.values(dreDetails).some(d => d?.mode === 'sum');
-        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean) && !hasSumDetails) return baseResults;
+        const hasDetails = Object.keys(dreDetails).length > 0;
+        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean) && !hasDetails) return baseResults;
 
         const sumSection = (sec: 'STP' | 'VN' | 'PDS') =>
             customDreItems
@@ -648,7 +648,7 @@ const ShopeePage: React.FC = () => {
         const resolveKeyVal = (key: 'DR' | 'CD' | 'CS' | 'TFS' | 'FPC' | 'CR', baseVal: number) => {
             if (dreAbsent[key]) return 0;
             const det = dreDetails[key];
-            if (det?.mode === 'sum') {
+            if (det && det.items.length > 0) {
                 return arredondar(det.items.reduce((acc, it) => acc + it.valor, 0), 2);
             }
             return dreOverrides[key] ?? baseVal;
@@ -908,51 +908,28 @@ const ShopeePage: React.FC = () => {
         if (!isCorrectionMode && group.items.every(i => i.valor <= 0)) return null;
 
         const sumItems = arredondar(group.items.reduce((acc, i) => acc + i.valor, 0), 2);
-        const remaining = arredondar(parentTargetVal - sumItems, 2);
+        const baseMap: Record<DreOverrideKey, number | undefined> = {
+            DR: baseResults?.rebateValor,
+            CR: baseResults?.rebateValor,
+            CD: baseResults?.cupomValor,
+            CS: baseResults?.comissaoValor,
+            TFS: baseResults?.tarifaFixa,
+            FPC: baseResults?.freteValor,
+        };
+        const originalBaseVal = baseMap[key] ?? parentTargetVal;
+        const diffFromBase = arredondar(sumItems - originalBaseVal, 2);
+        const isTotalEqual = Math.abs(diffFromBase) < 0.005;
 
         return (
             <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
                 {isCorrectionMode && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', padding: '4px 6px', marginBottom: '4px', background: '#faf5ff', borderRadius: '6px' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <button
-                                type="button"
-                                onClick={() => setDreDetails(prev => prev[key] ? { ...prev, [key]: { ...prev[key]!, mode: 'same' } } : prev)}
-                                style={{
-                                    border: group.mode === 'same' ? '1px solid #7c3aed' : '1px solid #e2e8f0',
-                                    background: group.mode === 'same' ? '#7c3aed' : '#ffffff',
-                                    color: group.mode === 'same' ? '#ffffff' : '#64748b',
-                                    fontSize: '0.68rem',
-                                    fontWeight: 600,
-                                    padding: '2px 7px',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer'
-                                }}
-                                title="Mantém o total da linha intacto, apenas detalhando as partes"
-                            >
-                                Total igual
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setDreDetails(prev => prev[key] ? { ...prev, [key]: { ...prev[key]!, mode: 'sum' } } : prev)}
-                                style={{
-                                    border: group.mode === 'sum' ? '1px solid #7c3aed' : '1px solid #e2e8f0',
-                                    background: group.mode === 'sum' ? '#7c3aed' : '#ffffff',
-                                    color: group.mode === 'sum' ? '#ffffff' : '#64748b',
-                                    fontSize: '0.68rem',
-                                    fontWeight: 600,
-                                    padding: '2px 7px',
-                                    borderRadius: '4px',
-                                    cursor: 'pointer'
-                                }}
-                                title="O total da linha passa a ser a soma das partes detalhadas"
-                            >
-                                Total diferente (usar soma)
-                            </button>
-                        </div>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: group.mode === 'same' && Math.abs(remaining) >= 0.005 ? '#b45309' : '#047857' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', padding: '4px 8px', marginBottom: '4px', background: isTotalEqual ? '#ecfdf5' : '#fffbeb', border: `1px solid ${isTotalEqual ? '#a7f3d0' : '#fde68a'}`, borderRadius: '6px' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isTotalEqual ? '#047857' : '#b45309' }}>
+                            {isTotalEqual ? '✓ Total igual ao previsto' : 'Total diferente do previsto (usando soma)'}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: isTotalEqual ? '#047857' : '#b45309' }}>
                             Soma: R$ {moeda(sumItems)}
-                            {group.mode === 'same' && (Math.abs(remaining) < 0.005 ? ' ✓' : ` (${remaining > 0 ? 'faltam' : 'excede'} R$ ${moeda(Math.abs(remaining))})`)}
+                            {!isTotalEqual ? ` (${diffFromBase > 0 ? '+' : '-'}R$ ${moeda(Math.abs(diffFromBase))})` : ''}
                         </span>
                     </div>
                 )}
@@ -1188,7 +1165,7 @@ const ShopeePage: React.FC = () => {
             <span className="perc">{percText ? `(${percText})` : ''}</span>
         ) : null;
 
-        if (isCorrectionMode && overrideKey && dreDetails[overrideKey]?.mode !== 'sum') {
+        if (isCorrectionMode && overrideKey && !dreDetails[overrideKey]) {
             const currentVal = dreOverrides[overrideKey] ?? originalVal;
             const isEditingThis = correctionEditing?.key === overrideKey;
             const displayValue = isEditingThis
