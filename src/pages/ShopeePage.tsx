@@ -625,6 +625,19 @@ const ShopeePage: React.FC = () => {
             return (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     {hasDiff && (
+                        <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: diff > 0 ? '#b45309' : '#047857',
+                            background: diff > 0 ? '#fef3c7' : '#d1fae5',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
+                        </span>
+                    )}
+                    {hasDiff && (
                         <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
                             {prefix}R$ {moeda(originalVal)}
                         </span>
@@ -664,19 +677,6 @@ const ShopeePage: React.FC = () => {
                             color: '#1e293b'
                         }}
                     />
-                    {hasDiff && (
-                        <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: diff > 0 ? '#b45309' : '#047857',
-                            background: diff > 0 ? '#fef3c7' : '#d1fae5',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
-                        </span>
-                    )}
                 </div>
             );
         }
@@ -684,12 +684,6 @@ const ShopeePage: React.FC = () => {
         if (hasDiff) {
             return (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
-                        {prefix}R$ {moeda(originalVal)}
-                    </span>
-                    <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
-                        {prefix}R$ {moeda(correctedVal)}
-                    </span>
                     <span style={{
                         fontSize: '0.72rem',
                         fontWeight: 700,
@@ -700,6 +694,12 @@ const ShopeePage: React.FC = () => {
                         whiteSpace: 'nowrap'
                     }}>
                         {diff > 0 ? '+' : '-'}R$ {moeda(Math.abs(diff))}
+                    </span>
+                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.78rem' }}>
+                        {prefix}R$ {moeda(originalVal)}
+                    </span>
+                    <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
+                        {prefix}R$ {moeda(correctedVal)}
                     </span>
                 </div>
             );
