@@ -63,8 +63,6 @@ const defaultInputs: ShopeeInput = {
     despesaFixaTipo: 'porcentagem',
     despesaAdicional: undefined,
     despesaAdicionalTipo: 'porcentagem',
-    outrasDespesasShopee: undefined,
-    outrasDespesasShopeeTipo: '',
     impostoPorcentagem: undefined,
     impostoTipo: 'porcentagem',
     adsValor: undefined,
@@ -119,7 +117,8 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'TES', number>>>({});
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS', number>>>({});
+    const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
@@ -386,7 +385,6 @@ const ShopeePage: React.FC = () => {
     const missingUnitFields: string[] = [];
     if ((inputs.rebatePorcentagem ?? 0) > 0 && !inputs.rebateTipo) missingUnitFields.push('Rebate Shopee [DR]');
     if ((inputs.cupomDesconto ?? 0) > 0 && !inputs.cupomTipo) missingUnitFields.push('Cupom da loja [CD]');
-    if ((inputs.outrasDespesasShopee ?? 0) > 0 && !inputs.outrasDespesasShopeeTipo) missingUnitFields.push('Taxas extras Shopee [TES]');
 
     const handleCalcular = () => {
         if (missingUnitFields.length > 0) {
@@ -405,6 +403,7 @@ const ShopeePage: React.FC = () => {
     const executarCalculo = () => {
         setIsResultStale(false);
         setDreOverrides({});
+        setCustomDreItems([]);
         setIsCorrectionMode(false);
         let resultado: ShopeeOutput;
         let precoFinalStr = "";
@@ -521,23 +520,27 @@ const ShopeePage: React.FC = () => {
 
     const activeResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        if (Object.keys(dreOverrides).length === 0) return baseResults;
+        if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0) return baseResults;
+
+        const sumSection = (sec: 'STP' | 'VN' | 'PDS') =>
+            customDreItems
+                .filter(i => i.section === sec)
+                .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
         const rebateValor = dreOverrides.DR ?? baseResults.rebateValor;
         const cupomValor = dreOverrides.CD ?? baseResults.cupomValor;
-        const baseCalculo = arredondar(baseResults.precoVenda - rebateValor, 2);
-        const valorNota = arredondar(baseCalculo - cupomValor, 2);
+        const baseCalculo = arredondar(baseResults.precoVenda - rebateValor + sumSection('STP'), 2);
+        const valorNota = arredondar(baseCalculo - cupomValor + sumSection('VN'), 2);
         const precoComCupom = arredondar(valorNota + (baseResults.freteValor || 0), 2);
         const comissaoValor = dreOverrides.CS ?? baseResults.comissaoValor;
         const tarifaFixa = dreOverrides.TFS ?? baseResults.tarifaFixa;
-        const outrasDespesasShopeeValor = dreOverrides.TES ?? baseResults.outrasDespesasShopeeValor;
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
         const despesaFixaValor = baseResults.despesaFixaValor;
         const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
-            precoComCupom - comissaoValor - tarifaFixa - outrasDespesasShopeeValor - (baseResults.freteValor || 0) - (baseResults.freteVendedorValor || 0) + rebateValor,
+            precoComCupom - comissaoValor - tarifaFixa - (baseResults.freteValor || 0) - (baseResults.freteVendedorValor || 0) + rebateValor + sumSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
@@ -556,7 +559,6 @@ const ShopeePage: React.FC = () => {
             precoComCupom,
             comissaoValor,
             tarifaFixa,
-            outrasDespesasShopeeValor,
             impostoValor,
             custoAds,
             despesaFixaValor,
@@ -571,7 +573,7 @@ const ShopeePage: React.FC = () => {
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS' | 'TES';
+    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS';
 
     const renderDreValor = (
         originalVal: number,
@@ -704,6 +706,189 @@ const ShopeePage: React.FC = () => {
             <span className={valClassName} style={bold ? { fontWeight: 700 } : undefined}>
                 {prefix}R$ {moeda(correctedVal)}
             </span>
+        );
+    };
+
+    const renderCustomDreSection = (section: 'STP' | 'VN' | 'PDS', baseRefVal: number) => {
+        const items = customDreItems.filter(i => i.section === section);
+        if (!isCorrectionMode && items.every(i => i.valor <= 0)) return null;
+
+        return (
+            <>
+                {items.map(item => {
+                    if (!isCorrectionMode && item.valor <= 0) return null;
+                    const editKey = `CUSTOM_${item.id}`;
+                    const isEditingThis = correctionEditing?.key === editKey;
+                    const displayValue = isEditingThis
+                        ? correctionEditing.text
+                        : (Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : '0,00');
+
+                    const commitCustomVal = (rawText: string) => {
+                        const trimmed = rawText.trim();
+                        if (trimmed === '') {
+                            setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, valor: 0 } : c));
+                        } else {
+                            const normalized = trimmed.replace(/\./g, (m, _offset, str) => (str.includes(',') ? '' : m)).replace(',', '.');
+                            const num = parseFloat(normalized);
+                            if (!isNaN(num)) {
+                                const rounded = arredondar(Math.max(0, num), 2);
+                                setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, valor: rounded } : c));
+                            }
+                        }
+                        setCorrectionEditing(null);
+                    };
+
+                    const pct = baseRefVal > 0 ? porc((item.valor / baseRefVal) * 100) : '0,00';
+
+                    return (
+                        <div key={item.id} className="detail-row" style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined}>
+                            {isCorrectionMode ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
+                                    <button
+                                        type="button"
+                                        title="Remover campo"
+                                        onClick={() => setCustomDreItems(prev => prev.filter(c => c.id !== item.id))}
+                                        style={{
+                                            border: 'none',
+                                            background: '#fee2e2',
+                                            color: '#dc2626',
+                                            width: '20px',
+                                            height: '20px',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontWeight: 700,
+                                            fontSize: '0.85rem',
+                                            lineHeight: 1,
+                                            flexShrink: 0,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        ×
+                                    </button>
+                                    <input
+                                        type="text"
+                                        value={item.label}
+                                        placeholder="Nome da taxa ou ajuste"
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, label: val } : c));
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            minWidth: '100px',
+                                            padding: '2px 6px',
+                                            fontSize: '0.82rem',
+                                            border: '1px solid #d8b4fe',
+                                            borderRadius: '5px',
+                                            background: '#ffffff',
+                                            color: '#1e293b'
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <span>{item.label || 'Taxa/ajuste extra'}:</span>
+                            )}
+
+                            <div className="detail-values">
+                                <span className="perc">({pct}%)</span>
+                                {isCorrectionMode ? (
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <button
+                                            type="button"
+                                            title={item.sign === '-' ? 'Desconto/taxa (subtrai). Clique para alternar para crédito (+)' : 'Crédito/acréscimo (soma). Clique para alternar para desconto (-)'}
+                                            onClick={() => setCustomDreItems(prev => prev.map(c => c.id === item.id ? { ...c, sign: c.sign === '-' ? '+' : '-' } : c))}
+                                            style={{
+                                                border: '1px solid #d8b4fe',
+                                                background: item.sign === '-' ? '#fef2f2' : '#ecfdf5',
+                                                color: item.sign === '-' ? '#dc2626' : '#059669',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '5px',
+                                                cursor: 'pointer',
+                                                fontWeight: 800,
+                                                fontSize: '0.9rem',
+                                                lineHeight: 1,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            {item.sign}
+                                        </button>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={displayValue}
+                                            onFocus={(e) => {
+                                                setCorrectionEditing({
+                                                    key: editKey,
+                                                    text: Number.isFinite(item.valor) ? item.valor.toFixed(2).replace('.', ',') : ''
+                                                });
+                                                e.currentTarget.select();
+                                            }}
+                                            onChange={(e) => {
+                                                setCorrectionEditing({ key: editKey, text: e.target.value });
+                                            }}
+                                            onBlur={(e) => commitCustomVal(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.currentTarget.blur();
+                                                } else if (e.key === 'Escape') {
+                                                    setCorrectionEditing(null);
+                                                    e.currentTarget.blur();
+                                                }
+                                            }}
+                                            style={{
+                                                width: '84px',
+                                                padding: '2px 6px',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 700,
+                                                textAlign: 'right',
+                                                border: item.valor > 0 ? '1.5px solid #7c3aed' : '1px solid #cbd5e1',
+                                                borderRadius: '6px',
+                                                background: item.valor > 0 ? '#f5f3ff' : '#ffffff',
+                                                color: '#1e293b'
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <span className={`val ${item.sign === '-' ? 'text-red' : 'text-green'}`}>
+                                        {item.sign} R$ {moeda(item.valor)}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+                {isCorrectionMode && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '2px 0 4px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setCustomDreItems(prev => [
+                                ...prev,
+                                { id: String(Date.now() + Math.random()), section, label: 'Nova taxa/ajuste', sign: '-', valor: 0 }
+                            ])}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                borderRadius: '5px',
+                                border: '1px dashed #a855f7',
+                                background: '#faf5ff',
+                                color: '#7e22ce',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Plus size={12} /> Adicionar taxa/ajuste
+                        </button>
+                    </div>
+                )}
+            </>
         );
     };
 
@@ -1486,45 +1671,6 @@ const ShopeePage: React.FC = () => {
                                 <span className="input-hint">Opcional — frete cobrado de você pela Shopee</span>
                             </div>
 
-                            <div className={`input-group ${isRefHighlighted('INPUT_ODS') ? 'dre-ref-pulse' : ''}`}>
-                                <label><Calculator size={16} /> Taxas extras Shopee (campanhas) {s('TES')}</label>
-                                <div className="input-composite">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        name="outrasDespesasShopee"
-                                        autoComplete="off"
-                                        className="input-main"
-                                        value={getInputValue('outrasDespesasShopee', inputs.outrasDespesasShopee)}
-                                        onFocus={() => {
-                                            setFocusedInput('outrasDespesasShopee');
-                                            setFocusedValue(inputs.outrasDespesasShopee !== undefined ? inputs.outrasDespesasShopee.toFixed(2).replace('.', ',') : '');
-                                        }}
-                                        onBlur={() => {
-                                            setFocusedInput(null);
-                                            setFocusedValue('');
-                                            triggerCalculation();
-                                        }}
-                                        onChange={handleChange}
-                                        onWheel={handleWheel}
-                                        onKeyDown={handleKeyDown}
-                                        placeholder="0,00"
-                                    />
-                                    <select
-                                        name="outrasDespesasShopeeTipo"
-                                        className="input-unit"
-                                        value={inputs.outrasDespesasShopeeTipo || ''}
-                                        onChange={handleChange}
-                                        style={(inputs.outrasDespesasShopee ?? 0) > 0 && !inputs.outrasDespesasShopeeTipo ? { borderColor: '#ef4444', color: '#dc2626', fontWeight: 700 } : undefined}
-                                    >
-                                        <option value="">Selecione</option>
-                                        <option value="porcentagem">%</option>
-                                        <option value="fixo">R$</option>
-                                    </select>
-                                </div>
-                                <span className="input-hint">Só o que não está na comissão</span>
-                            </div>
-
                             {/* Seção de Configurações Avançadas Colapsável — oculta para nível 3 */}
                             {!isLevel3 && (
                                 <div
@@ -1957,10 +2103,10 @@ const ShopeePage: React.FC = () => {
                                                         Resultado desatualizado
                                                     </span>
                                                 )}
-                                                {Object.keys(dreOverrides).length > 0 && (
+                                                {(Object.keys(dreOverrides).length > 0 || customDreItems.length > 0) && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setDreOverrides({})}
+                                                        onClick={() => { setDreOverrides({}); setCustomDreItems([]); }}
                                                         style={{
                                                             fontSize: '0.72rem',
                                                             fontWeight: 700,
@@ -2062,13 +2208,13 @@ const ShopeePage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0) && (
+                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN') && i.valor > 0)) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
                                                     <span className="val" style={{ fontWeight: 700, cursor: 'help' }} title="Valor base anunciado na vitrine [PA]">R$ {moeda(activeResults.precoVenda)}</span>
                                                 </div>
-                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0) && (
+                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)) && (
                                                     <>
                                                         <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`}>
                                                             <span>Desconto de Rebate {s('DR')}:</span>
@@ -2083,7 +2229,8 @@ const ShopeePage: React.FC = () => {
                                                                 {renderDreValor(baseResults?.rebateValor ?? 0, activeResults.rebateValor, '- ', 'val text-red', 'DR')}
                                                             </div>
                                                         </div>
-                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                        {renderCustomDreSection('STP', activeResults.precoVenda)}
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0)) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
                                                             <div
                                                                 style={{ cursor: 'help' }}
@@ -2111,6 +2258,7 @@ const ShopeePage: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 )}
+                                                {renderCustomDreSection('VN', activeResults.baseCalculo)}
                                                 <div className={`detail-row ${isRefHighlighted('VN') ? 'dre-ref-pulse' : ''}`} style={(activeResults.freteValor ?? 0) <= 0 ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                     <span style={{ fontWeight: 700 }}>Valor da nota {s('VN')}:</span>
                                                     <div
@@ -2182,21 +2330,6 @@ const ShopeePage: React.FC = () => {
                                                 {renderDreValor(baseResults?.tarifaFixa ?? 0, activeResults.tarifaFixa, '- ', 'val text-red', 'TFS')}
                                             </div>
                                         </div>
-                                        {(isCorrectionMode || (activeResults.outrasDespesasShopeeValor ?? 0) > 0 || (baseResults?.outrasDespesasShopeeValor ?? 0) > 0) && (
-                                            <div className={`detail-row ${isRefHighlighted('ODS') ? 'dre-ref-pulse' : ''}`}>
-                                                <span>Taxas extras Shopee {s('TES')}:</span>
-                                                <div
-                                                    className="detail-values"
-                                                    style={{ cursor: 'help' }}
-                                                    title={activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? `Ref.: Calculadas sobre Subtotal dos produtos [STP] (R$ ${moeda(activeResults.baseCalculo)})` : 'Ref.: Valor fixo informado no campo [TES]'}
-                                                    onMouseEnter={() => setHighlightedRefs(activeInputs.outrasDespesasShopeeTipo !== 'fixo' ? ['STP', 'INPUT_ODS'] : ['INPUT_ODS'])}
-                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                >
-                                                    <span className="perc">({porc((activeResults.outrasDespesasShopeeValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.outrasDespesasShopeeValor ?? 0, activeResults.outrasDespesasShopeeValor, '- ', 'val text-red', 'TES')}
-                                                </div>
-                                            </div>
-                                        )}
                                         {(activeResults.freteValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Frete pago pelo cliente {s('FPC')}:</span>
@@ -2242,12 +2375,13 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
+                                        {renderCustomDreSection('PDS', activeResults.baseCalculo)}
                                         <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
                                             <span style={{ fontWeight: 700 }}>Repasse:</span>
                                             <div
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.outrasDespesasShopeeValor ?? 0) > 0 ? ` - TES (R$ ${moeda(activeResults.outrasDespesasShopeeValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
-                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'ODS', 'FPC_DEB', 'FCV', 'CR'])}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteValor)})` : ''}${(activeResults.freteVendedorValor ?? 0) > 0 ? ` - FCV (R$ ${moeda(activeResults.freteVendedorValor)})` : ''}${(activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'FCV', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(baseResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true)}
