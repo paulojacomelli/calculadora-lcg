@@ -1162,14 +1162,16 @@ const ShopeePage: React.FC = () => {
 
         const diff = arredondar(correctedVal - originalVal, 2);
         const hasDiff = Math.abs(diff) >= 0.005;
+        const isExpenseRow = prefix.trim() === '-';
+        const isFavorable = isExpenseRow ? diff < 0 : diff > 0;
 
         const diffAndOldNode = hasDiff ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{
                     fontSize: '0.72rem',
                     fontWeight: 700,
-                    color: diff > 0 ? (isCorrectionMode && overrideKey ? '#b45309' : '#7c3aed') : '#047857',
-                    background: diff > 0 ? (isCorrectionMode && overrideKey ? '#fef3c7' : '#f3e8ff') : '#d1fae5',
+                    color: isFavorable ? '#047857' : '#b45309',
+                    background: isFavorable ? '#d1fae5' : '#fef3c7',
                     padding: '1px 5px',
                     borderRadius: '4px',
                     whiteSpace: 'nowrap'
@@ -2985,7 +2987,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}`}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
