@@ -2755,7 +2755,7 @@ const ShopeePage: React.FC = () => {
                             )}
 
                         </div>
-                        <div className="actions" style={{ flexDirection: 'column' }}>
+                        <div className="actions" style={{ flexDirection: 'column', marginTop: (hideSensitiveData || isLevel3) ? '1rem' : undefined }}>
                             {missingUnitFields.length > 0 && (
                                 <div style={{
                                     width: '100%',
