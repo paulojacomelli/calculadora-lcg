@@ -866,28 +866,30 @@ const ShopeePage: React.FC = () => {
                     );
                 })}
                 {isCorrectionMode && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '2px 0 4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '1px 0 2px' }}>
                         <button
                             type="button"
                             onClick={() => setCustomDreItems(prev => [
                                 ...prev,
                                 { id: String(Date.now() + Math.random()), section, label: 'Nova taxa/ajuste', sign: '-', valor: 0 }
                             ])}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '4px',
-                                padding: '2px 8px',
-                                fontSize: '0.72rem',
-                                fontWeight: 600,
-                                borderRadius: '5px',
-                                border: '1px dashed #a855f7',
-                                background: '#faf5ff',
-                                color: '#7e22ce',
-                                cursor: 'pointer'
+                                gap: '3px',
+                                padding: '0',
+                                fontSize: '0.7rem',
+                                fontWeight: 500,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                transition: 'color 0.15s ease'
                             }}
                         >
-                            <Plus size={12} /> Adicionar taxa/ajuste
+                            <Plus size={11} /> Adicionar taxa/ajuste
                         </button>
                     </div>
                 )}
