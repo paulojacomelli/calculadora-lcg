@@ -28,7 +28,8 @@ import {
     Edit3,
     History,
     Trash2,
-    X
+    X,
+    Eye
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -125,7 +126,17 @@ const ShopeePage: React.FC = () => {
     const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDS'; label: string; sign: '-' | '+'; valor: number }>>([]);
     const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-    const [calcHistory, setCalcHistory] = useState<Array<{ id: string; sku: string; pa: number; lucro: number; createdAt: string }>>(() => {
+    const [calcHistory, setCalcHistory] = useState<Array<{
+        id: string;
+        sku: string;
+        pa: number;
+        vn?: number;
+        lucro: number;
+        createdAt: string;
+        qtdMultiplier?: string;
+        inputsSnapshot?: ShopeeInput;
+        resultsSnapshot?: ShopeeOutput;
+    }>>(() => {
         try {
             const raw = localStorage.getItem('shopee_calc_history_v1');
             const parsed = raw ? JSON.parse(raw) : [];
@@ -513,8 +524,12 @@ const ShopeePage: React.FC = () => {
             id: String(Date.now() + Math.random()),
             sku: selectedCatalogProduct?.sku || 'Avulso',
             pa: arredondar(resultado.precoVenda, 2),
+            vn: arredondar(resultado.valorNota, 2),
             lucro: arredondar(resultado.lucroLiquido, 2),
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            qtdMultiplier,
+            inputsSnapshot: inputsCalc,
+            resultsSnapshot: resultado
         };
         setCalcHistory(prev => {
             const next = [newHistoryEntry, ...prev].slice(0, 50);
@@ -2986,7 +3001,7 @@ const ShopeePage: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: '100%',
-                            maxWidth: '520px',
+                            maxWidth: '640px',
                             maxHeight: '80vh',
                             background: '#ffffff',
                             borderRadius: '14px',
@@ -3069,17 +3084,90 @@ const ShopeePage: React.FC = () => {
                                         <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase' }}>
                                             <th style={{ padding: '0.5rem 0.4rem' }}>SKU</th>
                                             <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>PA</th>
+                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>VN</th>
                                             <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Lucro</th>
+                                            <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {calcHistory.map((item) => (
-                                            <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={new Date(item.createdAt).toLocaleString('pt-BR')}>
-                                                <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>{item.sku}</td>
-                                                <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
-                                                <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
-                                            </tr>
-                                        ))}
+                                        {calcHistory.map((item) => {
+                                            const vnVal = item.vn ?? item.resultsSnapshot?.valorNota;
+                                            return (
+                                                <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={new Date(item.createdAt).toLocaleString('pt-BR')}>
+                                                    <td style={{ padding: '0.55rem 0.4rem', fontWeight: 600, color: '#1e293b' }}>{item.sku}</td>
+                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(item.pa)}</td>
+                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>
+                                                        {vnVal !== undefined ? `R$ ${moeda(vnVal)}` : 'N/A'}
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', fontWeight: 700, color: item.lucro >= 0 ? '#047857' : '#dc2626', whiteSpace: 'nowrap' }}>R$ {moeda(item.lucro)}</td>
+                                                    <td style={{ padding: '0.55rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                            {item.resultsSnapshot && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setResults(item.resultsSnapshot!);
+                                                                        if (item.inputsSnapshot) setLastCalculatedInputs(item.inputsSnapshot);
+                                                                        if (item.qtdMultiplier) setQtdMultiplier(item.qtdMultiplier);
+                                                                        setDreOverrides({});
+                                                                        setDreAbsent({});
+                                                                        setDreDetails({});
+                                                                        setCustomDreItems([]);
+                                                                        setIsCorrectionMode(false);
+                                                                        setIsResultStale(false);
+                                                                        setIsHistoryModalOpen(false);
+                                                                    }}
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        padding: '3px 8px',
+                                                                        fontSize: '0.74rem',
+                                                                        fontWeight: 600,
+                                                                        borderRadius: '6px',
+                                                                        border: '1px solid #c4b5fd',
+                                                                        background: '#f5f3ff',
+                                                                        color: '#7c3aed',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                    title="Carregar DRE deste cálculo"
+                                                                >
+                                                                    <Eye size={13} /> Ver DRE
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setCalcHistory(prev => {
+                                                                        const next = prev.filter(h => h.id !== item.id);
+                                                                        try {
+                                                                            localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
+                                                                        } catch {
+                                                                            // ignore
+                                                                        }
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    padding: '4px',
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid #fecaca',
+                                                                    background: '#fef2f2',
+                                                                    color: '#dc2626',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                                title="Excluir do histórico"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}
