@@ -140,7 +140,14 @@ const ShopeePage: React.FC = () => {
         try {
             const raw = localStorage.getItem('shopee_calc_history_v1');
             const parsed = raw ? JSON.parse(raw) : [];
-            return Array.isArray(parsed) ? parsed : [];
+            if (!Array.isArray(parsed)) return [];
+            const seen = new Set<string>();
+            return parsed.filter((item: any) => {
+                const key = `${item.sku}|${item.pa}|${item.vn ?? item.resultsSnapshot?.valorNota ?? ''}|${item.lucro}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
         } catch {
             return [];
         }
@@ -532,7 +539,10 @@ const ShopeePage: React.FC = () => {
             resultsSnapshot: resultado
         };
         setCalcHistory(prev => {
-            const next = [newHistoryEntry, ...prev].slice(0, 50);
+            const filtered = prev.filter(
+                h => !(h.sku === newHistoryEntry.sku && h.pa === newHistoryEntry.pa && (h.vn ?? h.resultsSnapshot?.valorNota) === newHistoryEntry.vn && h.lucro === newHistoryEntry.lucro)
+            );
+            const next = [newHistoryEntry, ...filtered].slice(0, 50);
             try {
                 localStorage.setItem(SHOPEE_HISTORY_KEY, JSON.stringify(next));
             } catch {
