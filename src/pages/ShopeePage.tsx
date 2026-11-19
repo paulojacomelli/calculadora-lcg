@@ -1101,7 +1101,7 @@ const ShopeePage: React.FC = () => {
         if (!isCorrectionMode && group.items.every(i => i.valor <= 0)) return null;
 
         return (
-            <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+            <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', paddingRight: '0.95rem', borderRight: '2px solid #e9d5ff', margin: '2px 4px 6px 8px' }}>
                 {group.items.map(sub => {
                     if (!isCorrectionMode && sub.valor <= 0) return null;
                     const editKey = `DETAIL_${key}_${sub.id}`;
@@ -3256,7 +3256,7 @@ const ShopeePage: React.FC = () => {
                                                                     {renderCommentInputRow('FPC_CRED')}
                                                                     {renderDreDetailsList('FPC_CRED', activeResults.precoVenda, fpcTopVal)}
                                                                     {showTopFpsSub && (
-                                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+                                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', paddingRight: '0.95rem', borderRight: '2px solid #e9d5ff', margin: '2px 4px 6px 8px' }}>
                                                                             <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
                                                                                 <span>└ Valor total do frete {s('FT')}:</span>
                                                                                 <div
@@ -3399,7 +3399,7 @@ const ShopeePage: React.FC = () => {
                                                     {renderCommentInputRow('FPC')}
                                                     {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
                                                     {showFpsSub && (
-                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', margin: '2px 0 6px 8px' }}>
+                                                        <div style={{ paddingLeft: '1.25rem', borderLeft: '2px solid #e9d5ff', paddingRight: '0.95rem', borderRight: '2px solid #e9d5ff', margin: '2px 4px 6px 8px' }}>
                                                             <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
                                                                 <span>└ Valor total do frete {s('FT')}:</span>
                                                                 <div
