@@ -137,6 +137,7 @@ const ShopeePage: React.FC = () => {
     const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false);
     const [isOrderCalcModalOpen, setIsOrderCalcModalOpen] = useState(false);
     const [modalNewOrderNumber, setModalNewOrderNumber] = useState<string>('');
+    const [isHistoryTableView, setIsHistoryTableView] = useState(false);
     type CalcHistoryEntry = {
         id: string;
         sku: string;
@@ -174,6 +175,71 @@ const ShopeePage: React.FC = () => {
             seen.add(key);
             return true;
         });
+    };
+
+    const buildHistoryExcelRow = (item: CalcHistoryEntry) => {
+        const normalizeTxt = (val: string) =>
+            val.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const corr = item.correctionsSnapshot;
+        const csEsperada = arredondar(item.resultsSnapshot?.comissaoValor ?? 0, 2);
+        let csReal = csEsperada;
+        if (corr) {
+            if (corr.dreAbsent?.CS) {
+                csReal = 0;
+            } else if (corr.dreDetails?.CS && corr.dreDetails.CS.items.length > 0) {
+                csReal = arredondar(corr.dreDetails.CS.items.reduce((acc, it) => acc + it.valor, 0), 2);
+            } else if (corr.dreOverrides?.CS !== undefined) {
+                csReal = arredondar(corr.dreOverrides.CS, 2);
+            }
+        }
+
+        const customItems = corr?.customDreItems ?? [];
+        const isDevolucaoFacil = (lbl: string) => normalizeTxt(lbl).includes('devolucao facil') || normalizeTxt(lbl).includes('devolucao');
+
+        const baseEsperada = arredondar(item.resultsSnapshot?.baseCalculo ?? item.pa, 2);
+        let drReal = item.resultsSnapshot?.rebateValor ?? 0;
+        if (corr) {
+            if (corr.dreAbsent?.DR) {
+                drReal = 0;
+            } else if (corr.dreDetails?.DR && corr.dreDetails.DR.items.length > 0) {
+                drReal = arredondar(corr.dreDetails.DR.items.reduce((acc, it) => acc + it.valor, 0), 2);
+            } else if (corr.dreOverrides?.DR !== undefined) {
+                drReal = arredondar(corr.dreOverrides.DR, 2);
+            }
+        }
+        const stpCustom = customItems
+            .filter(c => c.section === 'STP')
+            .reduce((acc, c) => acc + (c.sign === '+' ? c.valor : -c.valor), 0);
+        const valorRefComissao = arredondar((item.resultsSnapshot?.precoVenda ?? item.pa) - drReal + stpCustom, 2);
+        const csEsperadaPct = baseEsperada > 0 ? csEsperada / baseEsperada : 0;
+        const csRealPct = valorRefComissao > 0 ? csReal / valorRefComissao : 0;
+
+        const devolucaoFacil = arredondar(
+            customItems
+                .filter(c => isDevolucaoFacil(c.label))
+                .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
+            2
+        );
+
+        const taxasAdicionais = arredondar(
+            customItems
+                .filter(c => !isDevolucaoFacil(c.label) && !c.isExpected)
+                .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
+            2
+        );
+
+        return {
+            'Número do pedido': item.orderNumber || '',
+            'SKU': item.sku,
+            'Preço anunciado': arredondar(item.pa, 2),
+            'Valor de referência (STP)': valorRefComissao,
+            'Comissão Shopee esperada (%)': csEsperadaPct,
+            'Comissão Shopee esperada (R$)': csEsperada,
+            'Comissão Shopee Real (%)': csRealPct,
+            'Comissão Shopee Real (R$)': csReal,
+            'Taxas adicionais incluídas': taxasAdicionais,
+            'Valor da Devolução fácil': devolucaoFacil
+        };
     };
 
     const SHOPEE_HISTORY_KEY = 'shopee_calc_history_v1';
@@ -4009,74 +4075,33 @@ const ShopeePage: React.FC = () => {
                                 {calcHistory.length > 0 && (
                                     <button
                                         type="button"
+                                        onClick={() => setIsHistoryTableView(prev => !prev)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            padding: '5px 10px',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 600,
+                                            borderRadius: '6px',
+                                            border: isHistoryTableView ? '1px solid #c4b5fd' : '1px solid #cbd5e1',
+                                            background: isHistoryTableView ? '#f5f3ff' : '#f8fafc',
+                                            color: isHistoryTableView ? '#7c3aed' : '#475569',
+                                            cursor: 'pointer'
+                                        }}
+                                        title={isHistoryTableView ? 'Voltar para visualização padrão do histórico' : 'Visualizar no mesmo padrão da planilha Excel'}
+                                    >
+                                        <Table size={14} /> {isHistoryTableView ? 'Ver padrão' : 'Ver em tabela'}
+                                    </button>
+                                )}
+                                {calcHistory.length > 0 && (
+                                    <button
+                                        type="button"
                                         onClick={() => {
-                                            const normalizeTxt = (val: string) =>
-                                                val.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
                                             const sorted = [...calcHistory].sort(
                                                 (a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
                                             );
-                                            const rows = sorted.map((item) => {
-                                                const corr = item.correctionsSnapshot;
-                                                const csEsperada = arredondar(item.resultsSnapshot?.comissaoValor ?? 0, 2);
-                                                let csReal = csEsperada;
-                                                if (corr) {
-                                                    if (corr.dreAbsent?.CS) {
-                                                        csReal = 0;
-                                                    } else if (corr.dreDetails?.CS && corr.dreDetails.CS.items.length > 0) {
-                                                        csReal = arredondar(corr.dreDetails.CS.items.reduce((acc, it) => acc + it.valor, 0), 2);
-                                                    } else if (corr.dreOverrides?.CS !== undefined) {
-                                                        csReal = arredondar(corr.dreOverrides.CS, 2);
-                                                    }
-                                                }
-
-                                                const customItems = corr?.customDreItems ?? [];
-                                                const isDevolucaoFacil = (lbl: string) => normalizeTxt(lbl).includes('devolucao facil') || normalizeTxt(lbl).includes('devolucao');
-
-                                                const baseEsperada = arredondar(item.resultsSnapshot?.baseCalculo ?? item.pa, 2);
-                                                let drReal = item.resultsSnapshot?.rebateValor ?? 0;
-                                                if (corr) {
-                                                    if (corr.dreAbsent?.DR) {
-                                                        drReal = 0;
-                                                    } else if (corr.dreDetails?.DR && corr.dreDetails.DR.items.length > 0) {
-                                                        drReal = arredondar(corr.dreDetails.DR.items.reduce((acc, it) => acc + it.valor, 0), 2);
-                                                    } else if (corr.dreOverrides?.DR !== undefined) {
-                                                        drReal = arredondar(corr.dreOverrides.DR, 2);
-                                                    }
-                                                }
-                                                const stpCustom = customItems
-                                                    .filter(c => c.section === 'STP')
-                                                    .reduce((acc, c) => acc + (c.sign === '+' ? c.valor : -c.valor), 0);
-                                                const valorRefComissao = arredondar((item.resultsSnapshot?.precoVenda ?? item.pa) - drReal + stpCustom, 2);
-                                                const csEsperadaPct = baseEsperada > 0 ? csEsperada / baseEsperada : 0;
-                                                const csRealPct = valorRefComissao > 0 ? csReal / valorRefComissao : 0;
-
-                                                const devolucaoFacil = arredondar(
-                                                    customItems
-                                                        .filter(c => isDevolucaoFacil(c.label))
-                                                        .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
-                                                    2
-                                                );
-
-                                                const taxasAdicionais = arredondar(
-                                                    customItems
-                                                        .filter(c => !isDevolucaoFacil(c.label) && !c.isExpected)
-                                                        .reduce((acc, c) => acc + (c.sign === '-' ? c.valor : -c.valor), 0),
-                                                    2
-                                                );
-
-                                                return {
-                                                    'Número do pedido': item.orderNumber || '',
-                                                    'SKU': item.sku,
-                                                    'Preço anunciado': arredondar(item.pa, 2),
-                                                    'Valor de referência (STP)': valorRefComissao,
-                                                    'Comissão Shopee esperada (%)': csEsperadaPct,
-                                                    'Comissão Shopee esperada (R$)': csEsperada,
-                                                    'Comissão Shopee Real (%)': csRealPct,
-                                                    'Comissão Shopee Real (R$)': csReal,
-                                                    'Taxas adicionais incluídas': taxasAdicionais,
-                                                    'Valor da Devolução fácil': devolucaoFacil
-                                                };
-                                            });
+                                            const rows = sorted.map(buildHistoryExcelRow);
 
                                             const ws = XLSX.utils.json_to_sheet(rows);
                                             const currencyCols = [2, 3, 5, 7, 8, 9];
@@ -4275,11 +4300,47 @@ const ShopeePage: React.FC = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
+                                    <div style={{ overflowY: 'auto', overflowX: isHistoryTableView ? 'auto' : 'hidden', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
                                         {filteredHistory.length === 0 ? (
                                             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
                                                 Nenhum registro encontrado para a busca.
                                             </div>
+                                        ) : isHistoryTableView ? (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569', textAlign: 'left', fontSize: '0.72rem', background: '#f8fafc' }}>
+                                                    <th style={{ padding: '0.5rem 0.45rem', whiteSpace: 'nowrap' }}>Número do pedido</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', whiteSpace: 'nowrap' }}>SKU</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Preço anunciado</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Valor de referência (STP)</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Comissão esperada (%)</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Comissão esperada (R$)</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Comissão Real (%)</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Comissão Real (R$)</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Taxas adicionais</th>
+                                                    <th style={{ padding: '0.5rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>Devolução fácil</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {pagedHistory.map((item) => {
+                                                    const row = buildHistoryExcelRow(item);
+                                                    return (
+                                                        <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                            <td style={{ padding: '0.48rem 0.45rem', color: '#334155', whiteSpace: 'nowrap' }}>{row['Número do pedido'] || '—'}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{row['SKU']}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(row['Preço anunciado'])}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(row['Valor de referência (STP)'])}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#475569', whiteSpace: 'nowrap' }}>{porc(row['Comissão Shopee esperada (%)'] * 100)}%</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(row['Comissão Shopee esperada (R$)'])}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#475569', whiteSpace: 'nowrap' }}>{porc(row['Comissão Shopee Real (%)'] * 100)}%</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>R$ {moeda(row['Comissão Shopee Real (R$)'])}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(row['Taxas adicionais incluídas'])}</td>
+                                                            <td style={{ padding: '0.48rem 0.45rem', textAlign: 'right', color: '#334155', whiteSpace: 'nowrap' }}>R$ {moeda(row['Valor da Devolução fácil'])}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
                                         ) : (
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                             <thead>
