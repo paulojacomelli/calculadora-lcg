@@ -119,7 +119,7 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [isResultStale, setIsResultStale] = useState(false);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'TES' | 'IMP' | 'ADS' | 'DF' | 'OD', number>>>({});
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'CS' | 'TFS' | 'TES', number>>>({});
     const [correctionEditing, setCorrectionEditing] = useState<{ key: string; text: string } | null>(null);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState<boolean>(false);
 
@@ -531,10 +531,10 @@ const ShopeePage: React.FC = () => {
         const comissaoValor = dreOverrides.CS ?? baseResults.comissaoValor;
         const tarifaFixa = dreOverrides.TFS ?? baseResults.tarifaFixa;
         const outrasDespesasShopeeValor = dreOverrides.TES ?? baseResults.outrasDespesasShopeeValor;
-        const impostoValor = dreOverrides.IMP ?? baseResults.impostoValor;
-        const custoAds = dreOverrides.ADS ?? baseResults.custoAds;
-        const despesaFixaValor = dreOverrides.DF ?? baseResults.despesaFixaValor;
-        const despesaAdicionalValor = dreOverrides.OD ?? baseResults.despesaAdicionalValor;
+        const impostoValor = baseResults.impostoValor;
+        const custoAds = baseResults.custoAds;
+        const despesaFixaValor = baseResults.despesaFixaValor;
+        const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
             precoComCupom - comissaoValor - tarifaFixa - outrasDespesasShopeeValor - (baseResults.freteValor || 0) - (baseResults.freteVendedorValor || 0) + rebateValor,
@@ -571,7 +571,7 @@ const ShopeePage: React.FC = () => {
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS' | 'TES' | 'IMP' | 'ADS' | 'DF' | 'OD';
+    type DreOverrideKey = 'DR' | 'CD' | 'CS' | 'TFS' | 'TES';
 
     const renderDreValor = (
         originalVal: number,
@@ -2268,7 +2268,7 @@ const ShopeePage: React.FC = () => {
                                                 <span className="val text-red">- R$ {moeda(activeInputs.custoProduto)}</span>
                                             </div>
                                         </div>
-                                        {(isCorrectionMode || (activeResults.impostoValor ?? 0) > 0 || (baseResults?.impostoValor ?? 0) > 0) && (
+                                        {(activeResults.impostoValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('IMP') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Imposto {s('IMP')}:</span>
                                                 <div
@@ -2279,11 +2279,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.impostoValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.impostoValor ?? 0, activeResults.impostoValor, '- ', 'val text-red', 'IMP')}
+                                                    <span className="val text-red">- R$ {moeda(activeResults.impostoValor)}</span>
                                                 </div>
                                             </div>
                                         )}
-                                        {(isCorrectionMode || (activeResults.custoAds ?? 0) > 0 || (baseResults?.custoAds ?? 0) > 0) && (
+                                        {(activeResults.custoAds ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('ADS') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Ads Shopee {s('ADS')}:</span>
                                                 <div
@@ -2294,11 +2294,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.custoAds || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.custoAds ?? 0, activeResults.custoAds, '- ', 'val text-red', 'ADS')}
+                                                    <span className="val text-red">- R$ {moeda(activeResults.custoAds)}</span>
                                                 </div>
                                             </div>
                                         )}
-                                        {(isCorrectionMode || (activeResults.despesaFixaValor ?? 0) > 0 || (baseResults?.despesaFixaValor ?? 0) > 0) && (
+                                        {(activeResults.despesaFixaValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('DF') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Despesa fixa {s('DF')}:</span>
                                                 <div
@@ -2309,11 +2309,11 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.despesaFixaValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.despesaFixaValor ?? 0, activeResults.despesaFixaValor, '- ', 'val text-red', 'DF')}
+                                                    <span className="val text-red">- R$ {moeda(activeResults.despesaFixaValor)}</span>
                                                 </div>
                                             </div>
                                         )}
-                                        {(isCorrectionMode || (activeResults.despesaAdicionalValor ?? 0) > 0 || (baseResults?.despesaAdicionalValor ?? 0) > 0) && (
+                                        {(activeResults.despesaAdicionalValor ?? 0) > 0 && (
                                             <div className={`detail-row ${isRefHighlighted('OD') ? 'dre-ref-pulse' : ''}`}>
                                                 <span>Outras Despesas {s('OD')}:</span>
                                                 <div
@@ -2324,7 +2324,7 @@ const ShopeePage: React.FC = () => {
                                                     onMouseLeave={() => setHighlightedRefs([])}
                                                 >
                                                     <span className="perc">({porc((activeResults.despesaAdicionalValor || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
-                                                    {renderDreValor(baseResults?.despesaAdicionalValor ?? 0, activeResults.despesaAdicionalValor || 0, '- ', 'val text-red', 'OD')}
+                                                    <span className="val text-red">- R$ {moeda(activeResults.despesaAdicionalValor || 0)}</span>
                                                 </div>
                                             </div>
                                         )}
