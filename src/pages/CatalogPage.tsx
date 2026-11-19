@@ -308,12 +308,12 @@ const CatalogPage: React.FC = () => {
     });
   };
 
-  const [focusedCusto, setFocusedCusto] = useState<string | null>(null);
+  const [custoEditing, setCustoEditing] = useState<{ id: string; text: string } | null>(null);
   const [focusedPercent, setFocusedPercent] = useState<{ id: string, field: string } | null>(null);
 
   const formatCustoDisplay = (valor: number | undefined): string => {
     if (valor === undefined || valor === null || valor === 0) return '';
-    return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 20 });
   };
 
   const formatPercentDisplay = (valor: number | undefined): string => {
@@ -334,9 +334,13 @@ const CatalogPage: React.FC = () => {
           return { ...p, [field]: value };
         }
         if (field === 'custoCDP') {
-          // Permite digitar com vírgula ou ponto, mantendo precisão de até 4 casas
-          const cleaned = value.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
-          const numVal = cleaned === '' ? 0 : parseFloat(cleaned);
+          // Permite digitar com vírgula ou ponto, sem limitar casas decimais
+          const raw = value.trim();
+          if (raw === '') return { ...p, [field]: 0 };
+          const normalized = raw.includes(',')
+            ? raw.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.')
+            : raw.replace(/[^\d.]/g, '');
+          const numVal = normalized === '' ? 0 : parseFloat(normalized);
           return { ...p, [field]: isNaN(numVal) ? 0 : numVal };
         }
         // Máscara Financeira padrão: trata os dígitos como centavos (2 casas)
@@ -818,7 +822,24 @@ const CatalogPage: React.FC = () => {
                   </td>
                   <td><input className="cell-input" value={p.sku} readOnly={!isAdmin} onChange={(e) => updateProduct(p.id, 'sku', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input" value={p.descricao} readOnly={!isAdmin} onChange={(e) => updateProduct(p.id, 'descricao', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
-                  <td><input className="cell-input text-center text-green custo-input" value={focusedCusto === p.id ? (p.custoCDP ? p.custoCDP.toString().replace('.', ',') : '') : formatCustoDisplay(p.custoCDP)} readOnly={!isAdmin} onFocus={() => setFocusedCusto(p.id)} onBlur={() => setFocusedCusto(null)} onChange={(e) => updateProduct(p.id, 'custoCDP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
+                  <td>
+                    <input
+                      className="cell-input text-center text-green custo-input"
+                      inputMode="decimal"
+                      value={custoEditing?.id === p.id ? custoEditing.text : formatCustoDisplay(p.custoCDP)}
+                      readOnly={!isAdmin}
+                      onFocus={(e) => {
+                        setCustoEditing({ id: p.id, text: p.custoCDP ? p.custoCDP.toString().replace('.', ',') : '' });
+                        e.currentTarget.select();
+                      }}
+                      onBlur={() => setCustoEditing(null)}
+                      onChange={(e) => {
+                        setCustoEditing({ id: p.id, text: e.target.value });
+                        updateProduct(p.id, 'custoCDP', e.target.value);
+                      }}
+                      onKeyDown={(e) => handleKeyDown(e, p)}
+                    />
+                  </td>
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'impostosIMP' ? getPercentEditValue(p.impostosIMP) : formatPercentDisplay(p.impostosIMP)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'impostosIMP' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'impostosIMP', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'despesaFixaDF' ? getPercentEditValue(p.despesaFixaDF) : formatPercentDisplay(p.despesaFixaDF)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'despesaFixaDF' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'despesaFixaDF', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
                   <td><input className="cell-input text-center" value={focusedPercent?.id === p.id && focusedPercent?.field === 'outrasDespesasOD' ? getPercentEditValue(p.outrasDespesasOD) : formatPercentDisplay(p.outrasDespesasOD)} readOnly={!isAdmin} onFocus={() => setFocusedPercent({ id: p.id, field: 'outrasDespesasOD' })} onBlur={() => setFocusedPercent(null)} onChange={(e) => updateProduct(p.id, 'outrasDespesasOD', e.target.value)} onKeyDown={(e) => handleKeyDown(e, p)} /></td>
