@@ -928,12 +928,10 @@ const ShopeePage: React.FC = () => {
         };
     })();
 
-    const activeResults: ShopeeOutput | null = isViewingOriginal ? baseResults : correctedResults;
-
-    // expectedResults incorpora itens customizados marcados como "Esperado" na linha de base das diferenças
+    // expectedResults incorpora itens customizados marcados como "Esperado" na linha de base das diferenças e no modo Ver Original
     const expectedResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        if (isViewingOriginal || !customDreItems.some(i => i.isExpected)) return baseResults;
+        if (!customDreItems.some(i => i.isExpected)) return baseResults;
         const sumExpectedSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS') =>
             customDreItems
                 .filter(i => i.section === sec && i.isExpected)
@@ -960,6 +958,8 @@ const ShopeePage: React.FC = () => {
             lucroLiquido
         };
     })();
+
+    const activeResults: ShopeeOutput | null = isViewingOriginal ? expectedResults : correctedResults;
 
     // Mantém correções, comentários e valores corrigidos sincronizados no registro do histórico atual
     useEffect(() => {
@@ -1532,9 +1532,8 @@ const ShopeePage: React.FC = () => {
     };
 
     const renderCustomDreSection = (section: 'STP' | 'VN' | 'PDV' | 'PDS', baseRefVal: number) => {
-        if (isViewingOriginal) return null;
-        const items = customDreItems.filter(i => i.section === section);
-        if (!isCorrectionMode && items.every(i => i.valor <= 0)) return null;
+        const items = customDreItems.filter(i => i.section === section && (!isViewingOriginal || i.isExpected));
+        if ((!isCorrectionMode || isViewingOriginal) && items.every(i => i.valor <= 0)) return null;
 
         return (
             <>
@@ -3284,7 +3283,7 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         )}
 
-                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (activeResults.freteVendedorValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0 || (baseResults?.freteVendedorValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN' || i.section === 'PDV') && i.valor > 0)))) && (
+                                        {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (activeResults.cupomValor ?? 0) > 0 || (activeResults.freteValor ?? 0) > 0 || (activeResults.freteVendedorValor ?? 0) > 0 || customDreItems.some(i => (i.section === 'STP' || i.section === 'VN' || i.section === 'PDV') && i.valor > 0 && (!isViewingOriginal || i.isExpected)) || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || (baseResults?.cupomValor ?? 0) > 0 || (baseResults?.freteValor ?? 0) > 0 || (baseResults?.freteVendedorValor ?? 0) > 0))) && (
                                             <>
                                                 <div className={`detail-row ${isRefHighlighted('PA') || isRefHighlighted('MC') ? 'dre-ref-pulse' : ''}`}>
                                                     <span style={{ fontWeight: 700 }}>Preço Anunciado {s('PA')}:</span>
@@ -3293,7 +3292,7 @@ const ShopeePage: React.FC = () => {
                                                         <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
                                                     </div>
                                                 </div>
-                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (!isViewingOriginal && ((baseResults?.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0)))) && (
+                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0 && (!isViewingOriginal || i.isExpected)) || (!isViewingOriginal && (baseResults?.rebateValor ?? 0) > 0)) && (
                                                     <>
                                                         <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.DR ? { opacity: 0.6 } : undefined}>
                                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -3318,7 +3317,7 @@ const ShopeePage: React.FC = () => {
                                                         {renderCommentInputRow('DR')}
                                                         {renderDreDetailsList('DR', activeResults.precoVenda, activeResults.rebateValor)}
                                                         {renderCustomDreSection('STP', activeResults.precoVenda)}
-                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && (isViewingOriginal || !customDreItems.some(i => i.section === 'VN' && i.valor > 0))) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0 && (!isViewingOriginal || i.isExpected))) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
                                                             <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
                                                             <div
                                                                 className="detail-values"
@@ -3633,7 +3632,7 @@ const ShopeePage: React.FC = () => {
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${!isViewingOriginal ? customDreItems.filter(i => i.section === 'PDS' && i.valor > 0).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('') : ''}`}
+                                                title={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0 && (!isViewingOriginal || i.isExpected)).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
                                                 onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
