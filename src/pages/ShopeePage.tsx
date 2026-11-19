@@ -1638,7 +1638,7 @@ const ShopeePage: React.FC = () => {
 
                     return (
                         <React.Fragment key={item.id}>
-                            <div className={`detail-row ${isRefHighlighted(`CUSTOM_${section}`) ? 'dre-ref-pulse' : ''}`} style={isCorrectionMode ? { background: '#faf5ff', borderRadius: '6px', padding: '4px 6px', margin: '2px -6px' } : undefined} data-dre-tooltip={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
+                            <div className={`detail-row ${isRefHighlighted(`CUSTOM_${section}`) ? 'dre-ref-pulse' : ''}`} data-dre-tooltip={withCommentTitle(item.label || 'Taxa/ajuste extra', customCommentKey)}>
                                 {isCorrectionMode ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0, marginRight: '8px' }}>
                                         <button
