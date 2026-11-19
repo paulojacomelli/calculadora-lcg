@@ -3316,6 +3316,19 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
+                                        <div className="detail-row" style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
+                                            <span style={{ fontWeight: 700 }}>Lucro líquido:</span>
+                                            <div
+                                                className="detail-values"
+                                                style={{ cursor: 'help' }}
+                                                title={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL] | % sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})`}
+                                                onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD', 'VN'])}
+                                                onMouseLeave={() => setHighlightedRefs([])}
+                                            >
+                                                <span className="perc">({porc((activeResults.lucroLiquido || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
+                                                <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.lucroLiquido)}</span>
+                                            </div>
+                                        </div>
 
                                     </div> {/* Fecha details */}
 
