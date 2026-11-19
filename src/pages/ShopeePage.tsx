@@ -2147,14 +2147,15 @@ const ShopeePage: React.FC = () => {
                                                 )}
                                                 <button
                                                     type="button"
+                                                    className={`dre-correction-btn ${isCorrectionMode ? 'active' : ''}`}
                                                     onClick={() => setIsCorrectionMode(prev => !prev)}
                                                     style={{
-                                                        fontSize: '0.72rem',
-                                                        fontWeight: 700,
-                                                        background: isCorrectionMode ? '#7c3aed' : '#ffffff',
-                                                        color: isCorrectionMode ? '#ffffff' : '#475569',
-                                                        border: isCorrectionMode ? '1px solid #7c3aed' : '1px solid #cbd5e1',
-                                                        padding: '3px 9px',
+                                                        fontSize: isCorrectionMode ? '0.72rem' : '0.7rem',
+                                                        fontWeight: isCorrectionMode ? 700 : 500,
+                                                        background: isCorrectionMode ? '#7c3aed' : 'transparent',
+                                                        color: isCorrectionMode ? '#ffffff' : '#94a3b8',
+                                                        border: isCorrectionMode ? '1px solid #7c3aed' : 'none',
+                                                        padding: isCorrectionMode ? '3px 9px' : '2px 4px',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
                                                         display: 'inline-flex',
@@ -2163,7 +2164,7 @@ const ShopeePage: React.FC = () => {
                                                     }}
                                                     title="Editar valores divergentes apenas para este cálculo"
                                                 >
-                                                    <Edit3 size={13} />
+                                                    <Edit3 size={isCorrectionMode ? 13 : 11} />
                                                     {isCorrectionMode ? 'Concluir Correção' : 'Modo Correção'}
                                                 </button>
                                             </div>

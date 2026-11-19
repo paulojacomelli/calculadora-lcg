@@ -1513,6 +1513,23 @@ body {
   color: var(--red-text);
 }
 
+.dre-correction-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.details:hover .dre-correction-btn,
+.dre-correction-btn.active,
+.dre-correction-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dre-correction-btn:not(.active):hover {
+  color: #7c3aed !important;
+}
+
 /* Switch e Extras */
 .checkbox-line {
   display: flex;
