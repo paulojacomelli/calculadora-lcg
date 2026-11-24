@@ -125,10 +125,11 @@ const ShopeePage: React.FC = () => {
     const isRefHighlighted = (key: string) => highlightedRefs.includes(key);
     const [lastCalcFingerprint, setLastCalcFingerprint] = useState<string | null>(null);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
-    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>>({});
-    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>>({});
-    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
-    const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>>([]);
+    const [dreOverrides, setDreOverrides] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', number>>>({});
+    const [dreAbsent, setDreAbsent] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', boolean>>>({});
+    const [dreAbsentExpected, setDreAbsentExpected] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', boolean>>>({});
+    const [dreDetails, setDreDetails] = useState<Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>>({});
+    const [customDreItems, setCustomDreItems] = useState<Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS' | 'PDL'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>>([]);
     const [dreComments, setDreComments] = useState<Record<string, string>>({});
     const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
     const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
@@ -137,6 +138,7 @@ const ShopeePage: React.FC = () => {
     const [isEditingOrderNumber, setIsEditingOrderNumber] = useState(false);
     const [isOrderCalcModalOpen, setIsOrderCalcModalOpen] = useState(false);
     const [modalNewOrderNumber, setModalNewOrderNumber] = useState<string>('');
+    const [showCupomLimite, setShowCupomLimite] = useState(false);
     const [isHistoryTableView, setIsHistoryTableView] = useState(false);
     const [focusedCustomLabelId, setFocusedCustomLabelId] = useState<string | null>(null);
     type CalcHistoryEntry = {
@@ -160,10 +162,11 @@ const ShopeePage: React.FC = () => {
         margemDesejadaSnapshot?: number;
         resultsSnapshot?: ShopeeOutput;
         correctionsSnapshot?: {
-            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', number>>;
-            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', boolean>>;
-            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
-            customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>;
+            dreOverrides?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', number>>;
+            dreAbsent?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', boolean>>;
+            dreAbsentExpected?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', boolean>>;
+            dreDetails?: Partial<Record<'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', { mode: 'same' | 'sum'; items: Array<{ id: string; label: string; valor: number }> }>>;
+            customDreItems?: Array<{ id: string; section: 'STP' | 'VN' | 'PDV' | 'PDS' | 'PDL'; label: string; sign: '-' | '+'; valor: number; isExpected?: boolean }>;
             dreComments?: Record<string, string>;
         };
     };
@@ -247,6 +250,7 @@ const ShopeePage: React.FC = () => {
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [historyPage, setHistoryPage] = useState(1);
     const [historySearch, setHistorySearch] = useState('');
+    const [historyTabFilter, setHistoryTabFilter] = useState<'margem' | 'ideal' | 'todos'>('margem');
     const HISTORY_PAGE_SIZE = 10;
     const [calcHistory, setCalcHistory] = useState<CalcHistoryEntry[]>(() => {
         try {
@@ -494,6 +498,8 @@ const ShopeePage: React.FC = () => {
         rebateTipo: inp.rebateTipo || '',
         cupomDesconto: inp.cupomDesconto ?? null,
         cupomTipo: inp.cupomTipo || '',
+        cupomLimite: inp.cupomLimite ?? null,
+        devolucaoFacil: Boolean(inp.devolucaoFacil),
         fretePagoCliente: currentAba === 'margem' ? (inp.fretePagoCliente ?? null) : null,
         freteCobradoVendedor: currentAba === 'margem' ? (inp.freteCobradoVendedor ?? null) : null,
         fatorAlavancagem: inp.fatorAlavancagem ?? null,
@@ -618,7 +624,7 @@ const ShopeePage: React.FC = () => {
             notify(`Selecione % ou R$ em: ${missingUnitFields.join(', ')}`, 'error');
             return;
         }
-        if (orderNumber.trim() !== '') {
+        if (orderNumber.trim() !== '' || activeHistoryId !== null) {
             setModalNewOrderNumber('');
             setIsOrderCalcModalOpen(true);
             return;
@@ -631,6 +637,7 @@ const ShopeePage: React.FC = () => {
         setIsViewingOriginal(false);
         setDreOverrides({});
         setDreAbsent({});
+        setDreAbsentExpected({});
         setDreDetails({});
         setCustomDreItems([]);
         setDreComments({});
@@ -741,8 +748,9 @@ const ShopeePage: React.FC = () => {
         const entrySku = selectedCatalogProduct?.sku || 'Avulso';
         const entryPa = arredondar(resultado.precoVenda, 2);
         const isSameOrderMatch = (h: CalcHistoryEntry) => {
+            if (activeHistoryId !== null && h.id === activeHistoryId) return true;
             if (resolvedOrderNumber) {
-                return (h.orderNumber ?? '').trim() === resolvedOrderNumber || (activeHistoryId !== null && h.id === activeHistoryId);
+                return (h.orderNumber ?? '').trim() === resolvedOrderNumber;
             }
             return (
                 h.sku === entrySku &&
@@ -814,6 +822,7 @@ const ShopeePage: React.FC = () => {
         setCorrectionEditing(null);
         setDreOverrides({});
         setDreAbsent({});
+        setDreAbsentExpected({});
         setDreDetails({});
         setCustomDreItems([]);
         setDreComments({});
@@ -871,6 +880,7 @@ const ShopeePage: React.FC = () => {
         const snap = item.correctionsSnapshot;
         setDreOverrides(snap?.dreOverrides ?? {});
         setDreAbsent(snap?.dreAbsent ?? {});
+        setDreAbsentExpected(snap?.dreAbsentExpected ?? {});
         setDreDetails(snap?.dreDetails ?? {});
         setCustomDreItems(snap?.customDreItems ?? []);
         setDreComments(snap?.dreComments ?? {});
@@ -880,6 +890,8 @@ const ShopeePage: React.FC = () => {
         setIsEditingOrderNumber(false);
         setIsViewingOriginal(viewOriginal);
         setIsCorrectionMode(false);
+        setDismissedFormulaUpdateId(null);
+        setShowCupomLimite(Boolean(loadedInputs.cupomLimite && loadedInputs.cupomLimite > 0));
         setLastCalcFingerprint(buildParamsFingerprint(loadedInputs, resolvedQtd, loadedAba, loadedTipoMargem, loadedMargem));
         setIsHistoryModalOpen(false);
     };
@@ -915,6 +927,56 @@ const ShopeePage: React.FC = () => {
     // baseResults mantém o cálculo original da fórmula; correctedResults aplica correções manuais da sessão
     const baseResults: ShopeeOutput | null = results ? normalizeLegacyShopeeOutput(results) : null;
 
+    const hasFormulaChanged = (item: CalcHistoryEntry): boolean => {
+        if (!item.resultsSnapshot || !item.inputsSnapshot) return false;
+        const base = normalizeLegacyShopeeOutput(item.resultsSnapshot);
+        const recalc = calcularTaxasShopee(item.inputsSnapshot);
+        return (
+            Math.abs(recalc.baseCalculo - base.baseCalculo) >= 0.01 ||
+            Math.abs(recalc.valorNota - base.valorNota) >= 0.01 ||
+            Math.abs(recalc.comissaoValor - base.comissaoValor) >= 0.01 ||
+            Math.abs(recalc.tarifaFixa - base.tarifaFixa) >= 0.01 ||
+            Math.abs(recalc.repasse - base.repasse) >= 0.01 ||
+            Math.abs(recalc.lucroLiquido - base.lucroLiquido) >= 0.01
+        );
+    };
+
+    const [dismissedFormulaUpdateId, setDismissedFormulaUpdateId] = useState<string | null>(null);
+
+    const formulaUpdateAvailable: ShopeeOutput | null = (() => {
+        if (!baseResults || !lastCalculatedInputs || !activeHistoryId) return null;
+        if (dismissedFormulaUpdateId === activeHistoryId) return null;
+        const recalc = calcularTaxasShopee(lastCalculatedInputs);
+        const differs =
+            Math.abs(recalc.baseCalculo - baseResults.baseCalculo) >= 0.01 ||
+            Math.abs(recalc.valorNota - baseResults.valorNota) >= 0.01 ||
+            Math.abs(recalc.comissaoValor - baseResults.comissaoValor) >= 0.01 ||
+            Math.abs(recalc.tarifaFixa - baseResults.tarifaFixa) >= 0.01 ||
+            Math.abs(recalc.repasse - baseResults.repasse) >= 0.01 ||
+            Math.abs(recalc.lucroLiquido - baseResults.lucroLiquido) >= 0.01;
+        return differs ? recalc : null;
+    })();
+
+    const handleApplyFormulaUpdate = () => {
+        if (!formulaUpdateAvailable || !activeHistoryId) return;
+        setResults(formulaUpdateAvailable);
+        setCalcHistory(prev => {
+            const next = prev.map(h =>
+                h.id === activeHistoryId
+                    ? {
+                        ...h,
+                        resultsSnapshot: formulaUpdateAvailable,
+                        originalVn: arredondar(formulaUpdateAvailable.valorNota, 2),
+                        originalRepasse: arredondar(formulaUpdateAvailable.repasse, 2),
+                        originalLucro: arredondar(formulaUpdateAvailable.lucroLiquido, 2)
+                    }
+                    : h
+            );
+            syncHistoryToFirestore(next);
+            return next;
+        });
+    };
+
     const hasAnyCorrection =
         Object.keys(dreOverrides).length > 0 ||
         customDreItems.length > 0 ||
@@ -927,12 +989,12 @@ const ShopeePage: React.FC = () => {
         const hasDetails = Object.keys(dreDetails).length > 0;
         if (Object.keys(dreOverrides).length === 0 && customDreItems.length === 0 && !Object.values(dreAbsent).some(Boolean) && !hasDetails) return baseResults;
 
-        const sumSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS') =>
+        const sumSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS' | 'PDL') =>
             customDreItems
                 .filter(i => i.section === sec)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
 
-        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR', baseVal: number) => {
+        const resolveKeyVal = (key: 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR', baseVal: number) => {
             if (dreAbsent[key]) return 0;
             const det = dreDetails[key];
             if (det && det.items.length > 0) {
@@ -943,16 +1005,29 @@ const ShopeePage: React.FC = () => {
 
         const rebateValor = resolveKeyVal('DR', baseResults.rebateValor);
         const cupomValor = resolveKeyVal('CD', baseResults.cupomValor);
-        const baseCalculo = arredondar(baseResults.precoVenda - rebateValor + sumSection('STP'), 2);
-        const valorNota = arredondar(baseCalculo - cupomValor + sumSection('VN'), 2);
+        const baseCalculo = arredondar(baseResults.precoVenda - cupomValor + sumSection('STP'), 2);
+        const valorNota = arredondar(baseCalculo - rebateValor + sumSection('VN'), 2);
         const freteValor = resolveKeyVal('FPC_CRED', baseResults.freteValor || 0);
         const fpsCredVal = resolveKeyVal('FPS_CRED', baseResults.freteVendedorValor || 0);
         const totalTopFrete = arredondar(freteValor + fpsCredVal, 2);
         const precoComCupom = arredondar(valorNota + totalTopFrete - fpsCredVal + sumSection('PDV'), 2);
-        const comissaoValor = resolveKeyVal('CS', baseResults.comissaoValor);
+        const baseCs10 = arredondar(baseResults.comissaoValor * 0.1, 2);
+        const baseCs90 = arredondar(baseResults.comissaoValor - baseCs10, 2);
+        const hasCsSubOverride =
+            dreOverrides.CS_BRUTA !== undefined ||
+            dreOverrides.CS_TRANS !== undefined ||
+            !!dreAbsent.CS_BRUTA ||
+            !!dreAbsent.CS_TRANS ||
+            (dreDetails.CS_BRUTA?.items.length ?? 0) > 0 ||
+            (dreDetails.CS_TRANS?.items.length ?? 0) > 0;
+        const comissaoValor = (!dreAbsent.CS && hasCsSubOverride)
+            ? arredondar(resolveKeyVal('CS_BRUTA', baseCs90) + resolveKeyVal('CS_TRANS', baseCs10), 2)
+            : resolveKeyVal('CS', baseResults.comissaoValor);
         const tarifaFixa = resolveKeyVal('TFS', baseResults.tarifaFixa);
         const freteDebitoValor = resolveKeyVal('FPC', freteValor);
         const freteVendedorValor = resolveKeyVal('FPS', fpsCredVal);
+        const baseFplVal = arredondar(freteDebitoValor + freteVendedorValor, 2);
+        const freteParceiroValor = resolveKeyVal('FPL', baseFplVal);
         const creditoRebateValor = resolveKeyVal('CR', rebateValor);
         const impostoValor = baseResults.impostoValor;
         const custoAds = baseResults.custoAds;
@@ -960,11 +1035,11 @@ const ShopeePage: React.FC = () => {
         const despesaAdicionalValor = baseResults.despesaAdicionalValor;
 
         const repasse = arredondar(
-            precoComCupom - comissaoValor - tarifaFixa - freteDebitoValor + creditoRebateValor + sumSection('PDS'),
+            precoComCupom - comissaoValor - tarifaFixa - (baseResults.devolucaoFacilValor || 0) - freteParceiroValor + freteVendedorValor + creditoRebateValor + sumSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
-            repasse - baseResults.custoProdutoValor - impostoValor - custoAds - despesaFixaValor - despesaAdicionalValor,
+            repasse - baseResults.custoProdutoValor - impostoValor - custoAds - despesaFixaValor - despesaAdicionalValor + sumSection('PDL'),
             2
         );
         const margemSobreVenda = precoComCupom > 0 ? arredondar((lucroLiquido / precoComCupom) * 100, 2) : 0;
@@ -976,6 +1051,7 @@ const ShopeePage: React.FC = () => {
             cupomValor,
             freteValor,
             freteVendedorValor,
+            freteParceiroValor,
             baseCalculo,
             valorNota,
             precoComCupom,
@@ -994,25 +1070,42 @@ const ShopeePage: React.FC = () => {
         };
     })();
 
-    // expectedResults incorpora itens customizados marcados como "Esperado" na linha de base das diferenças e no modo Ver Original
+    // expectedResults incorpora itens customizados e ausências marcadas como "Esperada" na linha de base das diferenças e no modo Ver Original
     const expectedResults: ShopeeOutput | null = (() => {
         if (!baseResults) return null;
-        if (!customDreItems.some(i => i.isExpected)) return baseResults;
-        const sumExpectedSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS') =>
+        const hasExpectedAbsent = Object.keys(dreAbsent).some(k => dreAbsent[k as DreOverrideKey] && dreAbsentExpected[k as DreOverrideKey]);
+        if (!customDreItems.some(i => i.isExpected) && !hasExpectedAbsent) return baseResults;
+        const sumExpectedSection = (sec: 'STP' | 'VN' | 'PDV' | 'PDS' | 'PDL') =>
             customDreItems
                 .filter(i => i.section === sec && i.isExpected)
                 .reduce((acc, i) => acc + (i.sign === '+' ? i.valor : -i.valor), 0);
+        const expVal = (key: DreOverrideKey, baseVal: number) => (dreAbsent[key] && dreAbsentExpected[key]) ? 0 : baseVal;
 
-        const baseCalculo = arredondar(baseResults.precoVenda - baseResults.rebateValor + sumExpectedSection('STP'), 2);
-        const valorNota = arredondar(baseCalculo - baseResults.cupomValor + sumExpectedSection('VN'), 2);
-        const freteVal = baseResults.freteValor || 0;
-        const precoComCupom = arredondar(valorNota + freteVal + sumExpectedSection('PDV'), 2);
+        const expRebate = expVal('DR', baseResults.rebateValor);
+        const expCupom = expVal('CD', baseResults.cupomValor);
+        const baseCalculo = arredondar(baseResults.precoVenda - expCupom + sumExpectedSection('STP'), 2);
+        const valorNota = arredondar(baseCalculo - expRebate + sumExpectedSection('VN'), 2);
+        const freteVal = expVal('FPC_CRED', baseResults.freteValor || 0);
+        const fpsCredVal = expVal('FPS_CRED', baseResults.freteVendedorValor || 0);
+        const totalTopFrete = arredondar(freteVal + fpsCredVal, 2);
+        const precoComCupom = arredondar(valorNota + totalTopFrete - fpsCredVal + sumExpectedSection('PDV'), 2);
+        const expCs10 = arredondar(baseResults.comissaoValor * 0.1, 2);
+        const expCs90 = arredondar(baseResults.comissaoValor - expCs10, 2);
+        const hasExpCsSub = !dreAbsent.CS && ((dreAbsent.CS_BRUTA && dreAbsentExpected.CS_BRUTA) || (dreAbsent.CS_TRANS && dreAbsentExpected.CS_TRANS));
+        const expComissao = hasExpCsSub
+            ? arredondar(expVal('CS_BRUTA', expCs90) + expVal('CS_TRANS', expCs10), 2)
+            : expVal('CS', baseResults.comissaoValor);
+        const expTarifaFixa = expVal('TFS', baseResults.tarifaFixa);
+        const expFreteDeb = expVal('FPC', freteVal);
+        const expFreteVend = expVal('FPS', fpsCredVal);
+        const expFpl = expVal('FPL', arredondar(expFreteDeb + expFreteVend, 2));
+        const expCreditoRebate = expVal('CR', expRebate);
         const repasse = arredondar(
-            precoComCupom - baseResults.comissaoValor - baseResults.tarifaFixa - freteVal + baseResults.rebateValor + sumExpectedSection('PDS'),
+            precoComCupom - expComissao - expTarifaFixa - (baseResults.devolucaoFacilValor || 0) - expFpl + expFreteVend + expCreditoRebate + sumExpectedSection('PDS'),
             2
         );
         const lucroLiquido = arredondar(
-            repasse - baseResults.custoProdutoValor - baseResults.impostoValor - baseResults.custoAds - baseResults.despesaFixaValor - baseResults.despesaAdicionalValor,
+            repasse - baseResults.custoProdutoValor - baseResults.impostoValor - baseResults.custoAds - baseResults.despesaFixaValor - baseResults.despesaAdicionalValor + sumExpectedSection('PDL'),
             2
         );
         return {
@@ -1034,17 +1127,21 @@ const ShopeePage: React.FC = () => {
         const nextRepasse = arredondar(correctedResults.repasse, 2);
         const nextLucro = arredondar(correctedResults.lucroLiquido, 2);
         const nextCorrections = hasAnyCorrection
-            ? { dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments }
+            ? { dreOverrides, dreAbsent, dreAbsentExpected, dreDetails, customDreItems, dreComments }
             : undefined;
+        const refExpected = expectedResults ?? baseResults;
+        const origVn = arredondar(refExpected.valorNota, 2);
+        const origRepasse = arredondar(refExpected.repasse, 2);
+        const origLucro = arredondar(refExpected.lucroLiquido, 2);
         const nextOrderNumber = orderNumber.trim() || undefined;
-        const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, on: nextOrderNumber, c: nextCorrections });
+        const nextFingerprint = JSON.stringify({ vn: nextVn, repasse: nextRepasse, lucro: nextLucro, ov: origVn, or: origRepasse, ol: origLucro, on: nextOrderNumber, c: nextCorrections });
 
         setCalcHistory(prev => {
             if (!activeHistoryId) return prev;
             const idx = prev.findIndex(h => h.id === activeHistoryId);
             if (idx === -1) return prev;
             const cur = prev[idx];
-            const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, on: cur.orderNumber, c: cur.correctionsSnapshot });
+            const curFingerprint = JSON.stringify({ vn: cur.vn, repasse: cur.repasse, lucro: cur.lucro, ov: cur.originalVn, or: cur.originalRepasse, ol: cur.originalLucro, on: cur.orderNumber, c: cur.correctionsSnapshot });
             if (curFingerprint === nextFingerprint) return prev;
             const updated: CalcHistoryEntry = {
                 ...cur,
@@ -1052,9 +1149,9 @@ const ShopeePage: React.FC = () => {
                 vn: nextVn,
                 repasse: nextRepasse,
                 lucro: nextLucro,
-                originalVn: arredondar(baseResults.valorNota, 2),
-                originalRepasse: arredondar(baseResults.repasse, 2),
-                originalLucro: arredondar(baseResults.lucroLiquido, 2),
+                originalVn: origVn,
+                originalRepasse: origRepasse,
+                originalLucro: origLucro,
                 correctionsSnapshot: nextCorrections ? JSON.parse(JSON.stringify(nextCorrections)) : undefined
             };
             const next = [...prev];
@@ -1062,12 +1159,12 @@ const ShopeePage: React.FC = () => {
             syncHistoryToFirestore(next);
             return next;
         });
-    }, [dreOverrides, dreAbsent, dreDetails, customDreItems, dreComments, orderNumber, correctedResults, baseResults, activeHistoryId, hasAnyCorrection]);
+    }, [dreOverrides, dreAbsent, dreAbsentExpected, dreDetails, customDreItems, dreComments, orderNumber, correctedResults, expectedResults, baseResults, activeHistoryId, hasAnyCorrection]);
 
     // activeInputs sempre usa o snapshot do último cálculo (modo 100% manual)
     const activeInputs = lastCalculatedInputs || inputs;
 
-    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'TFS' | 'FPC' | 'FPS' | 'CR';
+    type DreOverrideKey = 'DR' | 'CD' | 'FPC_CRED' | 'FPS_CRED' | 'CS' | 'CS_BRUTA' | 'CS_TRANS' | 'TFS' | 'FPC' | 'FPS' | 'FPL' | 'CR';
 
     const renderAbsentToggle = (key: DreOverrideKey) => {
         if (!isCorrectionMode) return null;
@@ -1109,7 +1206,31 @@ const ShopeePage: React.FC = () => {
     };
 
     const renderDetailToggle = (key: DreOverrideKey, initialVal: number) => {
-        if (!isCorrectionMode || dreAbsent[key]) return null;
+        if (!isCorrectionMode) return null;
+        if (dreAbsent[key]) {
+            const isExpected = !!dreAbsentExpected[key];
+            return (
+                <button
+                    type="button"
+                    title={isExpected ? 'Ausência esperada (não conta como correção)' : 'Marcar ausência como esperada'}
+                    onClick={() => setDreAbsentExpected(prev => ({ ...prev, [key]: !prev[key] }))}
+                    style={{
+                        border: isExpected ? '1px solid #86efac' : '1px solid #cbd5e1',
+                        background: isExpected ? '#dcfce7' : '#f8fafc',
+                        color: isExpected ? '#15803d' : '#64748b',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        marginLeft: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.66rem',
+                        fontWeight: 700,
+                        flexShrink: 0
+                    }}
+                >
+                    Esperado
+                </button>
+            );
+        }
         const isOpen = !!dreDetails[key];
         return (
             <button
@@ -1488,7 +1609,7 @@ const ShopeePage: React.FC = () => {
         }
 
         const diff = arredondar(correctedVal - originalVal, 2);
-        const hasDiff = Math.abs(diff) >= 0.005;
+        const hasDiff = Math.abs(diff) > 0.015;
         const isExpenseRow = prefix.trim() === '-' && overrideKey !== 'DR';
         const isFavorable = isExpenseRow ? diff < 0 : diff > 0;
 
@@ -1604,7 +1725,7 @@ const ShopeePage: React.FC = () => {
         );
     };
 
-    const renderCustomDreSection = (section: 'STP' | 'VN' | 'PDV' | 'PDS', baseRefVal: number) => {
+    const renderCustomDreSection = (section: 'STP' | 'VN' | 'PDV' | 'PDS' | 'PDL', baseRefVal: number) => {
         const items = customDreItems.filter(i => i.section === section && (!isViewingOriginal || i.isExpected));
         if ((!isCorrectionMode || isViewingOriginal) && items.every(i => i.valor <= 0)) return null;
 
@@ -1793,7 +1914,7 @@ const ShopeePage: React.FC = () => {
                                 <div className="detail-values">
                                     {isCorrectionMode ? (
                                         <>
-                                            {!item.isExpected && item.valor >= 0.005 && (
+                                            {!item.isExpected && item.valor > 0.015 && (
                                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                                     <span style={{
                                                         fontSize: '0.72rem',
@@ -2660,6 +2781,85 @@ const ShopeePage: React.FC = () => {
                                         <option value="porcentagem">%</option>
                                     </select>
                                 </div>
+                                {inputs.cupomTipo === 'porcentagem' && (
+                                    (showCupomLimite || (inputs.cupomLimite !== undefined && inputs.cupomLimite > 0)) ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                Limite máx. (R$):
+                                            </span>
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                name="cupomLimite"
+                                                value={getInputValue('cupomLimite', inputs.cupomLimite)}
+                                                onFocus={() => {
+                                                    setFocusedInput('cupomLimite');
+                                                    setFocusedValue(inputs.cupomLimite !== undefined ? inputs.cupomLimite.toFixed(2).replace('.', ',') : '');
+                                                }}
+                                                onBlur={() => {
+                                                    setFocusedInput(null);
+                                                    setFocusedValue('');
+                                                    triggerCalculation();
+                                                }}
+                                                onChange={handleChange}
+                                                onWheel={handleWheel}
+                                                placeholder="Sem limite"
+                                                style={{
+                                                    flex: 1,
+                                                    minWidth: 0,
+                                                    padding: '0.38rem 0.6rem',
+                                                    fontSize: '0.85rem',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid #cbd5e1',
+                                                    background: '#ffffff',
+                                                    color: '#1e293b',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                title="Remover limite"
+                                                onClick={() => {
+                                                    setShowCupomLimite(false);
+                                                    setInputs(prev => ({ ...prev, cupomLimite: undefined }));
+                                                    triggerCalculation();
+                                                }}
+                                                style={{
+                                                    border: 'none',
+                                                    background: '#f1f5f9',
+                                                    color: '#64748b',
+                                                    width: '26px',
+                                                    height: '26px',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    flexShrink: 0
+                                                }}
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCupomLimite(true)}
+                                            style={{
+                                                marginTop: '4px',
+                                                border: 'none',
+                                                background: 'transparent',
+                                                color: '#64748b',
+                                                padding: '2px 0',
+                                                fontSize: '0.74rem',
+                                                fontWeight: 500,
+                                                cursor: 'pointer',
+                                                alignSelf: 'flex-start'
+                                            }}
+                                        >
+                                            + Definir limite
+                                        </button>
+                                    )
+                                )}
                                 <span className="input-hint">% ou R$, bancado por você. Base: preço anunciado</span>
                             </div>
 
@@ -2711,6 +2911,68 @@ const ShopeePage: React.FC = () => {
                                             placeholder="Não informado"
                                         />
                                         <span className="input-hint">Não altera o lucro. Informe o frete pago pela Shopee</span>
+                                    </div>
+                                    <div className={`input-group ${isRefHighlighted('INPUT_TDF') ? 'dre-ref-pulse' : ''}`} style={{ marginTop: '6px' }}>
+                                        <label
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '12px',
+                                                padding: '10px 12px',
+                                                borderRadius: '10px',
+                                                border: inputs.devolucaoFacil ? '1px solid #c4b5fd' : '1px solid #e2e8f0',
+                                                background: inputs.devolucaoFacil ? '#f5f3ff' : '#f8fafc',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease',
+                                                userSelect: 'none'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1e293b' }}>
+                                                    Tem Devolução Fácil? {s('TDF')}
+                                                </span>
+                                                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                                    Adiciona R$ 0,49 na Política da Shopee [PDS]
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(inputs.devolucaoFacil)}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setInputs(prev => ({ ...prev, devolucaoFacil: checked }));
+                                                    setTimeout(() => triggerCalculation(), 0);
+                                                }}
+                                                style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+                                            />
+                                            <span
+                                                aria-hidden="true"
+                                                style={{
+                                                    width: '36px',
+                                                    height: '20px',
+                                                    borderRadius: '999px',
+                                                    background: inputs.devolucaoFacil ? '#7c3aed' : '#cbd5e1',
+                                                    position: 'relative',
+                                                    flexShrink: 0,
+                                                    transition: 'background 0.15s ease'
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '2px',
+                                                        left: inputs.devolucaoFacil ? '18px' : '2px',
+                                                        width: '16px',
+                                                        height: '16px',
+                                                        borderRadius: '50%',
+                                                        background: '#ffffff',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                                                        transition: 'left 0.15s ease'
+                                                    }}
+                                                />
+                                            </span>
+                                        </label>
                                     </div>
                                 </>
                             )}
@@ -3101,7 +3363,7 @@ const ShopeePage: React.FC = () => {
                                                                 <div className="sensor-inner-alert">
                                                                     <TrendingUp size={20} />
                                                                     <span>
-                                                                        <strong>Sensor de Otimização Ativado:</strong> Ao mudar o Preço Anunciado {s('PA')} para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong>
+                                                                        <strong>Sensor de Otimização Ativado:</strong> Ao analisar as tabelas de taxa da Shopee, foi identificado que ao abaixar o Preço Anunciado {s('PA')} de <strong>R$ {moeda(activeResults.precoVenda)}</strong> para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> ({porc(activeResults.precoVenda > 0 ? ((activeResults.precoVenda - melhorAnteriorComp.precoVenda) / activeResults.precoVenda) * 100 : 0)}% a menos) seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong> (Lucro Líquido sobre a venda de {porc(melhorAnteriorComp.margemSobreVenda)}%)
                                                                     </span>
                                                                 </div>
                                                             </>
@@ -3379,6 +3641,66 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                             );
                                         })()}
+                                        {formulaUpdateAvailable && baseResults && (
+                                            <div
+                                                className="dre-no-print"
+                                                style={{
+                                                    marginBottom: '1rem',
+                                                    padding: '0.85rem 1rem',
+                                                    background: '#fffbeb',
+                                                    border: '1px solid #fcd34d',
+                                                    borderRadius: '12px',
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '0.75rem'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.82rem', color: '#92400e' }}>
+                                                    <strong style={{ fontSize: '0.86rem' }}>A fórmula de cálculo mudou desde que este registro foi salvo.</strong>
+                                                    <span>
+                                                        STP: R$ {moeda(baseResults.baseCalculo)} → R$ {moeda(formulaUpdateAvailable.baseCalculo)}
+                                                        {' • '}
+                                                        Lucro: R$ {moeda(baseResults.lucroLiquido)} → R$ {moeda(formulaUpdateAvailable.lucroLiquido)}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleApplyFormulaUpdate}
+                                                        style={{
+                                                            padding: '0.4rem 0.75rem',
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: 700,
+                                                            borderRadius: '8px',
+                                                            border: 'none',
+                                                            background: '#d97706',
+                                                            color: '#ffffff',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        Atualizar cálculo
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDismissedFormulaUpdateId(activeHistoryId)}
+                                                        style={{
+                                                            padding: '0.4rem 0.75rem',
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: 600,
+                                                            borderRadius: '8px',
+                                                            border: '1px solid #fcd34d',
+                                                            background: '#ffffff',
+                                                            color: '#92400e',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        Manter original
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                         {!hideSensitiveData && (
                                         <div className="dre-summary-box" style={{
                                             marginBottom: '1rem',
@@ -3418,7 +3740,7 @@ const ShopeePage: React.FC = () => {
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lucro Líquido Final</div>
-                                                {expectedResults && Math.abs(activeResults.lucroLiquido - expectedResults.lucroLiquido) >= 0.005 ? (
+                                                {expectedResults && Math.abs(activeResults.lucroLiquido - expectedResults.lucroLiquido) > 0.015 ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                                                         <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.95rem', fontWeight: 700 }}>
                                                             R$ {moeda(expectedResults.lucroLiquido)}
@@ -3453,7 +3775,50 @@ const ShopeePage: React.FC = () => {
                                                         <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.precoVenda)}</span>
                                                     </div>
                                                 </div>
-                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0 && (!isViewingOriginal || i.isExpected)) || (!isViewingOriginal && (baseResults?.rebateValor ?? 0) > 0)) && (
+                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.cupomValor ?? 0) > 0)) && (
+                                                    <>
+                                                        <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CD ? { opacity: 0.6 } : undefined}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                {renderAbsentToggle('CD')}
+                                                                <span style={!isViewingOriginal && dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                    Desconto aplicado {s('CD')}:
+                                                                </span>
+                                                                {!isViewingOriginal && dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {renderDetailToggle('CD', activeResults.cupomValor)}
+                                                                {renderCommentControl('CD')}
+                                                            </span>
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                data-dre-tooltip={withCommentTitle(activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})${activeInputs.cupomLimite && activeInputs.cupomLimite > 0 ? ` (limite máx. R$ ${moeda(activeInputs.cupomLimite)})` : ''}` : 'Ref.: Valor fixo informado no campo [CD]', 'CD')}
+                                                                onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc((((!isViewingOriginal && dreAbsent.CD) ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            </div>
+                                                        </div>
+                                                        {renderCommentInputRow('CD')}
+                                                        {renderDreDetailsList('CD', activeResults.precoVenda, activeResults.cupomValor)}
+                                                    </>
+                                                )}
+                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || customDreItems.some(i => i.section === 'STP' && i.valor > 0 && (!isViewingOriginal || i.isExpected)) || (!isViewingOriginal && (baseResults?.cupomValor ?? 0) > 0)) && (
+                                                    <>
+                                                        {renderCustomDreSection('STP', activeResults.precoVenda)}
+                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`}>
+                                                            <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                data-dre-tooltip={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - CD (R$ ${moeda(activeResults.cupomValor)})`}
+                                                                onMouseEnter={() => setHighlightedRefs(['PA', 'CD', 'CUSTOM_STP'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                {renderDreValor(expectedResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {(isCorrectionMode || (activeResults.rebateValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.rebateValor ?? 0) > 0)) && (
                                                     <>
                                                         <div className={`detail-row ${isRefHighlighted('DR') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.DR ? { opacity: 0.6 } : undefined}>
                                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
@@ -3477,45 +3842,6 @@ const ShopeePage: React.FC = () => {
                                                         </div>
                                                         {renderCommentInputRow('DR')}
                                                         {renderDreDetailsList('DR', activeResults.precoVenda, activeResults.rebateValor)}
-                                                        {renderCustomDreSection('STP', activeResults.precoVenda)}
-                                                        <div className={`detail-row ${isRefHighlighted('STP') ? 'dre-ref-pulse' : ''}`} style={(!isCorrectionMode && (activeResults.cupomValor ?? 0) <= 0 && (activeResults.freteValor ?? 0) <= 0 && !customDreItems.some(i => i.section === 'VN' && i.valor > 0 && (!isViewingOriginal || i.isExpected))) ? { paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' } : undefined}>
-                                                            <span style={{ fontWeight: 700 }}>Subtotal dos produtos {s('STP')}:</span>
-                                                            <div
-                                                                className="detail-values"
-                                                                style={{ cursor: 'help' }}
-                                                                data-dre-tooltip={`Ref.: PA (R$ ${moeda(activeResults.precoVenda)}) - DR (R$ ${moeda(activeResults.rebateValor)})`}
-                                                                onMouseEnter={() => setHighlightedRefs(['PA', 'DR', 'CUSTOM_STP'])}
-                                                                onMouseLeave={() => setHighlightedRefs([])}
-                                                            >
-                                                                {renderDreValor(expectedResults?.baseCalculo ?? activeResults.baseCalculo, activeResults.baseCalculo, '', 'val', undefined, true, '')}
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {(isCorrectionMode || (activeResults.cupomValor ?? 0) > 0 || (!isViewingOriginal && (baseResults?.cupomValor ?? 0) > 0)) && (
-                                                    <>
-                                                        <div className={`detail-row ${isRefHighlighted('CD') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.CD ? { opacity: 0.6 } : undefined}>
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                                {renderAbsentToggle('CD')}
-                                                                <span style={!isViewingOriginal && dreAbsent.CD ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                    Desconto aplicado {s('CD')}:
-                                                                </span>
-                                                                {!isViewingOriginal && dreAbsent.CD && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                                {renderDetailToggle('CD', activeResults.cupomValor)}
-                                                                {renderCommentControl('CD')}
-                                                            </span>
-                                                            <div
-                                                                className="detail-values"
-                                                                style={{ cursor: 'help' }}
-                                                                data-dre-tooltip={withCommentTitle(activeInputs.cupomTipo === 'porcentagem' ? `Ref.: Calculado sobre Preço Anunciado [PA] (R$ ${moeda(activeResults.precoVenda)})` : 'Ref.: Valor fixo informado no campo [CD]', 'CD')}
-                                                                onMouseEnter={() => setHighlightedRefs(activeInputs.cupomTipo === 'porcentagem' ? ['PA', 'INPUT_CD'] : ['INPUT_CD'])}
-                                                                onMouseLeave={() => setHighlightedRefs([])}
-                                                            >
-                                                                {renderDreValor(baseResults?.cupomValor ?? 0, activeResults.cupomValor, '- ', 'val text-red', 'CD', false, `${porc((((!isViewingOriginal && dreAbsent.CD) ? (baseResults?.cupomValor ?? 0) : activeResults.cupomValor) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
-                                                            </div>
-                                                        </div>
-                                                        {renderCommentInputRow('CD')}
-                                                        {renderDreDetailsList('CD', activeResults.precoVenda, activeResults.cupomValor)}
                                                     </>
                                                 )}
                                                 {renderCustomDreSection('VN', activeResults.baseCalculo)}
@@ -3545,10 +3871,10 @@ const ShopeePage: React.FC = () => {
                                                                     <div
                                                                         className="detail-values"
                                                                         style={{ cursor: 'help' }}
-                                                                        data-dre-tooltip={`${(activeResults.rebateValor ?? 0) > 0
+                                                                        data-dre-tooltip={`${(activeResults.cupomValor ?? 0) > 0
                                                                             ? `Ref.: STP (R$ ${moeda(activeResults.baseCalculo)})`
-                                                                            : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}`}
-                                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.rebateValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.cupomValor ?? 0) > 0 ? ['CD'] : []), 'CUSTOM_VN'])}
+                                                                            : `Ref.: PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.rebateValor ?? 0) > 0 ? ` - DR (R$ ${moeda(activeResults.rebateValor)})` : ''}`}
+                                                                        onMouseEnter={() => setHighlightedRefs([(activeResults.cupomValor ?? 0) > 0 ? 'STP' : 'PA', ...((activeResults.rebateValor ?? 0) > 0 ? ['DR'] : []), 'CUSTOM_VN'])}
                                                                         onMouseLeave={() => setHighlightedRefs([])}
                                                                     >
                                                                         {renderDreValor(expectedResults?.valorNota ?? activeResults.valorNota, activeResults.valorNota, '', 'val', undefined, true, '')}
@@ -3561,7 +3887,7 @@ const ShopeePage: React.FC = () => {
                                                                         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                                             {renderAbsentToggle('FPC_CRED')}
                                                                             <span style={!isViewingOriginal && dreAbsent.FPC_CRED ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                                Total pago pelo cliente {s('FPC')}:
+                                                                                Frete pago pelo cliente {s('FPC')}:
                                                                             </span>
                                                                             {!isViewingOriginal && dreAbsent.FPC_CRED && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
                                                                             {renderDetailToggle('FPC_CRED', fpcTopVal)}
@@ -3582,7 +3908,7 @@ const ShopeePage: React.FC = () => {
                                                                     {showTopFpsSub && (
                                                                         <div className="dre-sub-group">
                                                                             <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
-                                                                                <span>└ Valor total do frete {s('FT')}:</span>
+                                                                                <span>└ Valor cobrado pelo parceiro logístico {s('FCL')}:</span>
                                                                                 <div
                                                                                     className="detail-values"
                                                                                     style={{ cursor: 'help' }}
@@ -3634,7 +3960,7 @@ const ShopeePage: React.FC = () => {
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
                                                 data-dre-tooltip={hideSensitiveData
-                                                    ? `Ref.: ${(activeResults.rebateValor ?? 0) > 0 ? `STP (R$ ${moeda(activeResults.baseCalculo)})` : `PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.cupomValor ?? 0) > 0 ? ` - CD (R$ ${moeda(activeResults.cupomValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`
+                                                    ? `Ref.: ${(activeResults.cupomValor ?? 0) > 0 ? `STP (R$ ${moeda(activeResults.baseCalculo)})` : `PA (R$ ${moeda(activeResults.precoVenda)})`}${(activeResults.rebateValor ?? 0) > 0 ? ` - DR (R$ ${moeda(activeResults.rebateValor)})` : ''}${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`
                                                     : `Ref.: VN (R$ ${moeda(activeResults.valorNota)})${(activeResults.freteValor ?? 0) > 0 ? ` + FPC (R$ ${moeda(activeResults.freteValor)})` : ''}`}
                                                 onMouseEnter={() => setHighlightedRefs(
                                                     hideSensitiveData
@@ -3670,6 +3996,64 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         {renderCommentInputRow('CS')}
                                         {renderDreDetailsList('CS', activeResults.baseCalculo, activeResults.comissaoValor)}
+                                        {(!dreDetails.CS || dreDetails.CS.items.length === 0) && !(!isViewingOriginal && dreAbsent.CS) && (activeResults.comissaoValor > 0 || (!isViewingOriginal && (baseResults?.comissaoValor ?? 0) > 0)) && (() => {
+                                            const csTotal = activeResults.comissaoValor;
+                                            const baseCsTotal = baseResults?.comissaoValor ?? csTotal;
+                                            const baseCs10 = arredondar(baseCsTotal * 0.1, 2);
+                                            const baseCs90 = arredondar(baseCsTotal - baseCs10, 2);
+                                            const cs10 = isViewingOriginal
+                                                ? baseCs10
+                                                : dreAbsent.CS_TRANS
+                                                    ? 0
+                                                    : (dreOverrides.CS_TRANS ?? arredondar(csTotal * 0.1, 2));
+                                            const cs90 = isViewingOriginal
+                                                ? baseCs90
+                                                : dreAbsent.CS_BRUTA
+                                                    ? 0
+                                                    : (dreOverrides.CS_BRUTA ?? arredondar(csTotal - arredondar(csTotal * 0.1, 2), 2));
+                                            const csPerc90 = activeResults.baseCalculo > 0 ? (cs90 / activeResults.baseCalculo) * 100 : 0;
+                                            const csPerc10 = activeResults.baseCalculo > 0 ? (cs10 / activeResults.baseCalculo) * 100 : 0;
+                                            return (
+                                                <div className="dre-sub-group">
+                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.CS_BRUTA) ? { opacity: 0.6 } : {}) }}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                            {renderAbsentToggle('CS_BRUTA')}
+                                                            <span style={!isViewingOriginal && dreAbsent.CS_BRUTA ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                └ Taxa de comissão bruta
+                                                            </span>
+                                                            {!isViewingOriginal && dreAbsent.CS_BRUTA && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        </span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            data-dre-tooltip={`Ref.: Representa 90% da Comissão Shopee [CS] (R$ ${moeda(csTotal)})`}
+                                                            onMouseEnter={() => setHighlightedRefs(['CS'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            {renderDreValor(baseCs90, cs90, '- ', 'val text-muted', 'CS_BRUTA', false, `${porc(csPerc90)}%`)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.CS_TRANS) ? { opacity: 0.6 } : {}) }}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                            {renderAbsentToggle('CS_TRANS')}
+                                                            <span style={!isViewingOriginal && dreAbsent.CS_TRANS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                └ Taxa de transação
+                                                            </span>
+                                                            {!isViewingOriginal && dreAbsent.CS_TRANS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                        </span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            data-dre-tooltip={`Ref.: Representa 10% da Comissão Shopee [CS] (R$ ${moeda(csTotal)})`}
+                                                            onMouseEnter={() => setHighlightedRefs(['CS'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            {renderDreValor(baseCs10, cs10, '- ', 'val text-muted', 'CS_TRANS', false, `${porc(csPerc10)}%`)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         <div className={`detail-row ${isRefHighlighted('TFS') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.TFS ? { opacity: 0.6 } : undefined}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                                                 {renderAbsentToggle('TFS')}
@@ -3692,13 +4076,40 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                         {renderCommentInputRow('TFS')}
                                         {renderDreDetailsList('TFS', activeResults.baseCalculo, activeResults.tarifaFixa)}
+                                        {(Number(qtdMultiplier) || 1) > 1 && (!dreDetails.TFS || dreDetails.TFS.items.length === 0) && !(!isViewingOriginal && dreAbsent.TFS) && activeResults.tarifaFixa > 0 && (() => {
+                                            const qtd = Number(qtdMultiplier) || 1;
+                                            const tfsUnit = arredondar(activeResults.tarifaFixa / qtd, 2);
+                                            const tfsUnitPerc = activeResults.baseCalculo > 0 ? (tfsUnit / activeResults.baseCalculo) * 100 : 0;
+                                            return (
+                                                <div className="dre-sub-group">
+                                                    <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
+                                                        <span>└ Tarifa unitária ({qtd}× R$ {moeda(tfsUnit)})</span>
+                                                        <div
+                                                            className="detail-values"
+                                                            style={{ cursor: 'help' }}
+                                                            data-dre-tooltip={`Ref.: R$ ${moeda(tfsUnit)} × ${qtd} un. = R$ ${moeda(activeResults.tarifaFixa)}`}
+                                                            onMouseEnter={() => setHighlightedRefs(['TFS'])}
+                                                            onMouseLeave={() => setHighlightedRefs([])}
+                                                        >
+                                                            <span className="perc">({porc(tfsUnitPerc)}%/un.)</span>
+                                                            <span className="val text-muted">- R$ {moeda(tfsUnit)} × {qtd}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         {(() => {
                                             const fpcDebVal = activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0;
                                             const fpsDebVal = activeResults.freteVendedorValor ?? 0;
                                             const baseFpcDebVal = baseResults?.freteValor ?? 0;
                                             const baseFpsDebVal = baseResults?.freteVendedorValor ?? 0;
-                                            const totalFreteVal = arredondar(fpcDebVal + fpsDebVal, 2);
+                                            const totalFreteVal = activeResults.freteParceiroValor ?? arredondar(fpcDebVal + fpsDebVal, 2);
                                             const baseTotalFreteVal = arredondar(baseFpcDebVal + baseFpsDebVal, 2);
+                                            const netFtVal = arredondar(fpcDebVal + fpsDebVal - totalFreteVal, 2);
+                                            const expFpcDebVal = (!isViewingOriginal && dreAbsent.FPC && dreAbsentExpected.FPC) ? 0 : baseFpcDebVal;
+                                            const expFpsDebVal = (!isViewingOriginal && dreAbsent.FPS && dreAbsentExpected.FPS) ? 0 : baseFpsDebVal;
+                                            const expFplDebVal = (!isViewingOriginal && dreAbsent.FPL && dreAbsentExpected.FPL) ? 0 : arredondar(expFpcDebVal + expFpsDebVal, 2);
+                                            const baseNetFtVal = arredondar(expFpcDebVal + expFpsDebVal - expFplDebVal, 2);
                                             const showTotalFrete = isCorrectionMode || fpcDebVal > 0 || fpsDebVal > 0 || (!isViewingOriginal && (baseFpcDebVal > 0 || baseFpsDebVal > 0));
                                             const showFpsSub = isCorrectionMode || fpsDebVal > 0 || (!isViewingOriginal && baseFpsDebVal > 0);
 
@@ -3706,66 +4117,90 @@ const ShopeePage: React.FC = () => {
 
                                             return (
                                                 <>
-                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`} style={!isViewingOriginal && dreAbsent.FPC ? { opacity: 0.6 } : undefined}>
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                            {renderAbsentToggle('FPC')}
-                                                            <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                Total pago pelo cliente {s('FPC')}:
-                                                            </span>
-                                                            {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                            {renderDetailToggle('FPC', fpcDebVal)}
-                                                            {renderCommentControl('FPC')}
-                                                        </span>
+                                                    <div className={`detail-row ${isRefHighlighted('FPC_DEB') ? 'dre-ref-pulse' : ''}`}>
+                                                        <span>Valor total do frete {s('FT')}:</span>
                                                         <div
                                                             className="detail-values"
                                                             style={{ cursor: 'help' }}
-                                                            data-dre-tooltip={withCommentTitle(fpsDebVal > 0 ? `Ref.: Valor total do frete [FT] (R$ ${moeda(totalFreteVal)}) - Total pago pela Shopee [FPS] (R$ ${moeda(fpsDebVal)})` : "Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
-                                                            onMouseEnter={() => setHighlightedRefs(fpsDebVal > 0 ? ['INPUT_FPC', 'INPUT_FPS'] : ['INPUT_FPC'])}
+                                                            data-dre-tooltip={`Ref.: - FCL (R$ ${moeda(totalFreteVal)}) + FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`}
+                                                            onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
                                                             onMouseLeave={() => setHighlightedRefs([])}
                                                         >
-                                                            {renderDreValor(baseFpcDebVal, fpcDebVal, '- ', 'val text-red', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            {renderDreValor(Math.abs(baseNetFtVal), Math.abs(netFtVal), netFtVal > 0 ? '+ ' : '- ', netFtVal > 0 ? 'val text-green' : 'val text-red', undefined, false, `${porc((Math.abs(netFtVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                         </div>
                                                     </div>
-                                                    {renderCommentInputRow('FPC')}
-                                                    {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
-                                                    {showFpsSub && (
-                                                        <div className="dre-sub-group">
-                                                            <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b' }}>
-                                                                <span>└ Valor total do frete {s('FT')}:</span>
-                                                                <div
-                                                                    className="detail-values"
-                                                                    style={{ cursor: 'help' }}
-                                                                    data-dre-tooltip={`Ref.: FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`}
-                                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
-                                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                                >
-                                                                    {renderDreValor(baseTotalFreteVal, totalFreteVal, '- ', 'val text-muted', undefined, false, `${porc((totalFreteVal || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
-                                                                </div>
-                                                            </div>
-                                                            <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
-                                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                                                    {renderAbsentToggle('FPS')}
-                                                                    <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
-                                                                        └ Total pago pela Shopee {s('FPS')}:
-                                                                    </span>
-                                                                    {!isViewingOriginal && dreAbsent.FPS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
-                                                                    {renderDetailToggle('FPS', fpsDebVal)}
-                                                                    {renderCommentControl('FPS')}
+                                                    <div className="dre-sub-group">
+                                                        <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPL) ? { opacity: 0.6 } : {}) }}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                {renderAbsentToggle('FPL')}
+                                                                <span style={!isViewingOriginal && dreAbsent.FPL ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                    └ Valor cobrado pelo parceiro logístico {s('FCL')}:
                                                                 </span>
-                                                                <div
-                                                                    className="detail-values"
-                                                                    style={{ cursor: 'help' }}
-                                                                    data-dre-tooltip={withCommentTitle("Ref.: Frete subsidiado / pago pela Shopee [FPS]", 'FPS')}
-                                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
-                                                                    onMouseLeave={() => setHighlightedRefs([])}
-                                                                >
-                                                                    {renderDreValor(baseFpsDebVal, fpsDebVal, '+ ', 'val text-muted', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
-                                                                </div>
+                                                                {!isViewingOriginal && dreAbsent.FPL && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {renderDetailToggle('FPL', totalFreteVal)}
+                                                                {renderCommentControl('FPL')}
+                                                            </span>
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                data-dre-tooltip={withCommentTitle(`Ref.: FPC (R$ ${moeda(fpcDebVal)}) + FPS (R$ ${moeda(fpsDebVal)})`, 'FPL')}
+                                                                onMouseEnter={() => setHighlightedRefs(['INPUT_FPC', 'INPUT_FPS'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                {renderDreValor(baseTotalFreteVal, totalFreteVal, '- ', 'val text-muted', 'FPL', false, `${porc((((!isViewingOriginal && dreAbsent.FPL) ? baseTotalFreteVal : totalFreteVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
                                                             </div>
-                                                            {renderCommentInputRow('FPS')}
-                                                            {renderDreDetailsList('FPS', activeResults.precoVenda, fpsDebVal)}
                                                         </div>
-                                                    )}
+                                                        {renderCommentInputRow('FPL')}
+                                                        {renderDreDetailsList('FPL', activeResults.precoVenda, totalFreteVal)}
+                                                        <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPC) ? { opacity: 0.6 } : {}) }}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                {renderAbsentToggle('FPC')}
+                                                                <span style={!isViewingOriginal && dreAbsent.FPC ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                    └ Frete pago pelo cliente {s('FPC')}:
+                                                                </span>
+                                                                {!isViewingOriginal && dreAbsent.FPC && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                {renderDetailToggle('FPC', fpcDebVal)}
+                                                                {renderCommentControl('FPC')}
+                                                            </span>
+                                                            <div
+                                                                className="detail-values"
+                                                                style={{ cursor: 'help' }}
+                                                                data-dre-tooltip={withCommentTitle("Ref.: Valor fixo informado no campo [FPC]", 'FPC')}
+                                                                onMouseEnter={() => setHighlightedRefs(['INPUT_FPC'])}
+                                                                onMouseLeave={() => setHighlightedRefs([])}
+                                                            >
+                                                                {renderDreValor(baseFpcDebVal, fpcDebVal, '+ ', 'val text-muted', 'FPC', false, `${porc((((!isViewingOriginal && dreAbsent.FPC) ? baseFpcDebVal : fpcDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                            </div>
+                                                        </div>
+                                                        {renderCommentInputRow('FPC')}
+                                                        {renderDreDetailsList('FPC', activeResults.precoVenda, fpcDebVal)}
+                                                        {showFpsSub && (
+                                                            <>
+                                                                <div className="detail-row" style={{ padding: '0.28rem 0', fontSize: '0.82rem', color: '#64748b', ...((!isViewingOriginal && dreAbsent.FPS) ? { opacity: 0.6 } : {}) }}>
+                                                                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                                                        {renderAbsentToggle('FPS')}
+                                                                        <span style={!isViewingOriginal && dreAbsent.FPS ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+                                                                            └ Total pago pela Shopee {s('FPS')}:
+                                                                        </span>
+                                                                        {!isViewingOriginal && dreAbsent.FPS && <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>Ausente</span>}
+                                                                        {renderDetailToggle('FPS', fpsDebVal)}
+                                                                        {renderCommentControl('FPS')}
+                                                                    </span>
+                                                                    <div
+                                                                        className="detail-values"
+                                                                        style={{ cursor: 'help' }}
+                                                                        data-dre-tooltip={withCommentTitle("Ref.: Frete subsidiado / pago pela Shopee [FPS]", 'FPS')}
+                                                                        onMouseEnter={() => setHighlightedRefs(['INPUT_FPS'])}
+                                                                        onMouseLeave={() => setHighlightedRefs([])}
+                                                                    >
+                                                                        {renderDreValor(baseFpsDebVal, fpsDebVal, '+ ', 'val text-muted', 'FPS', false, `${porc((((!isViewingOriginal && dreAbsent.FPS) ? baseFpsDebVal : fpsDebVal) || 0) / (activeResults.precoVenda || 1) * 100)}%`)}
+                                                                    </div>
+                                                                </div>
+                                                                {renderCommentInputRow('FPS')}
+                                                                {renderDreDetailsList('FPS', activeResults.precoVenda, fpsDebVal)}
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </>
                                             );
                                         })()}
@@ -3795,14 +4230,29 @@ const ShopeePage: React.FC = () => {
                                                 {renderDreDetailsList('CR', activeResults.precoVenda, activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)}
                                             </>
                                         )}
+                                        {(activeResults.devolucaoFacilValor ?? 0) > 0 && (
+                                            <div className={`detail-row ${isRefHighlighted('TDF') ? 'dre-ref-pulse' : ''}`}>
+                                                <span>Taxa de Devolução Fácil {s('TDF')}:</span>
+                                                <div
+                                                    className="detail-values"
+                                                    style={{ cursor: 'help' }}
+                                                    data-dre-tooltip="Ref.: Taxa de Devolução Fácil [TDF] informada nos parâmetros"
+                                                    onMouseEnter={() => setHighlightedRefs(['INPUT_TDF'])}
+                                                    onMouseLeave={() => setHighlightedRefs([])}
+                                                >
+                                                    <span className="perc">({porc((activeResults.devolucaoFacilValor || 0) / (activeResults.baseCalculo || 1) * 100)}%)</span>
+                                                    <span className="val text-red">- R$ {moeda(activeResults.devolucaoFacilValor || 0)}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         {renderCustomDreSection('PDS', activeResults.baseCalculo)}
                                         <div className={`detail-row ${isRefHighlighted('REPASSE') ? 'dre-ref-pulse' : ''}`} style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
                                             <span style={{ fontWeight: 700 }}>Repasse:</span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
-                                                data-dre-tooltip={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0 && (!isViewingOriginal || i.isExpected)).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
-                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'CUSTOM_PDS'])}
+                                                data-dre-tooltip={`Ref.: PDV (R$ ${moeda(activeResults.precoComCupom)}) - CS (R$ ${moeda(activeResults.comissaoValor)}) - TFS (R$ ${moeda(activeResults.tarifaFixa)})${(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0) > 0 ? ` - FPC (R$ ${moeda(activeResults.freteDebitoValor ?? activeResults.freteValor ?? 0)})` : ''}${(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0) > 0 ? ` + CR (R$ ${moeda(activeResults.creditoRebateValor ?? activeResults.rebateValor ?? 0)})` : ''}${(activeResults.devolucaoFacilValor ?? 0) > 0 ? ` - TDF (R$ ${moeda(activeResults.devolucaoFacilValor || 0)})` : ''}${customDreItems.filter(i => i.section === 'PDS' && i.valor > 0 && (!isViewingOriginal || i.isExpected)).map(i => ` ${i.sign} ${i.label || 'Taxa/ajuste'} (R$ ${moeda(i.valor)})`).join('')}`}
+                                                onMouseEnter={() => setHighlightedRefs(['PDV', 'CS', 'TFS', 'FPC_DEB', 'CR', 'TDF', 'CUSTOM_PDS'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 {renderDreValor(expectedResults?.repasse ?? activeResults.repasse, activeResults.repasse, '', 'val', undefined, true, '')}
@@ -3885,19 +4335,67 @@ const ShopeePage: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
+                                        {renderCustomDreSection('PDL', activeResults.valorNota)}
                                         <div className="detail-row" style={{ paddingTop: '0.5rem', marginTop: '0.25rem', borderTop: '1px solid #e2e8f0' }}>
                                             <span style={{ fontWeight: 700 }}>Lucro líquido:</span>
                                             <div
                                                 className="detail-values"
                                                 style={{ cursor: 'help' }}
                                                 data-dre-tooltip={`Ref.: Repasse (R$ ${moeda(activeResults.repasse)}) - Custos LCG [PDL] | % sobre Valor da nota [VN] (R$ ${moeda(activeResults.valorNota)})`}
-                                                onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD', 'VN'])}
+                                                onMouseEnter={() => setHighlightedRefs(['REPASSE', 'CDP', 'IMP', 'ADS', 'DF', 'OD', 'VN', 'CUSTOM_PDL'])}
                                                 onMouseLeave={() => setHighlightedRefs([])}
                                             >
                                                 <span className="perc">({porc((activeResults.lucroLiquido || 0) / (activeResults.valorNota || 1) * 100)}%)</span>
                                                 <span className="val" style={{ fontWeight: 700 }}>R$ {moeda(activeResults.lucroLiquido)}</span>
                                             </div>
                                         </div>
+                                        {melhorAnteriorComp && aba !== 'ideal' && (
+                                            <div
+                                                className="dre-print-only dre-print-block"
+                                                style={{
+                                                    marginTop: '12px',
+                                                    padding: '10px 12px',
+                                                    background: '#ecfdf5',
+                                                    border: '1px dashed #10b981',
+                                                    borderRadius: '8px',
+                                                    color: '#065f46',
+                                                    fontSize: '0.78rem',
+                                                    lineHeight: 1.4
+                                                }}
+                                            >
+                                                <TrendingUp size={15} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                                                <span>
+                                                    <strong>Sensor de Otimização Ativado:</strong> Ao analisar as tabelas de taxa da Shopee, foi identificado que ao abaixar o Preço Anunciado {s('PA')} de <strong>R$ {moeda(activeResults.precoVenda)}</strong> para <strong>R$ {moeda(melhorAnteriorComp.precoVenda)}</strong> ({porc(activeResults.precoVenda > 0 ? ((activeResults.precoVenda - melhorAnteriorComp.precoVenda) / activeResults.precoVenda) * 100 : 0)}% a menos) seu lucro líquido final <strong>subirá para R$ {moeda(melhorAnteriorComp.lucroLiquido)}!</strong> (Lucro Líquido sobre a venda de {porc(melhorAnteriorComp.margemSobreVenda)}%)
+                                                </span>
+                                            </div>
+                                        )}
+                                        {!melhorAnteriorComp && melhorLeverageComp && aba !== 'ideal' && (() => {
+                                            const qP = activeResults.precoVenda - melhorLeverageComp.precoVenda;
+                                            const qL = (baseResults?.lucroLiquido ?? activeResults.lucroLiquido) - melhorLeverageComp.lucroLiquido;
+                                            const f = qL > 0 ? qP / qL : 0;
+                                            return (
+                                                <div
+                                                    className="dre-print-only dre-print-block"
+                                                    style={{
+                                                        marginTop: '12px',
+                                                        padding: '10px 12px',
+                                                        background: '#f5f3ff',
+                                                        border: '1px dashed #8b5cf6',
+                                                        borderRadius: '8px',
+                                                        color: '#5b21b6',
+                                                        fontSize: '0.78rem',
+                                                        lineHeight: 1.4
+                                                    }}
+                                                >
+                                                    <RefreshCcw size={15} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                                                    <span>
+                                                        <strong>Estratégia de Giro Identificada:</strong> O preço anunciado atual é <strong>R$ {moeda(activeResults.precoVenda)}</strong>.
+                                                        Porém, ao reduzir para <strong>R$ {moeda(melhorLeverageComp.precoVenda)}</strong>, você dá um super desconto de <strong>R$ {moeda(qP)}</strong> para o cliente,
+                                                        sacrificando apenas <strong>R$ {moeda(qL)}</strong> de margem (Alavancagem de <strong>{(f || 0).toFixed(1)}x</strong>).
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
                                             </>
                                         )}
 
@@ -3970,7 +4468,7 @@ const ShopeePage: React.FC = () => {
                             <div className="modal-icon-container" style={{ backgroundColor: '#ede9fe', color: '#7c3aed' }}>
                                 <Calculator size={28} />
                             </div>
-                            <h3 className="modal-title">Pedido {orderNumber.trim()} preenchido</h3>
+                            <h3 className="modal-title">{orderNumber.trim() ? `Pedido ${orderNumber.trim()} preenchido` : 'Registro salvo carregado'}</h3>
                             <p className="modal-description">
                                 Como deseja prosseguir com este cálculo?
                             </p>
@@ -4286,11 +4784,16 @@ const ShopeePage: React.FC = () => {
                             const sortedHistory = [...calcHistory].sort(
                                 (a, b) => (new Date(b.createdAt).getTime() || 0) - (new Date(a.createdAt).getTime() || 0)
                             );
+                            const margemCount = sortedHistory.filter(i => (i.abaSnapshot ?? 'margem') === 'margem').length;
+                            const idealCount = sortedHistory.filter(i => i.abaSnapshot === 'ideal').length;
+                            const tabFilteredHistory = historyTabFilter === 'todos'
+                                ? sortedHistory
+                                : sortedHistory.filter(i => (i.abaSnapshot ?? 'margem') === historyTabFilter);
                             const toDayStr = (d: Date) =>
                                 `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                             const q = historySearch.trim().toLowerCase();
                             const filteredHistory = q
-                                ? sortedHistory.filter((item) => {
+                                ? tabFilteredHistory.filter((item) => {
                                       const dt = new Date(item.createdAt);
                                       const dayStr = isNaN(dt.getTime()) ? '' : toDayStr(dt);
                                       const vnRaw = item.vn ?? item.resultsSnapshot?.valorNota ?? 0;
@@ -4305,7 +4808,7 @@ const ShopeePage: React.FC = () => {
                                           dayStr.toLowerCase().includes(q)
                                       );
                                   })
-                                : sortedHistory;
+                                : tabFilteredHistory;
 
                             const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
                             const safePage = Math.min(historyPage, totalHistoryPages);
@@ -4394,6 +4897,39 @@ const ShopeePage: React.FC = () => {
                                         </div>
                                     </div>
                                     <div style={{ overflowY: 'auto', overflowX: isHistoryTableView ? 'auto' : 'hidden', padding: '0.75rem 1.15rem 1.15rem', flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.65rem' }}>
+                                            {(
+                                                [
+                                                    { key: 'margem', label: `Calcular Margem (${margemCount})` },
+                                                    { key: 'ideal', label: `Preço Ideal (${idealCount})` },
+                                                    { key: 'todos', label: `Todos (${sortedHistory.length})` }
+                                                ] as const
+                                            ).map((tab) => {
+                                                const active = historyTabFilter === tab.key;
+                                                return (
+                                                    <button
+                                                        key={tab.key}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setHistoryTabFilter(tab.key);
+                                                            setHistoryPage(1);
+                                                        }}
+                                                        style={{
+                                                            padding: '5px 11px',
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: active ? 700 : 600,
+                                                            borderRadius: '8px',
+                                                            border: active ? '1px solid #c4b5fd' : '1px solid #e2e8f0',
+                                                            background: active ? '#f5f3ff' : '#f8fafc',
+                                                            color: active ? '#7c3aed' : '#475569',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {tab.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                         {filteredHistory.length === 0 ? (
                                             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem' }}>
                                                 Nenhum registro encontrado para a busca.
@@ -4474,13 +5010,14 @@ const ShopeePage: React.FC = () => {
                                                             const origVn = item.originalVn ?? item.resultsSnapshot?.valorNota;
                                                             const origRepasse = item.originalRepasse ?? item.resultsSnapshot?.repasse;
                                                             const origLucro = item.originalLucro ?? item.resultsSnapshot?.lucroLiquido;
-                                                            const hasVnCorr = origVn !== undefined && vnVal !== undefined && Math.abs(origVn - vnVal) >= 0.005;
-                                                            const hasRepasseCorr = origRepasse !== undefined && repasseVal !== undefined && Math.abs(origRepasse - repasseVal) >= 0.005;
-                                                            const hasLucroCorr = origLucro !== undefined && Math.abs(origLucro - item.lucro) >= 0.005;
+                                                            const hasVnCorr = origVn !== undefined && vnVal !== undefined && Math.abs(origVn - vnVal) > 0.015;
+                                                            const hasRepasseCorr = origRepasse !== undefined && repasseVal !== undefined && Math.abs(origRepasse - repasseVal) > 0.015;
+                                                            const hasLucroCorr = origLucro !== undefined && Math.abs(origLucro - item.lucro) > 0.015;
                                                             const dt = new Date(item.createdAt);
                                                             const timeStr = !isNaN(dt.getTime())
                                                                 ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
                                                                 : '';
+                                                            const formulaChanged = hasFormulaChanged(item);
                                                             return (
                                                                 <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }} title={dt.toLocaleString('pt-BR')}>
                                                                     <td style={{ padding: '0.5rem 0.3rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap' }}>
@@ -4488,6 +5025,23 @@ const ShopeePage: React.FC = () => {
                                                                         {timeStr && (
                                                                             <span style={{ marginLeft: '5px', fontSize: '0.7rem', fontWeight: 500, color: '#94a3b8' }}>
                                                                                 {timeStr}
+                                                                            </span>
+                                                                        )}
+                                                                        {formulaChanged && (
+                                                                            <span
+                                                                                title="A fórmula de cálculo mudou desde que este registro foi salvo. Clique em 'Ver DRE' para atualizar."
+                                                                                style={{
+                                                                                    marginLeft: '6px',
+                                                                                    fontSize: '0.66rem',
+                                                                                    fontWeight: 700,
+                                                                                    color: '#b45309',
+                                                                                    background: '#fef3c7',
+                                                                                    border: '1px solid #fcd34d',
+                                                                                    padding: '1px 5px',
+                                                                                    borderRadius: '4px'
+                                                                                }}
+                                                                            >
+                                                                                Fórmula mudou
                                                                             </span>
                                                                         )}
                                                                     </td>
@@ -4576,26 +5130,49 @@ const ShopeePage: React.FC = () => {
                                                                     <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                                                             {item.resultsSnapshot && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => loadHistoryItem(item, false)}
-                                                                                    style={{
-                                                                                        display: 'inline-flex',
-                                                                                        alignItems: 'center',
-                                                                                        gap: '4px',
-                                                                                        padding: '3px 8px',
-                                                                                        fontSize: '0.74rem',
-                                                                                        fontWeight: 600,
-                                                                                        borderRadius: '6px',
-                                                                                        border: '1px solid #c4b5fd',
-                                                                                        background: '#f5f3ff',
-                                                                                        color: '#7c3aed',
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                    title={item.correctionsSnapshot ? 'Carregar DRE corrigida com comentários e ajustes' : 'Carregar DRE deste cálculo'}
-                                                                                >
-                                                                                    <Eye size={13} /> Ver DRE
-                                                                                </button>
+                                                                                <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => loadHistoryItem(item, false)}
+                                                                                        style={{
+                                                                                            display: 'inline-flex',
+                                                                                            alignItems: 'center',
+                                                                                            gap: '4px',
+                                                                                            padding: '3px 8px',
+                                                                                            fontSize: '0.74rem',
+                                                                                            fontWeight: 600,
+                                                                                            borderRadius: '6px',
+                                                                                            border: '1px solid #c4b5fd',
+                                                                                            background: '#f5f3ff',
+                                                                                            color: '#7c3aed',
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                        title={item.correctionsSnapshot ? 'Carregar DRE corrigida com comentários e ajustes' : 'Carregar DRE deste cálculo'}
+                                                                                    >
+                                                                                        <Eye size={13} /> Ver DRE
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            loadHistoryItem(item, false);
+                                                                                            setTimeout(() => window.print(), 120);
+                                                                                        }}
+                                                                                        style={{
+                                                                                            display: 'inline-flex',
+                                                                                            alignItems: 'center',
+                                                                                            justifyContent: 'center',
+                                                                                            padding: '4px 6px',
+                                                                                            borderRadius: '6px',
+                                                                                            border: '1px solid #cbd5e1',
+                                                                                            background: '#f8fafc',
+                                                                                            color: '#475569',
+                                                                                            cursor: 'pointer'
+                                                                                        }}
+                                                                                        title="Imprimir / Salvar PDF deste cálculo"
+                                                                                    >
+                                                                                        <Printer size={13} />
+                                                                                    </button>
+                                                                                </>
                                                                             )}
                                                                             <button
                                                                                 type="button"

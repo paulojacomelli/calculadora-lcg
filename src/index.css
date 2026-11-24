@@ -1793,8 +1793,8 @@ body {
   }
   .dre-print-params-grid {
     display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 3px 10px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 3px 16px !important;
   }
   .dre-print-params-grid > div {
     display: flex !important;
@@ -1802,6 +1802,7 @@ body {
     align-items: baseline !important;
     gap: 6px !important;
     padding: 1px 0 !important;
+    min-width: 0 !important;
   }
   .dre-print-params-grid > div > span {
     color: #64748b !important;
@@ -1811,7 +1812,7 @@ body {
     color: #0f172a !important;
     font-weight: 700 !important;
     text-align: right !important;
-    white-space: nowrap !important;
+    white-space: normal !important;
   }
   .details .dre-summary-box {
     padding: 8px 12px !important;

@@ -31,6 +31,8 @@ export interface ShopeeInput {
 
   cupomDesconto?: number;
   cupomTipo: UnidadeValor | '';
+  cupomLimite?: number;
+  devolucaoFacil?: boolean;
 
   fretePagoCliente?: number;
   freteCobradoVendedor?: number;
@@ -65,7 +67,9 @@ export interface ShopeeOutput {
   freteDebitoValor?: number;
   creditoRebateValor?: number;
   freteVendedorValor: number;
-  baseCalculo: number;        // STP = PA - DR
+  freteParceiroValor?: number;
+  devolucaoFacilValor?: number;
+  baseCalculo: number;        // STP = PA - CD
   valorNota: number;          // VN = STP - CD
   repasse: number;            // PDV - CS - TFS - Frete + CR
 
@@ -128,23 +132,9 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const ADS: TaxaInput = { value: adsMappedValue, type: adsMappedType };
 
   const dPA = new Decimal(PA || 0);
-  const dDRValue = new Decimal(CR.value);
-  let dRebateValor = new Decimal(0);
-  let dBC = dPA;
-
-  if (CR.value > 0 && input.rebateTipo) {
-    if (CR.type === 'percent') {
-      dRebateValor = dPA.times(dDRValue).dividedBy(100);
-      dBC = dPA.minus(dRebateValor);
-    } else {
-      dRebateValor = dDRValue;
-      dBC = dPA.minus(dDRValue);
-    }
-  }
-
   const dCDValue = new Decimal(CD.value);
-  let dPDV = dBC;
   let dCupomValor = new Decimal(0);
+  let dBC = dPA;
 
   if (CD.value > 0 && input.cupomTipo) {
     if (CD.type === 'percent') {
@@ -152,10 +142,30 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
       if (roundResult) {
         dCupomValor = dCupomValor.toDecimalPlaces(2, Decimal.ROUND_CEIL);
       }
-      dPDV = dBC.minus(dCupomValor);
+      if (input.cupomLimite && input.cupomLimite > 0) {
+        const dLimite = new Decimal(input.cupomLimite);
+        if (dCupomValor.gt(dLimite)) {
+          dCupomValor = dLimite;
+        }
+      }
+      dBC = dPA.minus(dCupomValor);
     } else {
       dCupomValor = dCDValue;
-      dPDV = dBC.minus(dCDValue);
+      dBC = dPA.minus(dCDValue);
+    }
+  }
+
+  const dDRValue = new Decimal(CR.value);
+  let dRebateValor = new Decimal(0);
+  let dPDV = dBC;
+
+  if (CR.value > 0 && input.rebateTipo) {
+    if (CR.type === 'percent') {
+      dRebateValor = dPA.times(dDRValue).dividedBy(100);
+      dPDV = dBC.minus(dRebateValor);
+    } else {
+      dRebateValor = dDRValue;
+      dPDV = dBC.minus(dDRValue);
     }
   }
 
@@ -205,6 +215,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const outrasDespesasShopeeValor = input.outrasDespesasShopeeTipo
     ? (roundResult ? arredondar(VAL(ODS, baseShopee), 2) : VAL(ODS, baseShopee))
     : 0;
+  const devolucaoFacilValor = input.devolucaoFacil ? 0.49 : 0;
   const custoProdutoValor = roundResult ? arredondar(VAL(CDP, baseVN), 2) : VAL(CDP, baseVN);
   const impostoValor = roundResult ? arredondar(VAL(IMP, baseVN), 2) : VAL(IMP, baseVN);
   const despesaFixaValor = roundResult ? arredondar(VAL(DF, baseVN), 2) : VAL(DF, baseVN);
@@ -214,6 +225,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
   const dCustos = new Decimal(comissaoValor)
     .plus(tarifaFixaValor)
     .plus(outrasDespesasShopeeValor)
+    .plus(devolucaoFacilValor)
     .plus(freteValor)
     .plus(custoProdutoValor)
     .plus(impostoValor)
@@ -222,7 +234,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     .plus(custoAds);
 
   const custos = dCustos.toNumber();
-  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(freteValor).plus(rebateValor).toNumber();
+  const repasse = dPDV.minus(comissaoValor).minus(tarifaFixaValor).minus(outrasDespesasShopeeValor).minus(devolucaoFacilValor).minus(freteValor).plus(rebateValor).toNumber();
 
   const LLV = dPDV.minus(dCustos).plus(rebateValor).toNumber();
 
@@ -257,6 +269,7 @@ export const calcularTaxasShopee = (input: ShopeeInput, roundResult: boolean = t
     despesaFixaValor: roundResult ? arredondar(despesaFixaValor, 2) : despesaFixaValor,
     despesaAdicionalValor: roundResult ? arredondar(despesaAdicionalValor, 2) : despesaAdicionalValor,
     outrasDespesasShopeeValor: roundResult ? arredondar(outrasDespesasShopeeValor, 2) : outrasDespesasShopeeValor,
+    devolucaoFacilValor,
     margem: roundResult ? arredondar(margem, 2) : margem,
     cupomValor: roundResult ? arredondar(cupomValorCalculado, 2) : cupomValorCalculado,
     freteValor: roundResult ? arredondar(freteValor, 2) : freteValor,
@@ -477,17 +490,17 @@ export const simularCenariosPreco = (
   }
 
   // Injetar pontos críticos de mudança de política para garantir degraus nítidos no gráfico
-  // IMPORTANTE: Os pontos críticos (degraus) são baseados na Base de Cálculo (BC = PA - DR),
+  // IMPORTANTE: Os pontos críticos (degraus) são baseados na Base de Cálculo (BC = PA - CD),
   // então precisamos converter para o PA (Preço Anunciado) correspondente para injetar na simulação.
   const degrausBC = [79.99, 80.00, 99.99, 100.00, 199.99, 200.00, 499.99, 500.00];
 
   degrausBC.forEach(pBC => {
     let paNecessario = pBC;
-    if (input.rebatePorcentagem && input.rebatePorcentagem > 0 && input.rebateTipo) {
-      if (input.rebateTipo === 'porcentagem' && input.rebatePorcentagem < 100) {
-        paNecessario = pBC / (1 - (input.rebatePorcentagem / 100));
-      } else if (input.rebateTipo === 'fixo') {
-        paNecessario = pBC + input.rebatePorcentagem;
+    if (input.cupomDesconto && input.cupomDesconto > 0 && input.cupomTipo) {
+      if (input.cupomTipo === 'porcentagem' && input.cupomDesconto < 100) {
+        paNecessario = pBC / (1 - (input.cupomDesconto / 100));
+      } else if (input.cupomTipo === 'fixo') {
+        paNecessario = pBC + input.cupomDesconto;
       }
     }
 
